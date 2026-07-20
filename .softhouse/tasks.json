@@ -1,8 +1,199 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
-  "backlog": [],
-  "tasks": []
+  "run_id": "20260720-161202",
+  "feature": "Mongolia correction phase 1 \u2014 clear the two HARD verifier failures",
+  "requirement": "Correct the two US-market assumptions that verify-docs.sh currently fails on: DEC-6's two-part name model (16 occurrences across 5 documents), and the FDIC/NCUA sponsor-bank framing in 04 section 1.2. Scope is deliberately limited to these two; currency redenomination, rails mapping, vendor removal and KPI re-baselining are seeded into the backlog for a later run because 03_acceptance_criteria.md alone carries 216 monetary values and would exhaust a worker's context.",
+  "status": "planning",
+  "backlog": [
+    "DEC-18 currency: USD -> MNT. 312 monetary values across 6 documents; 03_acceptance_criteria.md holds 216 of them. Needs a redenomination policy first (spot-rate conversion vs re-derivation from Mongolian incomes) because most are thresholds, not illustrations.",
+    "Payment rails: 56 ACH/FedNow/SEPA references -> Banksuljee (RTGS, above MNT 5,000,000) / ACH+ (at or below) / NETC for cards. The threshold is set by Governor's order, so it must land as configuration, not a literal.",
+    "Vendors: Stripe, Plaid, Lithic, Persona. Note these are leaked into schema field names (persona_inquiry_id, plaid_item_ref) and API error codes (502 PLAID_UNAVAILABLE), so removal is a requirements change, not an integration change.",
+    "KPI re-baselining: KPI-1.3 targets 100,000 members against a total Mongolian SCC sector of 78,608; KPI-2.1 targets AUM roughly 1.5x the entire sector's assets.",
+    "Rate model: DEC-48's 12% APR base sits below the 17.45% bank-funded market rate, and DEC-49's 6% floor is the subsidised state mortgage rate. Both sides of the spread are inverted.",
+    "00_market_research.md is entirely US/EU-framed \u2014 competitor set is Alliant, Desjardins, Coop Pank, Monzo; segments are Gen Z ESG consumers and W-2-adjacent gig workers. Needs rewriting against the Mongolian market, not editing."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Draft DEC-6 replacement: three-part Mongolian name model",
+      "description": "Draft replacement text for DEC-6 in 01_business_analysis.md, plus a migration map of every affected occurrence. Do NOT edit any document \u2014 produce the draft in your handoff only.\n\nThe model must be three fields, not two: ovog (clan name, optional, near-zero discriminating power since most families registered 'Borjigin'), etsgiin ner (patronymic \u2014 father's given name in genitive, placed BEFORE the given name), and ner (the given name, which is the person's actual identity and the sort key).\n\nMust specify: (a) that the patronymic occupies the surname slot in passport MRZ, so siblings share a surname but a parent and child never do \u2014 any 'same surname = same household' heuristic is wrong; (b) Cyrillic stored as canonical with the MRZ Latin string kept verbatim separately; (c) matching on registration number, never on name, because Cyrillic-to-Latin transliteration has no enforced standard.\n\nCatalogue the 16 occurrences: 01_business_analysis.md (3, including DEC-6 itself at ~line 362 and the glossary row at ~line 389), 02_user_stories.md (2), 03_acceptance_criteria.md (6), 04_technical_architecture.md (4), 05_prd_and_roadmap.md (1). Give the exact line and the replacement for each.\n\nAcceptance: a reviewer can apply your map mechanically without re-deriving anything, and the honesty rule is respected \u2014 mark any claim you could not verify as [UNVERIFIED].",
+      "agent_role": "analyst",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T2",
+      "title": "Review the DEC-6 draft",
+      "description": "Independent adversarial review of T1's handoff. You did not plan this work; assume defects exist.\n\nCheck specifically: is the ovog/patronymic/ner ordering correct and correctly explained? Does the MRZ mapping claim hold? Is the occurrence catalogue complete \u2014 verify by running `grep -rn 'first_name\\|last_name' idea-lab/final_requirements/*.md` yourself and reconciling counts against the draft. Does the replacement preserve DEC-6's stated rationale (KYC vendors, card embossing and regulatory reports need decomposable components) or silently drop it?\n\nFlag any claim presented as fact without a source. Verdict: APPROVED / MICRO-FIX / REJECTED with specifics.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T3",
+      "title": "DECISION: ratify the DEC-6 amendment",
+      "description": "Product-owner decision. 01_business_analysis.md section 6 is normative for DEC-1..20 and no other document may redefine those values, so amending DEC-6 is not an agent's call.\n\nThe orchestrator presents T1's draft (as reviewed in T2) and asks: ratify the three-part name model as the replacement for DEC-6? Record the answer, and any amendment the user makes, in this task's note. If rejected, the run stops here \u2014 every downstream task depends on it.",
+      "agent_role": "analyst",
+      "executor": "user",
+      "model": "sonnet",
+      "target": "governance",
+      "dependencies": [
+        "T2"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "decision concerns idea-lab/final_requirements/01_business_analysis.md",
+      "files_hint": []
+    },
+    {
+      "id": "T4",
+      "title": "Apply the three-part name model across all five documents",
+      "description": "Apply the ratified DEC-6 amendment using T1's migration map. Single task owning all five files deliberately \u2014 splitting it would create the overlapping-files_hint conflict the planning rules forbid.\n\nEdit: 01_business_analysis.md (DEC-6 itself, F-105's feature description, the glossary row), 02_user_stories.md, 03_acceptance_criteria.md, 04_technical_architecture.md, 05_prd_and_roadmap.md.\n\nPreserve each document's header block, ID conventions and traceability. Do not renumber DEC-6 \u2014 amend it in place and record that it was amended. Do not touch anything outside the name model; currency and rails are a separate run.\n\nAcceptance: `grep -rn 'first_name\\|last_name' idea-lab/final_requirements/*.md` returns nothing, and `.softhouse/verify-docs.sh` shows the first_name/last_name HARD check at 0 with no DRIFT count risen.",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/01_business_analysis.md",
+        "idea-lab/final_requirements/02_user_stories.md",
+        "idea-lab/final_requirements/03_acceptance_criteria.md",
+        "idea-lab/final_requirements/04_technical_architecture.md",
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [
+        "T3"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T5",
+      "title": "Review the name-model application",
+      "description": "Independent adversarial review of T4's branch. Read the diff, not just the handoff.\n\nCheck: every one of the 16 occurrences changed, and nothing else changed (scope creep is a rejection); DEC-6's rationale preserved rather than dropped; no other ratified DEC-n silently altered; cross-document consistency \u2014 01 is normative, so 02/03/04/05 must match it exactly rather than paraphrase it; header blocks intact.\n\nRun `.softhouse/verify-docs.sh` yourself and report the numbers rather than trusting the handoff's claim. Verdict: APPROVED / MICRO-FIX / REJECTED.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [
+        "T4"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T6",
+      "title": "Draft the sponsor-bank correction for 04 section 1.2",
+      "description": "Draft replacement text for the single line in 04_technical_architecture.md section 1.2 (~line 29) reading 'a Unit-class platform over an FDIC/NCUA-insured partner institution'. Do NOT edit the document \u2014 draft in your handoff only.\n\nThat framing is wrong twice over: FDIC and NCUA are US regimes, and NCUA insures credit unions specifically, so the slash conceals a branch that does not exist. In Mongolia there is no BaaS regulatory category; the model is direct licensing. Bank of Mongolia licenses all payment and e-money activity; the FRC licenses cooperatives. Named settlement agents on Bank of Mongolia's licensed-participant register (last updated 2026-04-22) are XacBank, Golomt, TDB, Arig Bank and M Bank.\n\nState plainly that SCC deposits are NOT insured \u2014 the Law on Insurance of Bank Deposits covers licensed banks only, and SCC Law Art. 55.1's promise of insurance is an unimplemented cross-reference. Note the pending Law on Financial Cooperatives (passed Economic Standing Committee 2026-04-07, not enacted) would introduce it.\n\nApply the honesty rule: mark each claim [VERIFIED: source] or [UNVERIFIED]. Several of these came from research that was later partly retracted, so do not restate anything you cannot trace.",
+      "agent_role": "analyst",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T7",
+      "title": "Review the sponsor-bank draft",
+      "description": "Independent adversarial review of T6's handoff.\n\nThe highest-weight check is provenance: this project has already had a research agent fabricate a licensee list and retract it. For every named entity, licence, date or statutory reference in the draft, either confirm it traces to a stated source or flag it. An [UNVERIFIED] marker is acceptable; an unmarked assertion is a defect.\n\nAlso check the draft does not overstate the entity decision \u2014 whether this platform is an SCC, and whether it pairs with a payment-service licence, is unresolved and must not be presented as settled. Verdict: APPROVED / MICRO-FIX / REJECTED.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [
+        "T6"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T8",
+      "title": "DECISION: confirm the sponsor-bank / entity framing",
+      "description": "Product-owner decision. The replacement text necessarily takes a position on how this platform holds member money, which is bound up with the unresolved entity question (SCC alone, or SCC plus a Bank of Mongolia payment-service licence).\n\nThe orchestrator presents T6's draft as reviewed in T7 and asks whether to (a) state the SCC framing directly, or (b) write it neutrally as an open item pending counsel. Record the choice in this task's note. Option (b) is legitimate and is not a delay \u2014 it is the accurate description of where the decision currently stands.",
+      "agent_role": "analyst",
+      "executor": "user",
+      "model": "sonnet",
+      "target": "governance",
+      "dependencies": [
+        "T7"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "decision concerns idea-lab/final_requirements/04_technical_architecture.md",
+      "files_hint": []
+    },
+    {
+      "id": "T9",
+      "title": "Apply the sponsor-bank correction to 04",
+      "description": "Apply the framing chosen in T8 to 04_technical_architecture.md section 1.2. Narrow edit \u2014 the sponsor-bank row and any sentence in that section that depends on it.\n\nSerialised behind T5 because T4 also edits 04_technical_architecture.md; running these in parallel would produce the co-edited-file conflict a three-way merge does not resolve.\n\nDo not touch rails, vendors or monetary values in this file \u2014 those are backlog items for a later run, and widening scope here is a rejection.\n\nAcceptance: `grep -rn 'FDIC\\|NCUA' idea-lab/final_requirements/*.md` returns nothing, and `.softhouse/verify-docs.sh` shows that HARD check at 0.",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/04_technical_architecture.md"
+      ],
+      "dependencies": [
+        "T8",
+        "T5"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T10",
+      "title": "Review the sponsor-bank application",
+      "description": "Independent adversarial review of T9's branch. Read the diff.\n\nCheck: the edit is confined to section 1.2 and its dependents; no rails, vendor or currency changes crept in; the text matches what T8 actually ratified rather than what T6 originally drafted; no insurance claim about member money appears anywhere in the new text \u2014 that is a CLAUDE.md non-negotiable with criminal exposure behind it.\n\nRun `.softhouse/verify-docs.sh` and report the numbers. Verdict: APPROVED / MICRO-FIX / REJECTED.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [
+        "T9"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T11",
+      "title": "Verify the baseline",
+      "description": "Run `.softhouse/verify-docs.sh` against merged main and report the full output.\n\nExpected: FDIC/NCUA at 0, first_name/last_name at 0, the other three HARD checks still at 0, and all three DRIFT counts at or below baseline. That would move the verifier from FAIL to PASS for the first time.\n\nDo NOT re-baseline. If a DRIFT count has risen, that means the change reintroduced a US-market assumption \u2014 report it as a failure rather than absorbing it into a new baseline.",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "haiku",
+      "target": "verification",
+      "files_hint": [
+        ".softhouse/verify-docs.sh"
+      ],
+      "dependencies": [
+        "T10"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    }
+  ]
 }
