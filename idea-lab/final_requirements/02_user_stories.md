@@ -74,7 +74,7 @@ Everything from first app screen to a KYC-approved applicant, plus authenticatio
 ### US-1.5 — Member Profile, Consents & Communication Preferences
 
 * **As a** P-1 (Values-Driven Saver), **I want to** view and maintain my profile — structured name and address, contact details, consents, and communication preferences — and see my `MembershipStatus`, Member ID, and join date, **so that** I control my data and always know my standing in the cooperative.
-* **Description:** Read/write profile screens using the DEC-6 model (`first_name`, `last_name`, optional `middle_name`, structured postal address); the derived `legal_name` is display-only and never independently editable. Changes to KYC-relevant attributes (name, address, phone, email) trigger re-verification or admin review as required. Consent capture/withdrawal is recorded for CAP-13.5 processing (US-13.6). Notification channel preferences live in US-11.2.
+* **Description:** Read/write profile screens using the DEC-6 model (`ner`, `etsgiin_ner`, optional `ovog`, structured postal address); `mrz_name_latin` and `registration_number` are read-only, KYC-sourced, and never member-editable; the derived `legal_name` (composition of `ovog` `etsgiin_ner` `ner`) is display-only and never independently editable. Changes to KYC-relevant attributes (name, address, phone, email) trigger re-verification or admin review as required. Consent capture/withdrawal is recorded for CAP-13.5 processing (US-13.6). Notification channel preferences live in US-11.2.
 * **Maps to:** F-105; CAP-1.6
 * **Size:** S
 * **Dependencies:** US-1.2
@@ -216,7 +216,7 @@ The four deposit constructs per DEC-13: Primary Savings Account, Transaction Acc
 ### US-5.2 — Physical Debit Card Ordering, Fulfilment & Activation
 
 * **As a** P-3 (Flexible Earner), **I want to** order an optional physical debit card, track its delivery, and activate it and manage its PIN in-app, **so that** I can pay where wallets and virtual cards are not accepted.
-* **Description:** Order flow using the DEC-6 structured address; embossed name derived from `first_name`/`last_name`; fulfilment status tracking; in-app activation and PIN set/change; lost/stolen replacement reusing the same flow. Card artwork/personalization options are out of scope.
+* **Description:** Order flow using the DEC-6 structured address; embossed name taken verbatim from `mrz_name_latin` (never transliterated from the Cyrillic name fields — see DEC-6(b)); if `mrz_name_latin` is absent the physical order is blocked rather than guessed; fulfilment status tracking; in-app activation and PIN set/change; lost/stolen replacement reusing the same flow. Card artwork/personalization options are out of scope.
 * **Maps to:** F-117; CAP-5.2
 * **Size:** M
 * **Dependencies:** US-5.1
