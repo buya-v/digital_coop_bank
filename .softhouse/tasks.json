@@ -26,9 +26,10 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "done",
-      "attempts": 1,
-      "note": "branch softhouse/T1-dec6-name-model @ fbafb7d; handoff committed (193 lines). Census is 18, not the 16 planned: two extra prose occurrences at 04:829 and 04:1087 that verify-docs.sh cannot see. Two genuinely new fields required (mrz_name_latin, registration_number). 7 card-embossing sites need a semantic fix, not a rename. 5 claims marked UNVERIFIED. Fork base 3f28f33 is one commit behind main; verified disjoint \u2014 merged tree preserves both sides."
+      "status": "rejected",
+      "attempts": 2,
+      "note": "branch softhouse/T1-dec6-name-model @ fbafb7d; handoff committed (193 lines). Census is 18, not the 16 planned: two extra prose occurrences at 04:829 and 04:1087 that verify-docs.sh cannot see. Two genuinely new fields required (mrz_name_latin, registration_number). 7 card-embossing sites need a semantic fix, not a rename. 5 claims marked UNVERIFIED. Fork base 3f28f33 is one commit behind main; verified disjoint \u2014 merged tree preserves both sides.",
+      "reviewer_notes": "REJECTED by T2. Retry at opus. F1: replacement text reintroduces the ACH token twice; use '\u2014 that rail does not exist in Mongolia \u2014'. F2: decide keep-or-rename for legal_name and cover all 9 occurrences (recommended: KEEP legal_name, redefine as the ovog/etsgiin_ner/ner composition). Medium: registration_number has no precedence rule between client-supplied and OCR-populated values despite being UQ and the sole matching key. Lows: a [VERIFIED] tag whose body admits half is unverified; one wrong line attribution; 'sole identity-matching key' grazes DEC-3; no stated rule for preserved-vs-rewritten prose."
     },
     {
       "id": "T2",
@@ -42,9 +43,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": ""
+      "note": "branch softhouse/T2-review-dec6 @ ebf1148. VERDICT REJECTED. 2 high, 1 medium, 4 low. F1: the DEC-6 replacement text contains 'ACH' TWICE (once inside the sentence retiring it), so applying the map raises the rails DRIFT counter 56 -> 57 and the verifier FAILS. F2: the map silently retires the term legal_name in 5 places but it occurs at 9 lines; 03:165, 03:169, 04:766, 04:767 left dangling, including the API error contract 422 LEGAL_NAME_NOT_EDITABLE \u2014 invisible to the token check, which would report green. CONFIRMED SOUND: the 16-line census is exact, the 2 extra prose occurrences at 04:829/04:1087 are real, every quoted current text matches, HARD check would reach 0, no DEC changed, all CLAUDE.md non-negotiables respected."
     },
     {
       "id": "T3",
