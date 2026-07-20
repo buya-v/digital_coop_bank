@@ -14,3 +14,6 @@ venv/
 # means the handoff cannot travel with the branch, the worktree is auto-pruned as
 # "unchanged", and the work is lost. Handoffs are small, run-namespaced, and are
 # the run's audit trail.
+
+# Softhouse agent worktrees — transient, never tracked
+.claude/worktrees/
