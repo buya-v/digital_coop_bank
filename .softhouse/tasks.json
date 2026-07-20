@@ -13,7 +13,9 @@
     "T6 first attempt could not corroborate the claim that a Law on Financial Cooperatives passed the Economic Standing Committee on 2026-04-07 \u2014 a claim the ORCHESTRATOR supplied in the task prompt. Treat as [UNVERIFIED] until a primary source is opened.",
     "Plan said the FDIC/NCUA text sits in 04 section 1.2; T6 verified it is in section 1.1 System Context. Orchestrator error \u2014 check section anchors against the document before writing them into a task description.",
     "verify-docs.sh blind spot: the first_name/last_name HARD check matches only the snake_case tokens, so the same Western name model expressed in prose ('embossed_name from first/last name' at 04:829, 04:1087) passes silently. Add a DRIFT counter for the prose form.",
-    "verify-docs.sh n_snake_name uses grep -rEoh with no context exclusion, unlike the money-type check which excludes 'minor units|rejected|superseded'. The tokens are therefore banned even inside 'Superseded Variants' columns documenting what the old drafts said. Decide whether that is intended."
+    "verify-docs.sh n_snake_name uses grep -rEoh with no context exclusion, unlike the money-type check which excludes 'minor units|rejected|superseded'. The tokens are therefore banned even inside 'Superseded Variants' columns documenting what the old drafts said. Decide whether that is intended.",
+    "DEC-35 (05:159, status CONFIRM) and 03:476 specify P2P recipient confirmation as 'first name + last initial'. Under the ratified three-part model there is no last name to initial \u2014 etsgiin_ner is a patronymic and ner is the identity, so the display inverts. Found by T4 outside the migration map; deliberately NOT fixed because it changes a ratified decision in the DEC-3 payee-addressing territory that DEC-6(c) carves out. Needs its own ratification decision. Gate unaffected \u2014 no forbidden token.",
+    "Migration map item [1] writes 'etsgiin ner' with a space where every other item uses 'etsgiin_ner'. Applied verbatim per instruction and flagged rather than silently normalised. Cosmetic, but decide the canonical spelling before it propagates."
   ],
   "tasks": [
     {
@@ -81,9 +83,9 @@
       "dependencies": [
         "T3"
       ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T4-apply-name-model @ fc75057. All 18 map items applied across 5 docs (22 ins / 18 del). GATE: first_name/last_name 31 -> 0 PASS; usd/rails/vendor all = baseline. Overall verdict still FAIL solely on the pre-existing FDIC/NCUA check, which is T9's job. Orchestrator verified: 0 forbidden tokens in all 5 docs, 422 LEGAL_NAME_NOT_EDITABLE intact, legal_name still defined, DEC-6 present and amended in place, mrz_name_latin introduced (6 refs), diff scope confined to the 5 docs + handoff."
     },
     {
       "id": "T5",
@@ -97,7 +99,7 @@
       "dependencies": [
         "T4"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
