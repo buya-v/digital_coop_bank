@@ -110,9 +110,10 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "done",
-      "attempts": 1,
-      "note": "branch softhouse/T6-sponsor-bank @ 77fc0c2; handoff committed (94 lines). Confirmed the target is 04:29 in \u00a71.1 System Context, NOT \u00a71.2 as the plan said (orchestrator error). Two paste-ready variants. Settlement-agent register independently re-verified against mongolbank.mn/en/p/1305. No DEC-1..75 conflict. Law on Financial Cooperatives claim left UNVERIFIED and excluded from both variants. Worker self-diagnosed its stale base and rebased before committing."
+      "status": "rejected",
+      "attempts": 2,
+      "note": "branch softhouse/T6-sponsor-bank @ 77fc0c2; handoff committed (94 lines). Confirmed the target is 04:29 in \u00a71.1 System Context, NOT \u00a71.2 as the plan said (orchestrator error). Two paste-ready variants. Settlement-agent register independently re-verified against mongolbank.mn/en/p/1305. No DEC-1..75 conflict. Law on Financial Cooperatives claim left UNVERIFIED and excluded from both variants. Worker self-diagnosed its stale base and rebased before committing.",
+      "reviewer_notes": "REJECTED by T7. Retry at opus. Path to approval per reviewer: (1) strip [VERIFIED:...] markers from inside the paste blocks; (2) replace the five-bank enumeration with a reference to the register; (3) add a rails TODO to the second column so the row does not self-contradict; (4) prefer the fallback form that keeps the label 'Sponsor bank / BaaS provider'. Variant A needs substantive rewrite or withdrawal \u2014 it must not decide the charter question."
     },
     {
       "id": "T7",
@@ -126,9 +127,9 @@
       "dependencies": [
         "T6"
       ],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": ""
+      "note": "branch softhouse/T7-review-sponsor-bank @ 7dac1b9. VERDICT REJECTED. 7 findings. CRITICAL: Variant A attaches [VERIFIED: CLAUDE.md] to a claim CLAUDE.md contradicts (blocking question #1 says a nationwide open-membership app MAY NOT be a lawful SCC), and Variant A decides the charter question that 01 6.3/05 OI-3/R-1 keep open. Reviewer independently re-fetched mongolbank.mn/en/p/1305 and confirmed the settlement-agent list is genuine, not a repeat of the earlier fabricated register. Insurance non-negotiable PASSED in both variants. Location: author right, plan wrong (\u00a71.1 not \u00a71.2). Advisory safer default: Variant B in label-preserving fallback form."
     },
     {
       "id": "T8",
