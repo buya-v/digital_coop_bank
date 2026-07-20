@@ -69,7 +69,10 @@ n_snake_name=$(c 'first_name|last_name')
 n_float=$(grep -rEn 'DECIMAL\([0-9]+,[0-9]+\)|\bfloat\b|double precision' "$DOCS"/*.md 2>/dev/null \
           | grep -viE 'minor units|rejected|superseded' | wc -l | tr -d ' ')
 n_usd=$(c '\$[0-9][0-9,]*')
-n_rails=$(c '\b(ACH|FedNow|SEPA)\b')
+# ACH+ is Mongolia's clearing system, not US ACH. POSIX ERE is leftmost-longest, so the
+# literal 'ACH\+' alternative wins over '\bACH\b' on "ACH+"; drop those matches.
+n_rails=$(grep -rEoh 'ACH\+|\b(ACH|FedNow|SEPA)\b' "$DOCS"/*.md 2>/dev/null \
+          | grep -vxF 'ACH+' | wc -l | tr -d ' ')
 n_tz=$(c 'UTC\+8\b|UTC\+08:00 only')
 
 echo "Digital Coop Bank — requirements invariants"
