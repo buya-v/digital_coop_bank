@@ -58,4 +58,30 @@ This is what makes `executor` routing correct.
 - There is **no OpenAPI or JSON Schema artifact** anywhere, despite ~192 endpoints being described. API contracts are key names only, with no types, nullability, or formats.
 
 <!-- LEARNED PATTERNS START -->
+
+### Infrastructure — handoffs must be committed (found during run 20260720-161202)
+
+`.softhouse/handoff/` was initially gitignored, following the upstream Softhouse README's
+advice that only `patterns.md`, `uat.md` and `design/` are worth committing.
+
+That advice is wrong for the worktree execution model, and it destroyed real work:
+
+1. A worker writes its handoff inside its own worktree.
+2. Gitignored, so it cannot commit it.
+3. The branch therefore has no changes.
+4. The harness auto-prunes the worktree as "unchanged".
+5. The handoff — the task's entire deliverable for a draft-only role — is gone.
+6. The reviewer, running in a DIFFERENT worktree, has nothing to read.
+
+Both level-0 tasks of the first run were lost this way, after completing successfully.
+
+Two fixes, both applied:
+- `.gitignore` no longer ignores `.softhouse/handoff/`, with a comment saying why.
+- The worker preamble in `.claude/skills/softhouse/SKILL.md` now requires an explicit
+  `git commit` of the handoff and a `git log` check before the final message. Writing the
+  file is not enough; a draft-only task that commits nothing has produced nothing.
+
+Rule for future runs: **a task whose only deliverable is a handoff must still commit.**
+When re-running after this class of loss, do NOT apply the retry model upgrade — the model
+did not fail, the harness did.
 <!-- LEARNED PATTERNS END -->
