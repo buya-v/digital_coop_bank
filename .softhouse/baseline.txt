@@ -1,0 +1,4 @@
+# Regenerated e7daaa3
+usd=312
+rails=56
+vendor=83
