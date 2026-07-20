@@ -111,9 +111,9 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "rejected",
-      "attempts": 2,
-      "note": "branch softhouse/T6-sponsor-bank @ 77fc0c2; handoff committed (94 lines). Confirmed the target is 04:29 in \u00a71.1 System Context, NOT \u00a71.2 as the plan said (orchestrator error). Two paste-ready variants. Settlement-agent register independently re-verified against mongolbank.mn/en/p/1305. No DEC-1..75 conflict. Law on Financial Cooperatives claim left UNVERIFIED and excluded from both variants. Worker self-diagnosed its stale base and rebased before committing.",
+      "status": "approved",
+      "attempts": 3,
+      "note": "branch softhouse/T6-sponsor-bank-v2 @ fe8b753 (retry after T7 rejection). All 6 T7 findings verified closed by orchestrator grep: 0 [VERIFIED] markers in paste, 0 bank enumeration, 2 rails TODOs, label preserved in both variants, no false [VERIFIED: CLAUDE.md]. Only insurance keyword is the quoted prior framing being withdrawn \u2014 T7 ruled that legitimate. Variant A rewritten (not withdrawn) to state only what is established. Worker self-corrected an overstated claim in its own self-check table before submitting.",
       "reviewer_notes": "REJECTED by T7. Retry at opus. Path to approval per reviewer: (1) strip [VERIFIED:...] markers from inside the paste blocks; (2) replace the five-bank enumeration with a reference to the register; (3) add a rails TODO to the second column so the row does not self-contradict; (4) prefer the fallback form that keeps the label 'Sponsor bank / BaaS provider'. Variant A needs substantive rewrite or withdrawal \u2014 it must not decide the charter question."
     },
     {
@@ -143,9 +143,9 @@
       "dependencies": [
         "T7"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "decision concerns idea-lab/final_requirements/04_technical_architecture.md",
+      "note": "DECISION MADE UNDER DELEGATION BY THE ORCHESTRATOR, NOT BY THE PRODUCT OWNER. The user delegated decision gates before stepping away ('choose your recommended option'). CHOICE: Variant B (label-preserving, entity form pending counsel). REASONING: both variants are sound after the retry and neither decides the charter question. Variant A is more informative \u2014 it states the FRC/Bank of Mongolia regulator split \u2014 but T6's own handoff marks FRC's SCC supervisory authority [UNVERIFIED] beyond the CLAUDE.md-level claim, and CLAUDE.md's confidence there traces to peer research rather than a primary source. Stating it as settled fact in a normative document repeats this project's characteristic failure. T7's independent advisory also preferred B. EASILY REVERSIBLE: Variant A is paste-ready in the T6 handoff; swapping is a one-line edit.",
       "files_hint": []
     },
     {
