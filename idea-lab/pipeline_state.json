@@ -1,0 +1,20 @@
+{
+  "project_name": "Digital Coop Bank",
+  "vision": "A purely digital cooperative banking platform with full features, including member onboarding, savings/share accounts, loans, dividend distribution, democratic voting, and community funding.",
+  "sprint": 4,
+  "current_phase_index": 0,
+  "history": [
+    {
+      "sprint": 1,
+      "feedback": "No specific feedback; proceed with next sprint."
+    },
+    {
+      "sprint": 2,
+      "feedback": "No specific feedback; proceed with Sprint 3."
+    },
+    {
+      "sprint": 3,
+      "feedback": "No specific feedback; project completed successfully."
+    }
+  ]
+}
