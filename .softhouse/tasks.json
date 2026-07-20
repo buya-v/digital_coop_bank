@@ -2,7 +2,7 @@
   "run_id": "20260720-161202",
   "feature": "Mongolia correction phase 1 \u2014 clear the two HARD verifier failures",
   "requirement": "Correct the two US-market assumptions that verify-docs.sh currently fails on: DEC-6's two-part name model (16 occurrences across 5 documents), and the FDIC/NCUA sponsor-bank framing in 04 section 1.2. Scope is deliberately limited to these two; currency redenomination, rails mapping, vendor removal and KPI re-baselining are seeded into the backlog for a later run because 03_acceptance_criteria.md alone carries 216 monetary values and would exhaust a worker's context.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "DEC-18 currency: USD -> MNT. 312 monetary values across 6 documents; 03_acceptance_criteria.md holds 216 of them. Needs a redenomination policy first (spot-rate conversion vs re-derivation from Mongolian incomes) because most are thresholds, not illustrations.",
     "Payment rails: 56 ACH/FedNow/SEPA references -> Banksuljee (RTGS, above MNT 5,000,000) / ACH+ (at or below) / NETC for cards. The threshold is set by Governor's order, so it must land as configuration, not a literal.",
@@ -22,7 +22,7 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
@@ -106,7 +106,7 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
