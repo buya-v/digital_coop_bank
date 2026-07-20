@@ -110,9 +110,9 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "pending",
-      "attempts": 0,
-      "note": "re-run: first attempt completed successfully but its handoff was destroyed. .softhouse/handoff/ was gitignored, so the worker could not commit; the branch had no changes and the worktree was auto-pruned. Infrastructure loss, not a quality failure \u2014 model NOT upgraded to opus, since the retry-upgrade rule exists for work the model got wrong."
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T6-sponsor-bank @ 77fc0c2; handoff committed (94 lines). Confirmed the target is 04:29 in \u00a71.1 System Context, NOT \u00a71.2 as the plan said (orchestrator error). Two paste-ready variants. Settlement-agent register independently re-verified against mongolbank.mn/en/p/1305. No DEC-1..75 conflict. Law on Financial Cooperatives claim left UNVERIFIED and excluded from both variants. Worker self-diagnosed its stale base and rebased before committing."
     },
     {
       "id": "T7",
@@ -126,7 +126,7 @@
       "dependencies": [
         "T6"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
