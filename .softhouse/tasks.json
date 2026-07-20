@@ -26,9 +26,9 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "rejected",
-      "attempts": 2,
-      "note": "branch softhouse/T1-dec6-name-model @ fbafb7d; handoff committed (193 lines). Census is 18, not the 16 planned: two extra prose occurrences at 04:829 and 04:1087 that verify-docs.sh cannot see. Two genuinely new fields required (mrz_name_latin, registration_number). 7 card-embossing sites need a semantic fix, not a rename. 5 claims marked UNVERIFIED. Fork base 3f28f33 is one commit behind main; verified disjoint \u2014 merged tree preserves both sides.",
+      "status": "approved",
+      "attempts": 3,
+      "note": "branch softhouse/T1-dec6-name-model-v2 @ b8aed89 (retry after T2 rejection). F1 fixed and orchestrator-verified: 'ACH does not exist' phrasing gone (0 hits), 'that rail does not exist' in place. F2 decided KEEP legal_name and redefine as the ovog/etsgiin_ner/ner composition \u2014 smaller change, preserves the published 422 LEGAL_NAME_NOT_EDITABLE contract. Retry CORRECTED THE REVIEWER: independent recount confirms legal_name is 9 lines / 11 occurrences and 04:767 is uppercase LEGAL_NAME_NOT_EDITABLE, so it is not among the nine \u2014 T2 had both claims at once. F3 resolved as DEC-6 clause (d): card-face OCR removed as a source because patterns.md records post-2022 cards do not print the number, making rev1 unimplementable. F4-F7 applied. Which channel supplies the verified value is a stated Blocker, not an assumption.",
       "reviewer_notes": "REJECTED by T2. Retry at opus. F1: replacement text reintroduces the ACH token twice; use '\u2014 that rail does not exist in Mongolia \u2014'. F2: decide keep-or-rename for legal_name and cover all 9 occurrences (recommended: KEEP legal_name, redefine as the ovog/etsgiin_ner/ner composition). Medium: registration_number has no precedence rule between client-supplied and OCR-populated values despite being UQ and the sole matching key. Lows: a [VERIFIED] tag whose body admits half is unverified; one wrong line attribution; 'sole identity-matching key' grazes DEC-3; no stated rule for preserved-vs-rewritten prose."
     },
     {
@@ -58,9 +58,9 @@
       "dependencies": [
         "T2"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "decision concerns idea-lab/final_requirements/01_business_analysis.md",
+      "note": "DECISION MADE UNDER DELEGATION BY THE ORCHESTRATOR, NOT BY THE PRODUCT OWNER. RATIFIED: the three-part Mongolian name model replaces DEC-6 \u2014 ovog (clan, optional) / etsgiin_ner (patronymic, ordered first, occupies the MRZ surname slot) / ner (given name, the identity and sort key); Cyrillic canonical; mrz_name_latin stored verbatim, never derived; registration_number as the identity-matching key with DEC-3 P2P addressing carved out; legal_name KEPT and redefined as the composition. REASONING: Mongolian name structure is a factual matter, not a judgement call, and the existing two-field model cannot represent it. The draft survived an adversarial review that rejected it once, and the retry corrected an error in that review. CAVEAT CARRIED: 5 claims remain [UNVERIFIED], including ICAO 9303 MRZ field mechanics \u2014 asserted by CLAUDE.md without citation and not checked against the standard or a specimen. The verified-value channel (XYP vs MRZ vs attested entry) is an open Blocker.",
       "files_hint": []
     },
     {
@@ -81,7 +81,7 @@
       "dependencies": [
         "T3"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
