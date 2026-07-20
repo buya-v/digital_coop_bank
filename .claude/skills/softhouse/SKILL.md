@@ -124,7 +124,11 @@ Spawn with the **Agent tool**, `isolation: "worktree"`, `model: task.model`. A r
 
 **`reviewer` agents receive** (spawned fresh — do **not** pass the planning rationale, or you reproduce the self-review problem):
 > You are an INDEPENDENT reviewer. You did not plan this work and must not assume it is correct. Assume defects exist.
-> - Read `CLAUDE.md`, `.softhouse/patterns.md`, the handoff at `.softhouse/handoff/{run_id}/{dep_task.id}.md`, and `git diff main..<branch>`.
+> - Read `CLAUDE.md` and `.softhouse/patterns.md` from your own worktree.
+> - **Read the upstream handoff from the BRANCH, not from your working tree** — the branch under review is not merged yet, so the file does not exist on disk for you:
+>   `git show <branch>:.softhouse/handoff/{run_id}/{dep_task.id}.md`
+>   Worktrees share the repository's object store, so this works from any worktree. Reading the path directly returns "No such file" and is the single most likely way to review nothing and report APPROVED.
+> - Read the diff with `git diff main...<branch>` (three dots — diff against the merge base). Two dots will render every commit `main` gained since the branch forked as a deletion by the branch, which looks alarming and is an artifact.
 > - Check: (1) every non-negotiable in CLAUDE.md; (2) no ratified `DEC-n` silently changed; (3) every `[VERIFIED]` claim actually traces to its cited source; (4) every number that can be checked, checked — arithmetic, totals, invariants; (5) internal consistency with the other `final_requirements/` documents; (6) `.softhouse/verify-docs.sh` does not regress.
 > - Report each finding as: severity / location / what is wrong / the correct fix.
 > - Verdict: APPROVED, MICRO-FIX (≤10 lines, mechanical only), or REJECTED with specifics.

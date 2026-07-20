@@ -11,7 +11,9 @@
     "Rate model: DEC-48's 12% APR base sits below the 17.45% bank-funded market rate, and DEC-49's 6% floor is the subsidised state mortgage rate. Both sides of the spread are inverted.",
     "00_market_research.md is entirely US/EU-framed \u2014 competitor set is Alliant, Desjardins, Coop Pank, Monzo; segments are Gen Z ESG consumers and W-2-adjacent gig workers. Needs rewriting against the Mongolian market, not editing.",
     "T6 first attempt could not corroborate the claim that a Law on Financial Cooperatives passed the Economic Standing Committee on 2026-04-07 \u2014 a claim the ORCHESTRATOR supplied in the task prompt. Treat as [UNVERIFIED] until a primary source is opened.",
-    "Plan said the FDIC/NCUA text sits in 04 section 1.2; T6 verified it is in section 1.1 System Context. Orchestrator error \u2014 check section anchors against the document before writing them into a task description."
+    "Plan said the FDIC/NCUA text sits in 04 section 1.2; T6 verified it is in section 1.1 System Context. Orchestrator error \u2014 check section anchors against the document before writing them into a task description.",
+    "verify-docs.sh blind spot: the first_name/last_name HARD check matches only the snake_case tokens, so the same Western name model expressed in prose ('embossed_name from first/last name' at 04:829, 04:1087) passes silently. Add a DRIFT counter for the prose form.",
+    "verify-docs.sh n_snake_name uses grep -rEoh with no context exclusion, unlike the money-type check which excludes 'minor units|rejected|superseded'. The tokens are therefore banned even inside 'Superseded Variants' columns documenting what the old drafts said. Decide whether that is intended."
   ],
   "tasks": [
     {
@@ -24,9 +26,9 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "pending",
-      "attempts": 0,
-      "note": "re-run: first attempt completed successfully but its handoff was destroyed. .softhouse/handoff/ was gitignored, so the worker could not commit; the branch had no changes and the worktree was auto-pruned. Infrastructure loss, not a quality failure \u2014 model NOT upgraded to opus, since the retry-upgrade rule exists for work the model got wrong."
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T1-dec6-name-model @ fbafb7d; handoff committed (193 lines). Census is 18, not the 16 planned: two extra prose occurrences at 04:829 and 04:1087 that verify-docs.sh cannot see. Two genuinely new fields required (mrz_name_latin, registration_number). 7 card-embossing sites need a semantic fix, not a rename. 5 claims marked UNVERIFIED. Fork base 3f28f33 is one commit behind main; verified disjoint \u2014 merged tree preserves both sides."
     },
     {
       "id": "T2",
@@ -40,7 +42,7 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
