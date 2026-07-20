@@ -25,7 +25,7 @@
 * **[CONFIRMED]** Onboarding time is measured from first app-flow screen to `MembershipStatus = ACTIVE`; targets: median ≤ 8 minutes, p90 ≤ 10 minutes (DEC-17, KPI-1.1). Instrumentation timestamps are mandatory.
 * **[CONFIRMED]** `KycStatus = NOT_STARTED | IN_PROGRESS | PENDING_REVIEW | APPROVED | REJECTED` (DEC-19). `REJECTED` ends the application; no member record reaches a "rejected" membership status (DEC-4).
 * **[CONFIRMED]** Persona is the identity-verification vendor for document OCR, biometric selfie match, and sanctions/PEP screening (DEC-5).
-* **[CONFIRMED]** Name/address use the DEC-6 structured model (`first_name`, `last_name`, optional `middle_name`, `address_line_1`, `address_line_2`, `city`, `region`, `postal_code`, `country`); derived `legal_name` is display-only and never independently editable.
+* **[CONFIRMED]** Name/address use the DEC-6 three-part Mongolian model (`ner`, `etsgiin_ner`, optional `ovog`, plus read-only `mrz_name_latin` and `registration_number`, `address_line_1`, `address_line_2`, `city`, `region`, `postal_code`, `country`); Cyrillic is canonical and `mrz_name_latin` is stored verbatim; the derived `legal_name` (the composition `ovog` `etsgiin_ner` `ner`) is display-only and never independently editable; `etsgiin_ner` is a patronymic and MUST NOT be treated as a family name or used to infer household or relationship.
 * **[CONFIRMED]** Step-up authentication is required for: external payments above limits, card credential reveal, vote submission, Proxy Delegation changes, and guarantee pledges (US-1.4 list).
 * **[PROPOSED]** Accepted ID-capture formats JPEG/PNG/PDF; maximum upload size 10 MB per file. (Sprint 1 draft.)
 * **[PROPOSED]** OCR extraction confidence ≥ 80% required to auto-populate DEC-6 fields; below threshold triggers retry guidance. (Sprint 1 draft.)
@@ -42,7 +42,7 @@
 
 **Scenario 1 — Happy path: start application and see progress**
 * **Given** a prospective member has installed the app and verified their phone number via OTP
-* **When** they tap "Become a member" and complete the personal-details step using the DEC-6 fields (`first_name` "A", `last_name` "Member", `address_line_1`, `city`, `region`, `postal_code`, `country`)
+* **When** they tap "Become a member" and complete the personal-details step using the DEC-6 fields (`ner` "Болд", `etsgiin_ner` "Батын", `ovog` omitted, `address_line_1`, `city`, `region`, `postal_code`, `country`)
 * **Then** an application record is created with `KycStatus = NOT_STARTED` and `MembershipStatus = PENDING_KYC`
 * **And** the progress indicator shows step 1 of 4 complete (personal details → eligibility → KYC → share purchase)
 * **And** the instrumentation event `onboarding_started` is emitted with a timestamp for KPI-1.1 measurement.
@@ -68,7 +68,7 @@
 
 ### US-1.2 — eKYC Verification via Persona (Document, Biometric, Screening) (L)
 
-**Data validation & security:** OCR output must populate non-empty `first_name`, `last_name`, date of birth, and document number before proceeding; all vendor callbacks are signature-verified; screening results are never exposed to the applicant verbatim (tipping-off safeguard).
+**Data validation & security:** OCR output must populate non-empty `ner`, `etsgiin_ner`, `mrz_name_latin`, date of birth, and document number before proceeding; `registration_number` is **not** expected from card-face OCR (post-2022 ID cards do not print it) — it is supplied by the applicant and confirmed against the verified identity source, and a mismatch blocks the application (DEC-6(d)); the vendor result is correlated to the application by `registration_number` only, never by name match (DEC-6(c)); all vendor callbacks are signature-verified; screening results are never exposed to the applicant verbatim (tipping-off safeguard).
 
 **Scenario 1 — Happy path: clear pass end to end**
 * **Given** Member A's application is at the KYC step with `KycStatus = IN_PROGRESS`
@@ -171,7 +171,7 @@
 * **And** no profile attribute is changed.
 
 **Scenario 3 — Edge: KYC-relevant change triggers re-verification**
-* **Given** Member A changes `last_name` and `address_line_1`
+* **Given** Member A changes `etsgiin_ner` and `address_line_1`
 * **When** the change is submitted
 * **Then** the change is held pending re-verification (Persona re-check or US-12.1 admin review, per policy)
 * **And** the previous verified values remain in force for card embossing, ACH, and statements until the re-verification completes
@@ -607,7 +607,7 @@
 > **Note:** Adjudications for all [PROPOSED] rules: see §Business Rule Adjudication in `05_prd_and_roadmap.md`.
 
 * **[CONFIRMED]** Virtual card issued automatically on Transaction Account opening; PAN/CVV reveal requires step-up authentication; wallet tokenization for Apple Pay and Google Pay; card transactions post to the Transaction Account and drive Round-Ups (US-5.1).
-* **[CONFIRMED]** Physical card embossing uses `first_name`/`last_name` and shipping uses the DEC-6 structured address (US-5.2).
+* **[CONFIRMED]** Physical card embossing uses `mrz_name_latin` verbatim — the platform never transliterates the Cyrillic name fields to produce an embossed name (DEC-6(b)) — and shipping uses the DEC-6 structured address (US-5.2).
 * **[CONFIRMED]** Card controls (freeze, per-period spending limits, online/ATM/merchant-category toggles) are enforced at authorization time and take effect in seconds; all changes logged to US-13.3 (US-5.3).
 * **[PROPOSED]** Virtual card expiry 3 years from issuance. (Sprint 1 draft.) [ADJUDICATED → see DEC-40 in 05_prd_and_roadmap.md: REJECTED — no platform-side expiry rule; defer to the issuer-processor (Lithic) default]
 * **[PROPOSED]** Control-change propagation target ≤ 500 ms to the authorization decision path. (Sprint 1 draft; story only commits to "seconds".)
@@ -646,7 +646,7 @@
 **Scenario 1 — Happy path: order, track, activate, set PIN**
 * **Given** Member A is `ACTIVE` with a verified DEC-6 address
 * **When** they order a physical card
-* **Then** the order uses the structured address for shipping and embosses `first_name` `last_name`
+* **Then** the order uses the structured address for shipping and embosses `mrz_name_latin` exactly as captured
 * **And** fulfilment status progresses ordered → printed → shipped → delivered in the app
 * **And when** the card arrives and Member A activates it in-app and sets a PIN (entered twice, matching)
 * **Then** the card becomes usable and PIN change is available thereafter behind step-up.

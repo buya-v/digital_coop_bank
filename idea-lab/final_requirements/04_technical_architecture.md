@@ -106,7 +106,7 @@ The three sprint drafts define conflicting data models; sprint_3's file is addit
 | KYC status | 5 ad-hoc values | 4 ad-hoc values | 4 ad-hoc values | **`KycStatus = NOT_STARTED \| IN_PROGRESS \| PENDING_REVIEW \| APPROVED \| REJECTED` (DEC-19).** |
 | Vote choices | `YES/NO/ABSTAIN` | `YES/NO/ABSTAIN` | `YES/NO/ABSTAIN` | **`VoteChoice = FOR \| AGAINST \| ABSTAIN` (DEC-1).** |
 | Proposal categories | `FUNDING_ALLOCATION/POLICY_CHANGE/MEMBER_BYLAW` | `GREEN_LENDING/TREASURY_RATIOS/COMMUNITY_GRANTS/GENERAL` | `INTEREST_RATE/CREDIT_POLICY/COMMUNITY_INITIATIVE/BYLAWS` | **`ProposalCategory = COMMUNITY_GRANT \| FINANCIAL_POLICY \| GOVERNANCE_BYLAW` (DEC-2); board elections are `BallotType = BOARD_ELECTION`, not a category.** |
-| Member name/address | first/last, no address | first/last, no address | Copy 1: structured name + address; Copy 2: single `legal_name`, no address | **DEC-6 structured model: `first_name`, `last_name`, optional `middle_name`, structured postal address; `legal_name` derived, read-only.** |
+| Member name/address | first/last, no address | first/last, no address | Copy 1: structured name + address; Copy 2: single `legal_name`, no address | **DEC-6 three-part Mongolian model: `ner` (given name, the sort key), `etsgiin_ner` (patronymic, ordered first, NOT a family name), optional `ovog` (clan); Cyrillic canonical; plus verbatim `mrz_name_latin` and `registration_number` (the identity-matching key); structured postal address; `legal_name` derived from the three Cyrillic fields, read-only. All three drafts assumed a two-field Western name shape and are superseded on that point.** |
 | Money representation | `DECIMAL(18,4)` | `DECIMAL(18,4)` | `DECIMAL` | **Integer minor units, `USD` (DEC-18).** |
 | Ledger | Single `Transaction` row with source/destination | Same | Same | **`Transaction` (business event) + balanced double-entry `LedgerEntry` postings; balances are derived, never independently mutable.** |
 | Lending constructs | `LoanApplication` only, $1,000 cap hard-coded | `SocialLoanCircle`, `CollateralPledge`, `Loan` | `LendingCircle` (ROSCA), `PeerGuarantee`, `Loan` (two conflicting copies) | **DEC-7 vocabulary: `LoanCircle` (+`LoanCircleInvitation`), `PeerGuarantee` (the guarantee pledge), `PooledLoanCircle` (ROSCA). Caps/rates are configuration (US-12.5), not schema constants. `LoanStatus` per DEC-20 replaces all three drafts' loan status sets.** |
@@ -127,7 +127,9 @@ The natural person holding a membership record; exactly one voting right while `
 | `id` | UUID PK | Internal identifier. |
 | `member_id` | String, UQ | Member-facing ID (non-guessable, non-sequential per DEC-28, e.g. `DCB-8K4W2M9X`); a `RecipientIdentifierType` value. |
 | `external_idp_id` | String, UQ | Subject ID in the OAuth2/OIDC identity provider. |
-| `first_name`, `last_name`, `middle_name?` | String (encrypted) | DEC-6; `legal_name` is derived, read-only, never stored editable. |
+| `ner`, `etsgiin_ner`, `ovog?` | String, Cyrillic (encrypted) | DEC-6. `ner` = given name (identity + sort key); `etsgiin_ner` = patronymic, ordered before `ner`, **not** a family name; `ovog` = optional clan name. `legal_name` is derived from these three, read-only, never stored editable. |
+| `mrz_name_latin` | String (encrypted) | DEC-6. Latin name captured verbatim from the document MRZ. Never derived from the Cyrillic fields, never member-editable. Sole source for card embossing and any Latin-form requirement. |
+| `registration_number` | String(10), UQ (encrypted) | DEC-6. National registration number: 2 Cyrillic letters + 8 digits. **The identity-matching key** — duplicate detection, KYC correlation and screening correlation key on this and never on name. The stored (and unique-constrained) value is the one confirmed by the verified identity source; an applicant-entered value is provisional and a mismatch blocks the application (DEC-6(d)). Structural validation only; no check-digit formula is to be guessed. |
 | `address_line_1`, `address_line_2?`, `city`, `region`, `postal_code`, `country` | String (encrypted) | DEC-6 structured postal address. |
 | `email`, `phone_number` | String, UQ (encrypted; E.164 phone) | KYC-verified contact channels; P2P identifiers (DEC-3). |
 | `date_of_birth` | Date (encrypted) | From KYC. |
@@ -312,7 +314,7 @@ Virtual or physical debit card on the Transaction Account (US-5.1–US-5.3). PAN
 | `card_type` | Enum `VIRTUAL \| PHYSICAL` | Virtual issued automatically at Transaction Account opening. |
 | `issuer_card_ref` | String UQ | Lithic card token. |
 | `masked_pan`, `expiry_month`, `expiry_year` | String/Int | Display only. |
-| `embossed_name` | String | Derived from `first_name`/`last_name` (DEC-6); physical only. |
+| `embossed_name` | String | Copied verbatim from `mrz_name_latin` (DEC-6); **never transliterated from the Cyrillic name fields**; physical only. Absent `mrz_name_latin`, no physical card may be produced. |
 | `status` | Enum `PENDING_ACTIVATION \| ACTIVE \| FROZEN \| REPORTED_LOST \| TERMINATED` | Freeze declines with explanatory notification (US-5.3). |
 | `fulfilment` | JSON, nullable | Physical only: `{shipped_at?, carrier?, tracking_ref?, delivered_at?, stage: ORDERED\|PRINTED\|SHIPPED\|DELIVERED}` (US-5.2). |
 | `controls` | JSON | `{per_period_limits: [{period, amount}], channel_toggles: {online, atm, contactless}, mcc_blocks: [category]}` — evaluated at authorization time, effective in seconds, changes audit-logged. |
@@ -756,7 +758,7 @@ erDiagram
 | :--- | :--- | :--- | :--- | :--- |
 | `POST /api/v1/onboarding/applications` | Public (bootstrap token issued on verified contact channel) | `email`, `phone_number`, `channel_verification_code` | `application_id`, `resume_token`, `steps[]`, `kyc_status:"NOT_STARTED"` | `409 APPLICATION_EXISTS`; `422 CHANNEL_UNVERIFIED` |
 | `GET /api/v1/onboarding/applications/current` | Applicant | — | `application_id`, `current_step`, `saved_data`, `progress_pct`, `kpi_timestamps` | `404 NO_APPLICATION` |
-| `PATCH /api/v1/onboarding/applications/current` | Applicant | Step payloads incl. DEC-6 fields: `first_name`, `last_name`, `middle_name?`, `address_line_1..country`, `date_of_birth` | `current_step`, `validation_results` | `422 VALIDATION_FAILED` (per-field) |
+| `PATCH /api/v1/onboarding/applications/current` | Applicant | Step payloads incl. DEC-6 fields: `ner`, `etsgiin_ner`, `ovog?`, `registration_number` (provisional — the verified value is authoritative per DEC-6(d)), `address_line_1..country`, `date_of_birth` (`mrz_name_latin` is KYC-populated, not client-supplied) | `current_step`, `validation_results` | `422 VALIDATION_FAILED` (per-field); `409 REGISTRATION_NUMBER_MISMATCH` |
 | `POST /api/v1/onboarding/eligibility-check` | Applicant | `eligibility_answers` (data-driven per config `eligibility.common_bond_rules`) | `eligible` Boolean, `failed_criteria[]`, `remediation[]` | `409 ALREADY_CHECKED_PASSED` |
 | `POST /api/v1/onboarding/kyc/sessions` | Applicant | — (server creates Persona inquiry) | `persona_inquiry_id`, `session_token`, `kyc_status:"IN_PROGRESS"` | `409 KYC_ALREADY_APPROVED`; `502 VENDOR_UNAVAILABLE` |
 | `GET /api/v1/onboarding/kyc/status` | Applicant | — | `kyc_status` (DEC-19), `retry_guidance?` (blur/glare/lighting), `pending_review` Boolean | — |
@@ -826,7 +828,7 @@ erDiagram
 | `GET /api/v1/cards` | Member | — | `cards[]{id, card_type, masked_pan, status, controls, fulfilment?}` (virtual card auto-issued at Transaction Account opening) | — |
 | `POST /api/v1/cards/{id}/credentials` | Member (owner); **step-up** | `step_up_token` | Short-lived reveal token for issuer-hosted PAN/CVV display (PCI: PAN never transits platform) | `401 STEP_UP_REQUIRED`; `409 CARD_NOT_ACTIVE` |
 | `POST /api/v1/cards/{id}/wallet-tokens` | Member (owner) | `wallet` (`APPLE_PAY\|GOOGLE_PAY`), `device_payload` | `provisioning_payload` (issuer push-provisioning), `status` | `502 ISSUER_UNAVAILABLE` |
-| `POST /api/v1/cards/physical` | Member (ACTIVE) | `delivery_address?` (defaults to DEC-6 profile address), `replacement_for_card_id?` (lost/stolen reuses this flow) | Card per E-18 (`card_type:"PHYSICAL"`, `status:"PENDING_ACTIVATION"`, `embossed_name` from first/last name), `fulfilment.stage` | `422 ADDRESS_INCOMPLETE` |
+| `POST /api/v1/cards/physical` | Member (ACTIVE) | `delivery_address?` (defaults to DEC-6 profile address), `replacement_for_card_id?` (lost/stolen reuses this flow) | Card per E-18 (`card_type:"PHYSICAL"`, `status:"PENDING_ACTIVATION"`, `embossed_name` copied verbatim from `mrz_name_latin`), `fulfilment.stage` | `422 ADDRESS_INCOMPLETE`; `422 MRZ_NAME_UNAVAILABLE` |
 | `GET /api/v1/cards/{id}/fulfilment` | Member (owner) | — | `stage`, `carrier?`, `tracking_ref?` | — |
 | `POST /api/v1/cards/{id}/activate` | Member (owner); step-up | `last4_confirmation` | `status:"ACTIVE"` | `422 LAST4_MISMATCH` |
 | `PUT /api/v1/cards/{id}/pin` | Member (owner); **step-up** | `pin_set_token` (issuer-hosted widget handshake) | `pin_set:true` | `401 STEP_UP_REQUIRED` |
@@ -1084,7 +1086,7 @@ Vendor selections follow the decision log where one exists (Persona per DEC-5); 
 
 ### 4.5 Lithic — Card Issuing & Processing (EP-5, EP-10)
 
-**Flow (issuance):** on Transaction Account opening the Card Service creates a virtual card at Lithic, storing only the card token and masked PAN (PCI scope reduction — PAN/CVV reveal uses Lithic's hosted components behind step-up). Physical orders submit the DEC-6 address and first/last-name embossing; fulfilment webhooks update `fulfilment.stage`.
+**Flow (issuance):** on Transaction Account opening the Card Service creates a virtual card at Lithic, storing only the card token and masked PAN (PCI scope reduction — PAN/CVV reveal uses Lithic's hosted components behind step-up). Physical orders submit the DEC-6 address and the verbatim `mrz_name_latin` for embossing — the platform performs no Cyrillic-to-Latin transliteration (DEC-6(b)); fulfilment webhooks update `fulfilment.stage`.
 **Flow (authorization):** Lithic ASA (active-stance authorization) webhook → Card Service evaluates card status, member controls (freeze/limits/MCC blocks), and available balance from a Redis-cached balance view → APPROVE/DECLINE **within 200 ms**. Settlements post Transactions and emit events consumed by the Round-Up Service (US-10.2).
 **Failure handling:** if the decision webhook times out, the configured stand-in rule applies (conservative low-limit approval for card-present, decline for high-risk MCCs), with all stand-in activity reconciled and flagged next cycle; wallet-provisioning failures surface actionable errors; card-control writes are synchronous to Lithic with local cache invalidation (effective in seconds, US-5.3).
 

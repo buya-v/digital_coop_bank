@@ -71,7 +71,7 @@ Each subsection is a self-contained requirement statement a stakeholder can read
 
 **Requirement.** A virtual debit card issued automatically at Transaction Account opening with step-up-gated PAN/CVV reveal and Apple Pay / Google Pay tokenization (US-5.1); optional physical card ordering, fulfilment tracking, activation, and PIN management (US-5.2); and instant card controls — freeze/unfreeze, per-period limits, channel and merchant-category toggles — enforced at authorization time (US-5.3).
 **Features / stories:** F-116–F-118 → US-5.1–US-5.3 (M/M/S).
-**AC themes (03 EP-5, 11 scenarios):** Lithic-hosted PAN handling (PCI scope reduction — PAN never transits the platform); embossing from `first_name`/`last_name` and DEC-6 address; authorization decisioning ≤ 200 ms including controls; frozen-card declines carry a distinct reason and notify the member; control changes audit-logged.
+**AC themes (03 EP-5, 11 scenarios):** Lithic-hosted PAN handling (PCI scope reduction — PAN never transits the platform); embossing from verbatim `mrz_name_latin` (never a platform-generated transliteration) and DEC-6 address; authorization decisioning ≤ 200 ms including controls; frozen-card declines carry a distinct reason and notify the member; control changes audit-logged.
 **API surface (04 §3.5):** `/cards*` including `credentials`, `wallet-tokens`, `physical`, `fulfilment`, `activate`, `pin`, `freeze/unfreeze`, `controls`; Lithic authorization/events webhooks.
 
 ### EP-6 — Lending & Loan Circles (CAP-6)
