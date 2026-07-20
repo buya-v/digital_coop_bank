@@ -165,9 +165,9 @@
         "T8",
         "T5"
       ],
-      "status": "pending",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T9-apply-sponsor-bank @ 00699a1. Variant B applied byte-exact to 04:29 (1 file, +1/-1). Label preserved, no provenance markers, no insurance claim. GATE BLOCKED, worker correctly STOPPED rather than improvising: FDIC/NCUA stayed at 2 because Variant B NAMES the framing it withdraws; rails rose 56->59 because the ratified TODO comment names ACH/FedNow/ACH+ as the things to replace. Both are arguably checker false positives of the same class the money-type check already excludes (verify-docs.sh:70 excludes 'minor units|rejected|superseded'). ESCALATED TO T10 for independent adjudication \u2014 the orchestrator deliberately did NOT amend its own verifier to clear its own run."
     },
     {
       "id": "T10",
@@ -181,7 +181,7 @@
       "dependencies": [
         "T9"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
