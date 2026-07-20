@@ -41,7 +41,7 @@ Rules a worker agent must not violate. These get grepped against diffs during re
 This is what makes `executor` routing correct.
 
 - **Live deployment on this host: NO.** There is no application, no server, no database, no container stack. Nothing in this repository runs.
-- **Isolated test command: none exists.** There is no test suite. `/softhouse-uat` has nothing to execute and will fall through to its generic fallback, which will also find nothing.
+- **No test suite** — there is no application to test. Verification is instead `.softhouse/verify-docs.sh`, declared in `.softhouse/uat.md`: HARD checks that must be zero, DRIFT counts that must not rise against `.softhouse/baseline.txt`. It greps text, so it proves the absence of known-bad patterns — never correctness. Cross-document contradictions and arithmetic errors are the independent `reviewer` role's job.
 - **The only executable code** is `idea-lab/run_pipeline.py`, a CLI that shells out to an external `agy` binary and writes Markdown. It has no tests. Running `next`, `redo` or `retro` **spends real LLM budget and mutates `pipeline_state.json`** — treat as `executor: orchestrator`, never hand it to a worker agent.
 - **Host-managed config:** none.
 - **Secrets:** none in this repo. `.gitignore` covers `.env`; nothing currently depends on one.
