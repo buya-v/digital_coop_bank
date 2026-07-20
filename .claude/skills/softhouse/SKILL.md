@@ -111,7 +111,7 @@ Spawn with the **Agent tool**, `isolation: "worktree"`, `model: task.model`. A r
 > - Do NOT `git push` from a worktree. Pushing is the orchestrator's job; you commit to your branch only.
 > - You are in an ISOLATED GIT WORKTREE forked from current main. Create branch `softhouse/<taskid>-<slug>`, commit to it, never touch main.
 > - Read `CLAUDE.md` first. Its non-negotiables are graded in review; violating one is a rejection.
-> - Write your handoff to `.softhouse/handoff/{run_id}/{task.id}.md`.
+> - Write your handoff to `.softhouse/handoff/{run_id}/{task.id}.md` **and commit it to your branch** (`git add -f` is not needed — the directory is deliberately tracked). This is not optional even for draft-only tasks that change no other file: the reviewer runs in a DIFFERENT worktree and reads your handoff from git. A branch with no commit is treated as unchanged, its worktree is auto-pruned, and your entire output is destroyed. Both level-0 tasks of run 20260720-161202 were lost this way.
 > - {the honesty rule, verbatim}
 > - End your final message with the literal line `no code executed`.
 
