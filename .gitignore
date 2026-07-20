@@ -9,4 +9,8 @@ venv/
 .env
 
 # Softhouse run state
-.softhouse/handoff/
+# NOTE: .softhouse/handoff/ is deliberately NOT ignored. Reviewer agents run in
+# a separate worktree and read the upstream task's handoff from git; ignoring it
+# means the handoff cannot travel with the branch, the worktree is auto-pruned as
+# "unchanged", and the work is lost. Handoffs are small, run-namespaced, and are
+# the run's audit trail.
