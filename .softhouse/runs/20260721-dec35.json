@@ -1,0 +1,104 @@
+{
+  "run_id": "20260721-dec35",
+  "feature": "DEC-35 \u2014 Mongolian-appropriate P2P recipient confirmation + enumeration rate-limit",
+  "requirement": "Amend DEC-35 (CONFIRM -> AMEND) and the aligned rules in 03/04. The product owner ratified, via AskUserQuestion, the 'short form + rate-limit' option: recipient confirmation shows the standard Mongolian short form (patronymic initial + given name, e.g. Cyrillic '\u0426. \u0411\u0430\u0442'), and the anti-fishing defence moves from name-masking (which does not translate to Mongolian names, since the given name IS the identity) to a per-sender velocity cap on recipient-lookup, seeded in US-12.5. This resolves the DEC-6/DEC-35 contradiction found in run 20260720-161202. The ratification is DONE; this run only drafts, applies and verifies it.",
+  "status": "executing",
+  "backlog": [
+    "DEC-18 currency: USD -> MNT. 312 monetary values across 6 documents; 03_acceptance_criteria.md holds 216 of them. Needs a redenomination policy first (spot-rate conversion vs re-derivation from Mongolian incomes) because most are thresholds, not illustrations.",
+    "Payment rails: 56 ACH/FedNow/SEPA references -> Banksuljee (RTGS, above MNT 5,000,000) / ACH+ (at or below) / NETC for cards. The threshold is set by Governor's order, so it must land as configuration, not a literal.",
+    "Vendors: Stripe, Plaid, Lithic, Persona. Note these are leaked into schema field names (persona_inquiry_id, plaid_item_ref) and API error codes (502 PLAID_UNAVAILABLE), so removal is a requirements change, not an integration change.",
+    "KPI re-baselining: KPI-1.3 targets 100,000 members against a total Mongolian SCC sector of 78,608; KPI-2.1 targets AUM roughly 1.5x the entire sector's assets.",
+    "Rate model: DEC-48's 12% APR base sits below the 17.45% bank-funded market rate, and DEC-49's 6% floor is the subsidised state mortgage rate. Both sides of the spread are inverted.",
+    "00_market_research.md is entirely US/EU-framed \u2014 competitor set is Alliant, Desjardins, Coop Pank, Monzo; segments are Gen Z ESG consumers and W-2-adjacent gig workers. Needs rewriting against the Mongolian market, not editing.",
+    "verify-docs.sh blind spot: the first_name/last_name HARD check matches only the snake_case tokens, so the same Western name model expressed in prose ('embossed_name from first/last name' at 04:829, 04:1087) passes silently. Add a DRIFT counter for the prose form.",
+    "verify-docs.sh n_snake_name uses grep -rEoh with no context exclusion, unlike the money-type check which excludes 'minor units|rejected|superseded'. Decide whether that is intended.",
+    "Migration map item [1] writes 'etsgiin ner' with a space where every other item uses 'etsgiin_ner'. Decide the canonical spelling before it propagates (also appears at 01:256 F-105).",
+    "T6 attempt could not corroborate that a Law on Financial Cooperatives passed committee 2026-04-07 \u2014 treat [UNVERIFIED] until a primary source is opened."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Draft the DEC-35 amendment + enumeration rate-limit + migration map",
+      "description": "DRAFT ONLY \u2014 edit no requirements document; the deliverable is a committed handoff with a mechanically-applicable map.\n\nThe product owner has ratified (via AskUserQuestion) the 'short form + rate-limit' option. Draft the text and locate every place it lands. Do NOT re-open the decision.\n\n(1) DEC-35 amendment at 05_prd_and_roadmap.md:159. Change status CONFIRM -> AMEND. New display rule: recipient confirmation shows the standard Mongolian short form = patronymic initial + given name, e.g. Cyrillic '\u0426. \u0411\u0430\u0442' (Latin 'Ts. Bat'). New rationale: name-masking does not translate to Mongolian names because the ner (given name) IS the identity, not a low-cardinality family name; so the anti-fishing defence moves to a per-sender velocity cap on the recipient-lookup operation, seeded in US-12.5. Reference DEC-33 (existing P2P velocity limit) and the existing enumeration protection.\n\n(2) The [PROPOSED] display line at 03_acceptance_criteria.md:476 \u2014 reword to the short form and note the anti-fishing shift.\n\n(3) The 'Member B.' happy-path scenario at 03_acceptance_criteria.md:484-486 \u2014 update the shown display name to the new form.\n\n(4) The new lookup-velocity control. Determine the LEAST-invasive correct home. Note that 03_acceptance_criteria.md:368 ALREADY has enumeration protection (404 Not Found), the recipient-lookup endpoint is at 04_technical_architecture.md:810, and DEC-33 at 05:157 already seeds a P2P velocity limit. Decide: is a NEW DEC needed, or does DEC-35's amendment plus an EP-4 business-rule line plus a note on the 04:810 endpoint suffice? Recommend the smaller option and justify. A new US-12.5 config seed (lookups per sender per period) with NO hard-coded number is expected \u2014 do not invent a specific threshold; mark it as a PO-confirmable seed.\n\nEstablish every location yourself with grep; do not trust these line numbers blindly \u2014 the last run found the plan's line/section refs were sometimes wrong. For each occurrence: file, line, current text, exact replacement.\n\nVERIFIER NOTE: run .softhouse/verify-docs.sh mentally against your replacement text. The Cyrillic examples introduce no USD/rails/vendor tokens, and 'first name' (prose, space) is not the first_name token \u2014 but confirm none of your new text contains $-amounts, ACH/FedNow/SEPA, or vendor names.\n\nHONESTY RULE: mark each material claim [VERIFIED: source] or [UNVERIFIED]. In particular, whether 'patronymic initial + given name' is genuinely the incumbent Mongolian bank-app convention is a useful supporting claim but is [UNVERIFIED] unless you can name a source \u2014 the decision does not depend on it, so do not manufacture a citation.\n\nHandoff: ## Changes Made / ## Decisions / ## Sources / ## Unverified / ## Blockers / ## Follow-ups. Commit it to branch softhouse/T1-dec35-draft.",
+      "agent_role": "analyst",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 1,
+      "note": "branch softhouse/T1-dec35-draft @ f114eef; handoff 242 lines. 5 map items. Recommends NO new DEC (extend DEC-35 + one EP-4 rule + 04:810 note). Census: 2 assertions + 1 display string; enumerated and excluded all other Member-X grep hits. Flagged a real tension: 03:10 forbids placeholder personal names, so \u0426. \u0411\u0430\u0442 needs example framing or a carve-out. Gate-safe: no tokens in replacement text (the ones in the handoff are not scanned)."
+    },
+    {
+      "id": "T2",
+      "title": "Review the DEC-35 draft",
+      "description": "Independent adversarial review of T1. Assume defects exist. Read from the branch: `git show softhouse/T1-dec35-draft:.softhouse/handoff/20260721-dec35/T1.md` and `git diff main...softhouse/T1-dec35-draft`.\n\nCheck: (1) the amendment matches the RATIFIED option exactly \u2014 short form '\u0426. \u0411\u0430\u0442' AND the anti-fishing-moves-to-rate-limit reasoning; a draft that quietly reverts to masking, or that invents a masking scheme, is a defect; (2) the map is mechanically applicable \u2014 file/line/current/replacement, and every 'Member B.'-style display occurrence is caught, INCLUDING any in prose the token check cannot see (grep the corpus yourself \u2014 this exact class of prose blind spot is why this task exists); (3) the rate-limit lands with NO hard-coded threshold and correctly references US-12.5 + DEC-33 + the existing 03:368 enumeration protection rather than duplicating them; (4) does it over-reach \u2014 adding a whole new DEC when extending existing rules would do? (5) no OTHER ratified DEC-n changed (DEC-1..20 in 01 \u00a76, DEC-21..75 in 05 \u00a73 \u2014 especially DEC-3 which governs P2P addressing and is deliberately untouched); (6) .softhouse/verify-docs.sh would not regress; (7) provenance markers real, per the honesty rule.\n\nReport findings as severity/location/what/fix. Verdict APPROVED / MICRO-FIX / REJECTED. Commit to branch softhouse/T2-review-dec35.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "branch softhouse/T2-review-dec35 @ 01301f2. VERDICT MICRO-FIX. Independently re-verified: census exact (2 assertions + 1 display string, no prose blind spot), line numbers match, gate not regressed (dollar 25.00 preserved), provenance clean, no collateral DEC change. One fix: 03:10 No-placeholder-personal-names is not resolved by example framing AND is already stale (03:45 uses Cyrillic \u0411\u043e\u043b\u0434/\u0411\u0430\u0442\u044b\u043d from the DEC-6 run). Fix = one-clause carve-out at 03:10 as map item [6]. Non-blocking: lookup cap in DEC-35 rationale trades some traceability; 429 LOOKUP_RATE_LIMITED should match precedent 429 REMINDER_THROTTLED at 04:822."
+    },
+    {
+      "id": "T3",
+      "title": "Apply the DEC-35 amendment",
+      "description": "Apply the approved T1 map (read it from its branch). You DO edit documents.\n\nEdit 05_prd_and_roadmap.md (DEC-35 row, status -> AMEND), 03_acceptance_criteria.md (the [PROPOSED] line and the happy-path scenario), and whichever of 04_technical_architecture.md the approved map specifies for the lookup-velocity control. Apply exactly what the map says and nothing more \u2014 scope is DEC-35 and its aligned rules only; do not touch currency, rails, vendors, the name model, or any other DEC.\n\nAmend DEC-35 in place \u2014 do not renumber. Preserve every header block, ID convention and traceability table. Use the Cyrillic display example verbatim as drafted.\n\nBEFORE FINISHING run .softhouse/verify-docs.sh \u2014 it must stay at VERDICT: PASS (HARD all 0, DRIFT all = baseline). Report the before/after. Commit to branch softhouse/T3-apply-dec35 including your handoff.",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md",
+        "idea-lab/final_requirements/04_technical_architecture.md",
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T3-apply-dec35 @ 49e83f9. All 6 edits applied (3 docs + handoff, +130/-5). Gate PASS unchanged, dollar-25.00 preserved. Orchestrator-verified: \u0426. \u0411\u0430\u0442 in 5 places, DEC-35->AMEND, no Member B. display string left, no hard-coded lookup number, DEC-3/DEC-33 referenced not modified. T3 correctly overrode T1: used 429 LOOKUP_THROTTLED (real precedent REMINDER_THROTTLED/REPORT_THROTTLED) over T1-drafted _RATE_LIMITED. Surviving \"last initial\" is the DEC-35 proposal column \u2014 correct decision-log idiom (matches DEC-37)."
+    },
+    {
+      "id": "T4",
+      "title": "Review the applied amendment",
+      "description": "Independent adversarial review of T3's branch. Read `git diff main...softhouse/T3-apply-dec35` and the handoff.\n\nCheck: every map item applied verbatim, nothing beyond scope crept in; DEC-35 amended in place (same id/position); the display change is consistent EVERYWHERE it appears across 03/04/05 \u2014 cross-document contradiction is this project's characteristic failure; the rate-limit control is coherent with DEC-33 and 03:368 and carries no hard-coded number; no other DEC-n altered; header/IDs/traceability intact. Run .softhouse/verify-docs.sh yourself and report the numbers \u2014 it must be PASS. Verdict APPROVED / MICRO-FIX / REJECTED. Commit to branch softhouse/T4-review-apply-dec35.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [],
+      "dependencies": [
+        "T3"
+      ],
+      "status": "in_progress",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T5",
+      "title": "Verify the baseline on merged main",
+      "description": "Run .softhouse/verify-docs.sh on merged main and report the full output. Expected: VERDICT PASS, HARD all 0, DRIFT all = baseline (usd=312, rails=56, vendor=83). Do NOT re-baseline. Additionally confirm by grep that 'Member B.' / 'first name + last initial' no longer appears as the recipient-confirmation display in 03 or 05, and that the Cyrillic short-form example is present.",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "haiku",
+      "target": "verification",
+      "files_hint": [
+        ".softhouse/verify-docs.sh"
+      ],
+      "dependencies": [
+        "T4"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    }
+  ]
+}

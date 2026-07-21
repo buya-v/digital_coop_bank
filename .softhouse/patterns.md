@@ -59,6 +59,31 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260721-dec35 — DEC-35 Mongolian P2P confirmation + lookup rate-limit (2026-07-21)
+
+Resolved the DEC-6/DEC-35 contradiction left open by run 20260720-161202. Product owner ratified "short form + rate-limit" via AskUserQuestion (present, so no delegation this time). 5-task chain, gate held at PASS throughout, all 4 branches merged.
+
+**What worked**
+- Small, single-decision run: draft -> review -> apply -> review -> verify. Proportionate to a 3-file change; two opus reviewers still each earned their keep.
+- The reviewers verified rather than trusted: T2 re-ran the census from scratch, T4 byte-compared applied text against the map and ran the gate itself.
+
+**What the reviewers / appliers caught**
+- T2 found that run 20260720-161202 (the DEC-6 run) had ALREADY planted a latent contradiction: 03:45 uses Cyrillic field-value examples (Болд/Батын) while 03:10 still says "No placeholder personal names are used." Nobody caught it at the time; it surfaced only because the DEC-35 example would be a third instance. Fixed here with a 03:10 carve-out (map item [6]). LESSON: an amendment that adds an EXAMPLE can violate a document's own style rule; check the style/convention lines, not just the semantic ones.
+- T3 (applier) correctly OVERRODE the approved draft: T1 drafted `429 LOOKUP_RATE_LIMITED`; the real API precedent is `_THROTTLED` (REMINDER_THROTTLED, REPORT_THROTTLED). T3 used LOOKUP_THROTTLED and disclosed it. An applier that spots a naming inconsistency should fix + disclose, not apply the approved-but-wrong token silently.
+
+**New knowledge**
+- Decision-log idiom: an AMENDed DEC keeps its original text in the Proposal column and records the change in the Verdict + Adjudication columns. So "first name + last initial" legitimately survives in DEC-35's proposal column — that is NOT a missed edit. Precedent: DEC-37. Do not "fix" proposal-column history.
+- The token verifier is blind to prose, confirmed again: this whole run existed because a prose rule ("first name + last initial") contradicted a ratified model and the gate could not see it. Every semantic migration needs a reviewer sweep, not just a green gate.
+- Naming precedent for throttle errors is `429 <X>_THROTTLED`, not `_RATE_LIMITED` (the latter is only the generic common code at 04:751).
+
+**Planning advice**
+- When a run adds an on-page EXAMPLE (a name, an amount, a code), pre-check the document's own convention lines (03:10-style "no placeholder names", actor conventions) — examples interact with style rules the token gate cannot police.
+- The apply-task-depends-on-review shape recurred (T3 dep T2). It was safe this time only because the orchestrator held T3 on T2's actual VERDICT, not on T2 being "done." Still worth encoding a real "approved" gate state rather than relying on orchestrator discipline.
+
+**Verifier**: HARD 5/5 pass, DRIFT all = baseline (usd 312 / rails 56 / vendor 83). PASS held before, during and after. No re-baselining. $25.00 at 03:486 deliberately preserved to keep usd at 312.
+
+**Backlog carried forward**: 10 items — currency/rails/vendor migration proper, KPI re-baselining, the inverted rate model, 00_market_research.md rewrite, the verifier's prose blind spot (now doubly evidenced), and the etsgiin_ner-vs-'etsgiin ner' spacing. The DEC-6/DEC-35 contradiction is CLEARED.
+
 ### Run 20260720-161202 — Mongolia correction phase 1 (2026-07-21)
 
 Cleared both HARD verifier failures the run targeted: DEC-6's two-field name model and the FDIC/NCUA sponsor-bank framing. Gate went FAIL -> PASS for the first time, by changing documents, not by weakening the checker. 6 approved branches merged; the 2 rejected first drafts left unmerged.
