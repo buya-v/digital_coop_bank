@@ -57,9 +57,9 @@
         "T1",
         "T2"
       ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T3-derivation-table @ bd2e6bc. Anchor W=median monthly wage MNT 2,278,400. Share par PENDING (rec \u20ae10,000). Income limits: step-up 0.25W=\u20ae550k, P2P velocity 0.50W=\u20ae1.15m, loan min 0.05W=\u20ae100k, loan max 2.5W=\u20ae5.7m, AML monitor 5W=\u20ae11.5m. Loan bounds bracket real NBFI avg outstanding \u20ae2.24m (corroboration). Worked examples as formulas over primitives. Round-up nearest \u20ae1,000 + \u20ae15,000 batch (flagged as sub-decision). $88.20 BLOCKED on rate model. KPI held out. 6 PO decisions. Load-bearing caveat: wage-unit inference (thousand MNT)."
     },
     {
       "id": "T4",
@@ -73,7 +73,7 @@
       "dependencies": [
         "T3"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
