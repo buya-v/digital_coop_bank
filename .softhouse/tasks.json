@@ -26,9 +26,9 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T1-dec35-draft @ f114eef; handoff 242 lines. 5 map items. Recommends NO new DEC (extend DEC-35 + one EP-4 rule + 04:810 note). Census: 2 assertions + 1 display string; enumerated and excluded all other Member-X grep hits. Flagged a real tension: 03:10 forbids placeholder personal names, so \u0426. \u0411\u0430\u0442 needs example framing or a carve-out. Gate-safe: no tokens in replacement text (the ones in the handoff are not scanned)."
     },
     {
       "id": "T2",
@@ -42,7 +42,7 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
