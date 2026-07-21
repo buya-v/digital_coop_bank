@@ -40,9 +40,9 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T2-inventory @ f3e1615. 312 occ / 78 distinct (76 genuine \u2014 2 comma artifacts). CRITICAL: polysemy + magnitude truncation \u2014 $25 can be the share OR $25M AUM; $1 is $1.5M; bare ints stop at k/M. Blind find-replace would corrupt these; apply must go line-by-line by role. $25 par: 28/32 are DEC-11, 4 are coincidental P2P amounts. $88.20 loan installment BLOCKED on rate model DEC-48/49. Round-up nearest-USD mechanic does not survive MNT. KPI set held out. Honesty caveat: role-split within high-freq tokens ($100x20/$50x15/$25x32/$0x27) apportioned from context, ? markers on uncertain lines."
     },
     {
       "id": "T3",
@@ -57,7 +57,7 @@
         "T1",
         "T2"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
