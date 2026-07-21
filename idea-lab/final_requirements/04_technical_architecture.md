@@ -807,7 +807,7 @@ erDiagram
 
 | Method & Path | Auth | Request body (keys) | Response (keys) | Key error cases |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST /api/v1/payments/recipient-lookup` | Member (ACTIVE) | `identifier_type` (`PHONE\|EMAIL\|MEMBER_ID`, DEC-3), `identifier` | `recipient_display_name`, `recipient_ref` (opaque, short-lived) — confirmation before send | `404 RECIPIENT_NOT_FOUND` (uniform response; no membership enumeration) |
+| `POST /api/v1/payments/recipient-lookup` | Member (ACTIVE) | `identifier_type` (`PHONE\|EMAIL\|MEMBER_ID`, DEC-3), `identifier` | `recipient_display_name` (Mongolian short form = patronymic initial + given name per DEC-35, e.g. "Ц. Бат"), `recipient_ref` (opaque, short-lived) — confirmation before send | `404 RECIPIENT_NOT_FOUND` (uniform response; no membership enumeration); `429 LOOKUP_THROTTLED` (per-sender recipient-lookup velocity cap, US-12.5 config seed per DEC-35; no hard-coded threshold) |
 | `POST /api/v1/payments/p2p` | Member (ACTIVE); Idempotency-Key; step-up above config limit | `source_account_id`, `recipient_ref`, `amount`, `memo?` | `transaction_id`, `status:"SETTLED"` (instant, $0 fee), `settled_at`, `receipt_url` | `422 INSUFFICIENT_FUNDS`; `422 LIMIT_EXCEEDED` (per-txn/velocity, config US-12.5); `409 RECIPIENT_NOT_ACTIVE` |
 | `POST /api/v1/external-accounts` | Member (ACTIVE) | `plaid_public_token` or `micro_deposit_details` | ExternalAccountLink per E-14 | `502 PLAID_UNAVAILABLE`; `422 VERIFICATION_FAILED` |
 | `GET /api/v1/external-accounts` / `DELETE /api/v1/external-accounts/{id}` | Member | — | `links[]` / `status:"REMOVED"` | `409 LINK_IN_USE` (active schedules) |
