@@ -26,7 +26,7 @@
       "target": "requirements",
       "files_hint": [],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 1,
       "note": "branch softhouse/T1-dec35-draft @ f114eef; handoff 242 lines. 5 map items. Recommends NO new DEC (extend DEC-35 + one EP-4 rule + 04:810 note). Census: 2 assertions + 1 display string; enumerated and excluded all other Member-X grep hits. Flagged a real tension: 03:10 forbids placeholder personal names, so \u0426. \u0411\u0430\u0442 needs example framing or a carve-out. Gate-safe: no tokens in replacement text (the ones in the handoff are not scanned)."
     },
@@ -42,9 +42,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": ""
+      "note": "branch softhouse/T2-review-dec35 @ 01301f2. VERDICT MICRO-FIX. Independently re-verified: census exact (2 assertions + 1 display string, no prose blind spot), line numbers match, gate not regressed (dollar 25.00 preserved), provenance clean, no collateral DEC change. One fix: 03:10 No-placeholder-personal-names is not resolved by example framing AND is already stale (03:45 uses Cyrillic \u0411\u043e\u043b\u0434/\u0411\u0430\u0442\u044b\u043d from the DEC-6 run). Fix = one-clause carve-out at 03:10 as map item [6]. Non-blocking: lookup cap in DEC-35 rationale trades some traceability; 429 LOOKUP_RATE_LIMITED should match precedent 429 REMINDER_THROTTLED at 04:822."
     },
     {
       "id": "T3",
@@ -62,7 +62,7 @@
       "dependencies": [
         "T2"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
