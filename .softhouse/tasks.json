@@ -62,9 +62,9 @@
       "dependencies": [
         "T2"
       ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T3-apply-dec35 @ 49e83f9. All 6 edits applied (3 docs + handoff, +130/-5). Gate PASS unchanged, dollar-25.00 preserved. Orchestrator-verified: \u0426. \u0411\u0430\u0442 in 5 places, DEC-35->AMEND, no Member B. display string left, no hard-coded lookup number, DEC-3/DEC-33 referenced not modified. T3 correctly overrode T1: used 429 LOOKUP_THROTTLED (real precedent REMINDER_THROTTLED/REPORT_THROTTLED) over T1-drafted _RATE_LIMITED. Surviving \"last initial\" is the DEC-35 proposal column \u2014 correct decision-log idiom (matches DEC-37)."
     },
     {
       "id": "T4",
@@ -78,7 +78,7 @@
       "dependencies": [
         "T3"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
