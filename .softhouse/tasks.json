@@ -26,9 +26,9 @@
       "target": "research",
       "files_hint": [],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T1-benchmarks @ e78c33b. Avg monthly wage 2025 MNT 2,726,900 / median 2,278,400 (NSO, med-conf on unit). Min wage NOT OBTAINED (correctly, not fabricated). Microloan proxy ~MNT 2.24m avg outstanding NBFI balance (labelled stock not origination). SCC member capital ~MNT 399k/member cumulative (flagged NOT a share price). USD/MNT ~3,580 cross-check only. Mongolbank/FRC SPA-blocked, not proxied."
     },
     {
       "id": "T2",
