@@ -1,0 +1,585 @@
+# EP-8 Democratic Governance & Voting — path operations (04 §3.8).
+# One operation per §3.8 row; rows listing two paths/methods are split into
+# discrete operations (e.g. PATCH proposals + POST withdraw; GET/POST comments).
+#
+# Step-up: vote submission and proxy-delegation create/revoke add
+# `stepUpAssertion` to the member session (04 §5.1). None of these POSTs moves
+# money, so NO Idempotency-Key is required (per task rule: governance /
+# vote-submission POSTs are money-neutral).
+#
+# Secret ballot: the vote POST returns only a content-free receipt; there is no
+# operation that returns a member's choice (04 §5.1, E-39/E-40).
+# All $refs are local.
+
+/api/v1/ballots:
+  get:
+    tags: [EP-8]
+    operationId: listBallots
+    summary: >-
+      List ballots the member can see, filtered by state (04 §3.8). Auth: Member
+      (ACTIVE).
+    parameters:
+      - name: filter
+        in: query
+        required: false
+        description: 04 §3.8 `?filter=open|voted|closed`.
+        schema:
+          $ref: '#/components/schemas/BallotFilter'
+    responses:
+      '200':
+        description: Ballots with live participation and the caller's vote/delegation state.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BallotsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/ballots/{id}:
+  get:
+    tags: [EP-8]
+    operationId: getBallot
+    summary: >-
+      Full ballot context — rationale, quorum rule, seats/candidates for
+      elections, eligibility per snapshot (04 §3.8). Auth: Member (ACTIVE).
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Full ballot context.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BallotDetail'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/ballots/{id}/votes:
+  post:
+    tags: [EP-8]
+    operationId: submitVote
+    summary: >-
+      Submit a vote on a ballot (04 §3.8). Auth: eligible member per
+      EligibilitySnapshot; step-up required. Money-neutral — no Idempotency-Key.
+      Returns a content-free receipt only; a direct vote supersedes any
+      delegate-cast vote on this ballot (DEC-8).
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VoteSubmission'
+    responses:
+      '200':
+        description: Participation recorded; verifiable content-free receipt returned.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteReceipt'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        description: 403 NOT_ON_SNAPSHOT — the caller is not on the ballot's EligibilitySnapshot (04 §3.8). Also 403 FORBIDDEN / MEMBER_NOT_ACTIVE per §3.0.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '409':
+        description: 409 ALREADY_VOTED_DIRECTLY — the member already cast a direct vote on this ballot (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '410':
+        description: 410 BALLOT_CLOSED — the voting window has closed (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 TOO_MANY_SELECTIONS — more `candidate_selections` than `seats` (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/ballots/{id}/receipt/{receipt_hash}:
+  get:
+    tags: [EP-8]
+    operationId: verifyVoteReceipt
+    summary: >-
+      Verify a vote receipt is valid and counted — never the choice (04 §3.8).
+      Auth: holder of the receipt.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: receipt_hash
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Receipt validity/counted/superseded — content-free.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptVerification'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        description: 404 RECEIPT_UNKNOWN — no participation matches this receipt hash (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/proposals:
+  post:
+    tags: [EP-8]
+    operationId: createProposal
+    summary: >-
+      Create a member proposal (04 §3.8, DEC-2/DEC-9). Auth: Member (ACTIVE).
+      Created as `status:"DRAFT"`. Money-neutral — no Idempotency-Key.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProposalCreate'
+    responses:
+      '201':
+        description: Proposal created (DRAFT) with cosignature threshold (E-34).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Proposal'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 INVALID_CATEGORY — the category is not a valid ProposalCategory (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+  get:
+    tags: [EP-8]
+    operationId: listProposals
+    summary: >-
+      List proposals with cosignature progress toward threshold (04 §3.8). Auth:
+      Member. Filterable by status and category.
+    parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ProposalStatus'
+      - name: category
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ProposalCategory'
+    responses:
+      '200':
+        description: Proposals incl. cosignature_count progress.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/proposals/{id}:
+  get:
+    tags: [EP-8]
+    operationId: getProposal
+    summary: 'Retrieve a proposal incl. cosignature progress (04 §3.8). Auth: Member.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Proposal detail.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Proposal'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+  patch:
+    tags: [EP-8]
+    operationId: updateProposal
+    summary: >-
+      Edit a draft proposal (04 §3.8). Auth: author. Draft edits only.
+      Money-neutral — no Idempotency-Key.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProposalPatch'
+    responses:
+      '200':
+        description: Updated proposal.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Proposal'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/proposals/{id}/withdraw:
+  post:
+    tags: [EP-8]
+    operationId: withdrawProposal
+    summary: >-
+      Withdraw a proposal before ballot open (04 §3.8, DEC-9). Auth: author.
+      Money-neutral — no Idempotency-Key.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Proposal withdrawn (status WITHDRAWN).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Proposal'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 NOT_WITHDRAWABLE_AFTER_OPEN — the ballot is already open (04 §3.8, DEC-9).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/proposals/{id}/cosignatures:
+  post:
+    tags: [EP-8]
+    operationId: cosignProposal
+    summary: >-
+      Add the caller's cosignature to a proposal (04 §3.8). Auth: Member
+      (ACTIVE). At threshold the proposal auto-transitions to SUBMITTED
+      (US-12.4 queue). Money-neutral — no Idempotency-Key.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Cosignature recorded; updated count.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CosignatureResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 ALREADY_COSIGNED or 409 NOT_IN_DRAFT — the caller already cosigned, or the proposal is no longer in DRAFT (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/proposals/{id}/comments:
+  get:
+    tags: [EP-8]
+    operationId: listProposalComments
+    summary: 'List threaded comments on a proposal (04 §3.8). Auth: Member (ACTIVE).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Threaded comments.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+  post:
+    tags: [EP-8]
+    operationId: createProposalComment
+    summary: >-
+      Post a comment on a proposal (04 §3.8, US-8.6). Auth: Member (ACTIVE).
+      Threads auto-lock read-only at OPEN_FOR_VOTING. Money-neutral — no
+      Idempotency-Key.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommentCreate'
+    responses:
+      '201':
+        description: Comment posted (E-36).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalComment'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '423':
+        description: 423 THREAD_LOCKED — the thread is locked read-only (proposal is OPEN_FOR_VOTING) (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/comments/{id}/reports:
+  post:
+    tags: [EP-8]
+    operationId: reportComment
+    summary: >-
+      Report a comment to the moderation queue (04 §3.8). Auth: Member.
+      Money-neutral — no Idempotency-Key.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommentReportRequest'
+    responses:
+      '201':
+        description: Report queued (hide/remove decisions audit-logged).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentReportResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '429':
+        description: 429 REPORT_THROTTLED — per-member report velocity cap exceeded (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/proxy-delegations:
+  post:
+    tags: [EP-8]
+    operationId: createProxyDelegation
+    summary: >-
+      Delegate voting for a scope to another member (04 §3.8, DEC-8). Auth:
+      Member (ACTIVE); step-up required. Delegate consent flow; strictly
+      single-level (server-enforced). Money-neutral — no Idempotency-Key.
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProxyDelegationCreate'
+    responses:
+      '201':
+        description: Delegation created (E-41), pending/subject to delegate consent.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProxyDelegation'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 SCOPE_ALREADY_DELEGATED — an active delegation already exists for this scope (04 §3.8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: >-
+          422 DELEGATE_NOT_ACTIVE, 422 SELF_DELEGATION, or 422 REDELEGATION_FORBIDDEN
+          — the delegate is not ACTIVE, the caller delegated to themselves, or the
+          delegate would be re-delegating a received vote (04 §3.8, DEC-8).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+  get:
+    tags: [EP-8]
+    operationId: listProxyDelegations
+    summary: >-
+      Governance dashboard — current delegations per scope, given and received
+      (04 §3.8). Auth: Member.
+    responses:
+      '200':
+        description: Delegations given and received.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProxyDelegationsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/proxy-delegations/{id}:
+  delete:
+    tags: [EP-8]
+    operationId: revokeProxyDelegation
+    summary: >-
+      Revoke a delegation — instant, restores direct voting for the scope
+      (04 §3.8). Auth: delegator; step-up required. Money-neutral — no
+      Idempotency-Key.
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Delegation revoked (status REVOKED).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProxyDelegation'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/governance/archive:
+  get:
+    tags: [EP-8]
+    operationId: getGovernanceArchive
+    summary: >-
+      Permanent governance archive — proposal lifecycles, certified election
+      results, turnout and Governance Participation Rate, tamper-evidence hashes
+      (04 §3.8, US-8.7). Auth: Member (read-only, all members).
+    parameters:
+      - name: type
+        in: query
+        required: false
+        description: 04 §3.8 archive filter `type`.
+        schema:
+          type: string
+      - name: year
+        in: query
+        required: false
+        description: 04 §3.8 archive filter `year`.
+        schema:
+          type: integer
+      - name: q
+        in: query
+        required: false
+        description: 04 §3.8 archive filter `q` (free-text search).
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Archive entries.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GovernanceArchiveResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'

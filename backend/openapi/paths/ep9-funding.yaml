@@ -1,0 +1,223 @@
+# EP-9 Community Funding Hub — path operations (04 §3.9).
+# One operation per member-facing §3.9 row. The two "Admin —" rows (project
+# review, grant-pool matches) are EP-12 territory and $ref the entity schemas
+# owned in schemas/ep9-funding.yaml; they are intentionally NOT defined here.
+#
+# `POST /community-projects/{id}/backings` IS a money movement (04 §3.9 lists
+# Idempotency-Key on the row) — it references
+# `#/components/parameters/IdempotencyKey`. Project creation is money-neutral.
+# All $refs are local.
+
+/api/v1/community-projects:
+  post:
+    tags: [EP-9]
+    operationId: createCommunityProject
+    summary: >-
+      Submit a community project to the Pitch Board (04 §3.9, US-9.1). Auth:
+      Member (ACTIVE) or registered org. Created as `status:"SUBMITTED"` for
+      admin review before publication. Not a money movement — no Idempotency-Key.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommunityProjectCreate'
+    responses:
+      '201':
+        description: Project submitted (E-43, SUBMITTED).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityProject'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 DOCS_REQUIRED — required supporting documents are missing (04 §3.9).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+  get:
+    tags: [EP-9]
+    operationId: listCommunityProjects
+    summary: >-
+      Browse the Pitch Board — published projects with funding progress
+      (04 §3.9). Auth: Member.
+    parameters:
+      - name: status
+        in: query
+        required: false
+        description: 04 §3.9 `?status=PUBLISHED` — the member-facing board filter.
+        schema:
+          $ref: '#/components/schemas/CommunityProjectStatus'
+    responses:
+      '200':
+        description: Community projects (Pitch Board).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityProjectsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/community-projects/{id}:
+  get:
+    tags: [EP-9]
+    operationId: getCommunityProject
+    summary: >-
+      Project detail — funding progress (backed/matched/goal), updates feed,
+      match status (04 §3.9). Auth: Member.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Community project detail.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityProject'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/community-projects/{id}/backings:
+  post:
+    tags: [EP-9]
+    operationId: backCommunityProject
+    summary: >-
+      Back a community project from the Primary Savings Account (04 §3.9,
+      US-9.2). Auth: Member (ACTIVE). Money movement — Idempotency-Key required.
+      Refunds automatic on a missed all-or-nothing goal.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BackingCreate'
+    responses:
+      '201':
+        description: Backing settled (E-44) with transaction id and live progress.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Backing'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 PROJECT_NOT_PUBLISHED — the project is not open for backing (04 §3.9). Also 409 IDEMPOTENCY_CONFLICT on key reuse (04 §3.0).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '410':
+        description: 410 DEADLINE_PASSED — the project funding deadline has passed (04 §3.9).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 INSUFFICIENT_FUNDS — the source account lacks available balance (04 §3.9).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/members/me/backings:
+  get:
+    tags: [EP-9]
+    operationId: listMyBackings
+    summary: >-
+      Contribution history with per-project status and updates (04 §3.9). Auth:
+      Member.
+    responses:
+      '200':
+        description: The member's backings.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackingsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/community-projects/{id}/match-status:
+  get:
+    tags: [EP-9]
+    operationId: getProjectMatchStatus
+    summary: >-
+      Surplus-match traceability — ratio, cap, accrued/released, release ballot,
+      halt reason (04 §3.9, US-9.3). Auth: Member.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Match status for the project.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatchStatusResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/community-projects/{id}/impact:
+  get:
+    tags: [EP-9]
+    operationId: getProjectImpact
+    summary: >-
+      Allocation and impact report — raised/matched/disbursed/spent-by-category
+      plus outcomes; modeled figures labeled "estimated" (04 §3.9, DEC-15,
+      US-9.4). Auth: Member.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Impact / allocation report.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectImpactResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
