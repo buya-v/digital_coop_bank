@@ -59,6 +59,24 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260722-openapi-rest — OpenAPI remaining epics, contract COMPLETE (2026-07-22)
+
+Completed the OpenAPI 3.1 architecture-of-record: 192 operations across all EP-1..EP-13 + webhooks, 304 schemas, 38 entity-gated ops. Every 04 §3.1-§3.14 row is now an operation. Gate PASS; docs + backend gates untouched and green.
+
+**What worked**
+- 4-way parallel authoring (gov/div/fund, admin/compliance, entity-gated, webhooks) with the shared-schema-reuse rule given up-front: ZERO schema collisions this run (vs one Currency collision last run). Giving authors the existing-schema list preventively beats catching collisions after.
+- The two-reviewer split (T5: T1+T4, T6: T2+T3) both APPROVED with real verification — T5 confirmed the secret-ballot privacy invariant (no member-to-choice join), T6 mechanically verified 38/38 entity-gated tags and zero rate-model fields.
+- Discipline held in code: T1 kept ballot participation/choice separate; T3 encoded zero APR/bps fields (blocked rate model) and renamed LoanScheduleType to dodge EP-4; T2 Admin*-prefixed to dodge EP-8.
+
+**The orchestrator catch — a gap no single reviewer could see**
+- 9 admin ops (§3.7 dividend-runs, §3.9 grant-pools) fell BETWEEN T1 and T2: T1 (member-only) left them "to EP-12"; T2 (EP-12) left them "to EP-7". Each locally reasonable; the sum had a hole. Neither review was scoped across that T1/T2 boundary. The mechanical 192-vs-183 path reconciliation found it exactly. LESSON: with a parallel split, do a FULL-corpus coverage reconciliation at the orchestrator level — per-slice reviews check their slice, not the seams between slices. Filled by T8 (forked post-merge so the entity schemas resolved).
+
+**Process gap to fix next time**
+- T8 (the gap-fill spec_writer) got NO independent reviewer — my plan omitted its review pair, breaking the every-spec_writer-gets-a-reviewer rule. I verified it rigorously at orchestrator level (9 ops, staffSSO, idempotency-on-execute-only, no formula constants, $refs resolve) but that is a LOWER assurance bar than the reviewed slices. When adding a task mid-run, add its reviewer too.
+
+**Verifier**: OpenAPI 172 paths / 192 ops / 304 schemas PASS. docs PASS, backend 14/14. No re-baseline.
+**Backlog**: (a) EP-12 lending-admin ops carry a prose entity-gated note, not the x-entity-gated extension — consistency pass if the spec is ever filtered by that tag. (b) validate.py is lenient on $ref target types (missed IdempotencyKey mis-filing last run) — consider spectral/redocly as a stricter linter. (c) Next architecture task: ORM schema + first migration from 04's 59 entities (from the CORRECTED ledger, not 06's defects).
+
 ### Run 20260722-openapi-core — OpenAPI core (foundation + EP-1..EP-4) (2026-07-22)
 
 First OpenAPI derivation. Produced a valid OpenAPI 3.1 architecture-of-record for the money-movement core: 54 paths / 64 operations / 95 schemas, covering every endpoint row in 04 §3.1-§3.4 (EP-1 14, EP-2 9, EP-3 21, EP-4 20). Gate = backend/openapi/validate.py (assembles root+paths+schemas+params, validates 3.1, checks all $refs). Multi-file layout let two authors work in parallel without file conflicts.
