@@ -78,9 +78,9 @@
         "backend/app/models/funding.py"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T4-orm-governance-funding @ fc26fa1. E-34..42 governance + E-43..46 funding. Gate PASS. SECRET BALLOT verified structurally: VoteRecord has NO member_id/no transitive member FK, omits Timestamps (coarsening), candidate_selections bare UUID[]; only VoteParticipation links member<->ballot, no choice. rejection_reason DeferredEnum (04 says incl.=open set). funded_from_declaration_id bare UUID -> promote at merge."
     },
     {
       "id": "T5",
@@ -128,7 +128,7 @@
         "T4",
         "T5"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
