@@ -1,10 +1,12 @@
 {
-  "run_id": "20260722-orm-schema",
-  "feature": "ORM models + first migration from 04's 59 entities",
-  "requirement": "Derive SQLAlchemy 2.0 ORM models for the remaining ~54 entities of 04 \u00a72 (E-1/E-5/E-6/E-7/E-8 done). money->MoneyMinor (never Float/Numeric); ids UUID; *_at via Timestamps mixin; enums real only where 04 lists values else DeferredEnum(String); FKs by table-name string; distinct model files per slice; do NOT touch ledger-core E-6/7/8; entity-gated epics modelled as tables w/ docstring note; table definitions only, no logic. Gate = check_models.py.",
-  "status": "executing",
+  "run_id": null,
+  "feature": null,
+  "requirement": null,
+  "status": "idle",
   "backlog": [
-    "ORM initial migration: after models complete, first Alembic revision creating all tables (linear chain). Ledger posting logic + entry_type/account-discriminator enum values still HELD on the corrected ledger design.",
+    "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
+    "Migration: add a CI autogenerate-consistency check (alembic revision --autogenerate must produce an empty diff vs models).",
+    "RecipientIdentifierType: real enum in identity, DeferredEnum in payments/lending \u2014 reconcile to one shared enum.",
     "OpenAPI follow-up slice: EP-5 cards (entity-gated), EP-6 lending (entity-gated), EP-7 dividends, EP-8 governance, EP-9 funding, EP-10 round-ups (entity-gated), EP-11 notifications, EP-13 compliance, \u00a73.14 webhooks, \u00a73.12 admin/back-office. Entity-gated epics must be tagged x-entity-gated in the spec, included for record completeness but marked not-buildable.",
     "ORM schema + first Alembic migration from 04's 59 entities \u2014 the NEXT architecture task after OpenAPI. Ledger tables must come from the CORRECTED ledger design, NOT encode 06_ledger_addendum's five known defects (esp. the inverted hold formula).",
     "DEC-18 currency APPLY: apply the PO-confirmed derivation table (.softhouse/runs/20260721-currency-policy.json). Anchors: share par \u20ae10,000 provisional; step-up \u20ae550k; P2P velocity \u20ae1.15m; loan min \u20ae100k / max \u20ae5.7m; AML monitor \u20ae11.4m. LINE-BY-LINE by role (polysemy $25 vs $25M). Round-ups/KPIs/$88.20 held. Re-baseline usd after. Decide 06 scope.",
@@ -16,139 +18,5 @@
     "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
     "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling."
   ],
-  "tasks": [
-    {
-      "id": "T1",
-      "title": "ORM models \u2014 identity (E-2,3,4) + deposits (E-9..E-13)",
-      "agent_role": "spec_writer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "orm",
-      "files_hint": [
-        "backend/app/models/identity.py",
-        "backend/app/models/deposits.py"
-      ],
-      "dependencies": [],
-      "status": "approved",
-      "attempts": 1,
-      "note": "branch softhouse/T1-orm-identity-deposits @ 7882f3d. E-2,3,4 (identity.py) + E-9..13 (deposits.py) = 8 entities. Gate PASS (13 tables, 9 money cols). All 14 enums real (04 enumerates them, verbatim); money MoneyMinor; FKs by string; Timestamps on lifecycle, event-ts on append-only (ConsentRecord/ApprovalDecision). persona_inquiry_id kept + vendor-leak comment. Held for T6 (needs T2,T3)."
-    },
-    {
-      "id": "T2",
-      "title": "ORM models \u2014 payments (E-14..17) + cards (E-18) + dividends (E-31..33) + roundups (E-47,48)",
-      "agent_role": "spec_writer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "orm",
-      "files_hint": [
-        "backend/app/models/payments.py",
-        "backend/app/models/cards.py",
-        "backend/app/models/dividends.py",
-        "backend/app/models/roundups.py"
-      ],
-      "dependencies": [],
-      "status": "approved",
-      "attempts": 1,
-      "note": "branch softhouse/T2-orm-payments-cards @ 6f3e4cd. E-14..17(+PaymentRequestShare child), E-18(gated docstring), E-31..33, E-47,48. Gate PASS (16 tables, 19 money). E-31 scores (Decimal 5,4) stored as scaled int x10000 (SCORE_SCALE) \u2014 flagged for review. CROSS-SLICE FKs to ConfigurationParameter/CommunityProject modelled as BARE UUID (not ForeignKey) for self-contained gate \u2014 DOCUMENTED, must be wired to real FKs at merge (T8). rail enum + vendor leaks kept verbatim w/ Mongolia notes."
-    },
-    {
-      "id": "T3",
-      "title": "ORM models \u2014 lending E-19..E-30 (entity-gated, structure only)",
-      "agent_role": "spec_writer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "orm",
-      "files_hint": [
-        "backend/app/models/lending.py"
-      ],
-      "dependencies": [],
-      "status": "approved",
-      "attempts": 1,
-      "note": "branch softhouse/T3-orm-lending @ 611d80c. 12 lending entities E-19..30. Gate PASS. LoanStatus verbatim per DEC-20 (no DECLINED_CLOSED). 16 real enums. RATE MODEL BLOCKED confirmed: apr_bps fields are bare nullable Integer placeholders no value; circle_rate_discount_tiers OMITTED; zero rate literals. Cross-slice refs bare UUID (promote at merge)."
-    },
-    {
-      "id": "T4",
-      "title": "ORM models \u2014 governance (E-34..42) + funding (E-43..46)",
-      "agent_role": "spec_writer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "orm",
-      "files_hint": [
-        "backend/app/models/governance.py",
-        "backend/app/models/funding.py"
-      ],
-      "dependencies": [],
-      "status": "approved",
-      "attempts": 1,
-      "note": "branch softhouse/T4-orm-governance-funding @ fc26fa1. E-34..42 governance + E-43..46 funding. Gate PASS. SECRET BALLOT verified structurally: VoteRecord has NO member_id/no transitive member FK, omits Timestamps (coarsening), candidate_selections bare UUID[]; only VoteParticipation links member<->ballot, no choice. rejection_reason DeferredEnum (04 says incl.=open set). funded_from_declaration_id bare UUID -> promote at merge."
-    },
-    {
-      "id": "T5",
-      "title": "ORM models \u2014 platform: notifications (E-49..51) + admin (E-52..55) + compliance (E-56..59)",
-      "agent_role": "spec_writer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "orm",
-      "files_hint": [
-        "backend/app/models/notifications.py",
-        "backend/app/models/admin.py",
-        "backend/app/models/compliance.py"
-      ],
-      "dependencies": [],
-      "status": "approved",
-      "attempts": 1,
-      "note": "branch softhouse/T5-orm-platform @ 930584a. E-49..59 platform (notifications/admin/compliance). Gate PASS. StaffRole verbatim (7). ConfigurationParameter.value open JSONB (no seed baked). AuditLogEntry hash columns (WORM, no Timestamps mixin, own occurred_at). governing_ballot_id bare UUID -> promote at merge."
-    },
-    {
-      "id": "T6",
-      "title": "Review \u2014 identity/deposits/payments/cards/lending (T1,T2,T3)",
-      "agent_role": "reviewer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "orm",
-      "files_hint": [],
-      "dependencies": [
-        "T1",
-        "T2",
-        "T3"
-      ],
-      "status": "done",
-      "attempts": 0,
-      "note": "branch softhouse/T6-review-ident-pay-lend @ f48bac4. VERDICT APPROVED. Gate PASS (36 tables co-loaded). E-31 scaled-int x10000 CORRECT (lossless, named const, not MoneyMinor). Rate model blocked confirmed. LoanStatus verbatim no DECLINED_CLOSED. Cross-slice FKs to promote: factor_weights_config_ref, savings_goal_id, project_id, config_version_ref, referral_case_id, approved_via, assigned_staff_id. NIT: RecipientIdentifierType real enum in T1 but DeferredEnum in T2/T3 \u2014 reconcile at merge."
-    },
-    {
-      "id": "T7",
-      "title": "Review \u2014 governance/funding/platform (T4,T5)",
-      "agent_role": "reviewer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "orm",
-      "files_hint": [],
-      "dependencies": [
-        "T4",
-        "T5"
-      ],
-      "status": "done",
-      "attempts": 0,
-      "note": "branch softhouse/T7-review-gov-platform @ 4a45740. VERDICT APPROVED. Gate PASS (29 tables co-loaded, 17 money, no float, all FKs resolve). Secret ballot verified on metadata: vote_record no member FK, shares only ballot_id. Enums verbatim, rejection_reason DeferredEnum. Config open JSONB. CROSS-SLICE FKs to promote (2): configuration_parameter.governing_ballot_id->ballot, community_grant_pool.funded_from_declaration_id->dividend_declaration. MIGRATION WATCH: 4 enum type-names reused across columns (same class, benign) \u2014 CREATE TYPE once."
-    },
-    {
-      "id": "T8",
-      "title": "Generate initial Alembic migration + full ORM gate on merged main",
-      "agent_role": "verifier",
-      "executor": "orchestrator",
-      "model": "haiku",
-      "target": "verification",
-      "files_hint": [
-        "backend/app/db/check_models.py"
-      ],
-      "dependencies": [
-        "T6",
-        "T7"
-      ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
-    }
-  ]
+  "tasks": []
 }

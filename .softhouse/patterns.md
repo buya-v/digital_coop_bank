@@ -59,6 +59,28 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260722-orm-schema — ORM models + initial migration (2026-07-22)
+
+Derived SQLAlchemy 2.0 models for all 59 entities of 04 §2 (60 tables incl. one child), plus the initial Alembic migration. Gate PASS (60 tables, 677 columns, 49 money columns, no float), 19 tests, migration renders 76 CREATE TYPE + 60 CREATE TABLE + 3 ALTER.
+
+**What worked**
+- 5 parallel domain slices + the shared-schema/pattern rules given up front: zero table/enum collisions across slices.
+- The money non-negotiable is now enforced STRUCTURALLY: MoneyMinor (BIGINT minor units) rejects a float at the column-binding boundary. Money cannot enter a money column by accident.
+- Two invariants preserved in the schema itself: secret ballot (VoteRecord has no member_id / no transitive member FK, omits timestamps for §5.1 coarsening) and the blocked rate model (zero APR/rate/computed-installment values in lending).
+- Ledger core (account/ledger_entry/transaction) modelled as STRUCTURE ONLY: balances materialized-not-written, entry_type/transaction_type deferred to String (value sets HELD on the corrected ledger design, NOT 06's defects). The right handling of the do-not-implement dependency: tables exist, undecided design does not.
+
+**Orchestrator catches (things per-slice review could not see)**
+- Cross-slice FKs: every slice modelled FKs to other slices' tables as BARE UUID to keep its standalone gate self-contained. The assembly promoted 9 of them to real ForeignKeys once all tables coexisted. Same seam-closing role as the OpenAPI gap-fill.
+- CIRCULAR FK cycles (proposal<->ballot, ballot<->eligibility_snapshot, loan_application<->loan_circle) surfaced only when rendering the full-schema DDL. Fixed with use_alter on one FK per cycle → tables create, cyclic FK added via ALTER. A per-slice gate never sees a cross-slice cycle.
+
+**Process failure — own it**
+- T6 (a review) was marked in_progress in tasks.json and REPORTED to the user as "running" for two turns, but the Agent was never spawned. Caught only when "proceed next" forced a worktree check. RULE: spawn the agent in the SAME action that flips status to in_progress; "marked in_progress" is NOT evidence a task runs — an agentId or a live worktree is. Verify before reporting a task as running.
+
+**No-DB migration technique (reusable)**
+- Local machine has no Postgres/Docker. `sqlalchemy.create_mock_engine("postgresql://", dump)` + `metadata.create_all(engine)` renders the COMPLETE Postgres DDL offline (CREATE TYPE once, tables in dependency order, use_alter FKs as ALTER) — no connection. That is the initial migration content. CI applies it to real Postgres for the canonical check.
+
+**Verifier**: ORM gate PASS (60/677/49); 19 tests; docs gate untouched. **Backlog**: (a) canonical migration should also be autogenerate-consistency-checked in CI (empty diff vs models). (b) RecipientIdentifierType is a real enum in identity but DeferredEnum in payments/lending — reconcile to one shared enum. (c) THE LEDGER: account/ledger_entry/transaction are structure-only; the posting logic, chart of accounts, entry_type enum, and hold formula are STILL HELD on a controller-reviewed corrected ledger design — the standing 'needs a human controller' item.
+
 ### Run 20260722-openapi-rest — OpenAPI remaining epics, contract COMPLETE (2026-07-22)
 
 Completed the OpenAPI 3.1 architecture-of-record: 192 operations across all EP-1..EP-13 + webhooks, 304 schemas, 38 entity-gated ops. Every 04 §3.1-§3.14 row is now an operation. Gate PASS; docs + backend gates untouched and green.
