@@ -185,7 +185,7 @@ class ConfigurationParameter(Base, UUIDPrimaryKey, Timestamps):
     # Mandatory when the parameter is governed by a certified FINANCIAL_POLICY /
     # GOVERNANCE_BYLAW ballot outcome. Cross-slice ref to Ballot (governance) —
     # kept as a plain UUID; conditional-mandatoriness is logic, not a column.
-    governing_ballot_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    governing_ballot_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("ballot.id"))
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("staff_user.id")
     )

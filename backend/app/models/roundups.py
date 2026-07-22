@@ -59,9 +59,9 @@ class RoundUpConfig(Base, UUIDPrimaryKey, Timestamps):
     )
     # Logical FK→SavingsGoal (other slice) — bare UUID to keep the gate
     # self-contained; exactly one of these two is set per destination_type.
-    savings_goal_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    savings_goal_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("savings_goal.id"))
     # Logical FK→CommunityProject (other slice), which must be PUBLISHED.
-    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("community_project.id"))
     multiplier: Mapped[int] = mapped_column(Integer, default=1)  # ∈ {1, 2, 3} (04)
     monthly_cap = mapped_column(MoneyMinor, nullable=True)  # money, optional
     accumulated_pending = mapped_column(MoneyMinor)  # money

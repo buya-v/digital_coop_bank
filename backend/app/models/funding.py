@@ -148,7 +148,7 @@ class CommunityGrantPool(Base, UUIDPrimaryKey, Timestamps):
 
     fiscal_year: Mapped[int] = mapped_column(Integer)
     # Cross-slice reference to E-32 DividendDeclaration (Dividend Service, S-7).
-    funded_from_declaration_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    funded_from_declaration_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("dividend_declaration.id"))
     pool_account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("account.id")
     )

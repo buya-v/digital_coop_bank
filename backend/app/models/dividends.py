@@ -111,7 +111,7 @@ class DividendDeclaration(Base, UUIDPrimaryKey, Timestamps):
     # Modelled as a bare UUID, NOT a ForeignKey, so this slice's model-gate stays
     # self-contained (the target table is not present in this worktree). The
     # relational intent is documented; wire the real FK when the schema is merged.
-    factor_weights_config_ref: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    factor_weights_config_ref: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("configuration_parameter.id"))
     status: Mapped[DividendDeclarationStatus] = mapped_column(
         Enum(DividendDeclarationStatus, name="dividend_declaration_status")
     )

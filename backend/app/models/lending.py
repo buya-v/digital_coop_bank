@@ -265,9 +265,7 @@ class LoanProduct(Base, UUIDPrimaryKey, Timestamps):
     )
     # logical FK -> ConfigurationParameter (US-12.5 registry, another slice); not
     # a DB FK here so the schema gate resolves.
-    config_version_ref: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
-
-
+    config_version_ref: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("configuration_parameter.id"))
 # ---------------------------------------------------------------------------
 # E-20 LoanApplication
 # ---------------------------------------------------------------------------
@@ -299,7 +297,7 @@ class LoanApplication(Base, UUIDPrimaryKey, Timestamps):
     )
     # logical FK -> ComplianceCase-style loan referral (US-12.3 queue, another
     # slice); not a DB FK here.
-    referral_case_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    referral_case_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("compliance_case.id"))
     submitted_at: Mapped[Optional[datetime.datetime]]
     decided_at: Mapped[Optional[datetime.datetime]]
     # NOTE: `offer`/`decision` JSON carry apr_bps FIELDS at runtime, but this
@@ -485,9 +483,7 @@ class RepaymentSchedule(Base, UUIDPrimaryKey, Timestamps):
     )
     # logical FK -> MakerCheckerApproval (staff reschedules, another slice); not a
     # DB FK here.
-    approved_via: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
-
-
+    approved_via: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("maker_checker_approval.id"))
 # ---------------------------------------------------------------------------
 # E-26 RepaymentInstallment
 # ---------------------------------------------------------------------------
@@ -614,7 +610,7 @@ class CollectionsCase(Base, UUIDPrimaryKey, Timestamps):
     hardship_request = mapped_column(JSONB)  # borrower's proposed reschedule
     guarantor_notifications = mapped_column(JSONB)  # log of guarantor alerts
     # logical FK -> StaffUser (another slice); not a DB FK here.
-    assigned_staff_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    assigned_staff_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("staff_user.id"))
     status: Mapped[CollectionsCaseStatus] = mapped_column(
         Enum(CollectionsCaseStatus, name="collections_case_status")
     )
