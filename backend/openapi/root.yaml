@@ -44,6 +44,9 @@ components:
         extension below. The `authorizationUrl` / `tokenUrl` / `refreshUrl`
         values are placeholders — the concrete identity-provider endpoints are
         operator-chosen (data residency, 04 §5.3) and are NOT pinned by `04`.
+        INFERRED: `04` mandates "PKCE" but does not pin the challenge method;
+        `S256` is a chosen convention (the RFC 7636 recommended default), not a
+        value `04` specifies.
       x-pkce: S256
       flows:
         authorizationCode:

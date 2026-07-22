@@ -17,3 +17,6 @@ venv/
 
 # Softhouse agent worktrees — transient, never tracked
 .claude/worktrees/
+
+# OpenAPI: generated bundle (source is root.yaml + paths/ + schemas/)
+backend/openapi/openapi.yaml
