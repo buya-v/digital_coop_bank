@@ -1,0 +1,817 @@
+# EP-4 Payments & Transfers — path operations.
+# One operation per endpoint row in 04_technical_architecture.md §3.4.
+# Merged into `paths` by openapi/validate.py. All $refs are local.
+#
+# Idempotency-Key (project non-negotiable, 04 §3.0/§5.1) is applied to every
+# money-movement POST via the reusable `#/components/schemas/IdempotencyKey`
+# parameter (see ep4-payments.yaml schemas). External-rail operations carry a
+# PENDING REQUIREMENTS CHANGE note (Mongolia = Banksuljee/ACH+/NETC).
+
+/api/v1/payments/recipient-lookup:
+  post:
+    tags: [EP-4]
+    operationId: recipientLookup
+    summary: >-
+      Resolve a recipient identifier to a display name for confirmation before
+      send (04 §3.4). Auth: Member (ACTIVE). Not a money-movement call.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [identifier_type, identifier]
+            properties:
+              identifier_type:
+                $ref: '#/components/schemas/RecipientIdentifierType'
+              identifier:
+                type: string
+    responses:
+      '200':
+        description: Recipient resolved (uniform response; no membership enumeration).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipientLookupResult'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        description: 404 RECIPIENT_NOT_FOUND — uniform response, no membership enumeration (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        description: >-
+          429 LOOKUP_THROTTLED — per-sender recipient-lookup velocity cap
+          (US-12.5 config seed per DEC-35; no hard-coded threshold here) (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/payments/p2p:
+  post:
+    tags: [EP-4]
+    operationId: sendP2P
+    summary: >-
+      Send an instant internal P2P transfer (04 §3.4). Auth: Member (ACTIVE);
+      step-up required above the configured limit (US-12.5 — value NOT hard-coded
+      here). Money-movement — Idempotency-Key required.
+    parameters:
+      - $ref: '#/components/schemas/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [source_account_id, recipient_ref, amount]
+            properties:
+              source_account_id:
+                type: string
+                format: uuid
+              recipient_ref:
+                type: string
+                description: Opaque short-lived reference from POST /payments/recipient-lookup (04 §3.4).
+              amount:
+                $ref: '#/components/schemas/Money'
+              memo:
+                type: string
+                nullable: true
+    responses:
+      '200':
+        description: Transfer settled (instant, zero-fee).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                  format: uuid
+                status:
+                  $ref: '#/components/schemas/TransactionStatus'
+                settled_at:
+                  type: string
+                  format: date-time
+                receipt_url:
+                  type: string
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 RECIPIENT_NOT_ACTIVE (04 §3.4). Also 409 IDEMPOTENCY_CONFLICT on key reuse (04 §3.0).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: >-
+          422 INSUFFICIENT_FUNDS or 422 LIMIT_EXCEEDED (per-txn/velocity, config
+          US-12.5 — threshold not hard-coded) (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/external-accounts:
+  post:
+    tags: [EP-4]
+    operationId: linkExternalAccount
+    summary: >-
+      Link and verify an external bank account (04 §3.4). Auth: Member (ACTIVE).
+      Account linking (not a money movement) — no Idempotency-Key required.
+      VENDOR ASSUMPTION: 04 names Plaid; vendor substitution is a pending
+      requirements change (CLAUDE.md).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            description: One of `plaid_public_token` (instant) or `micro_deposit_details` (fallback) (04 §3.4).
+            properties:
+              plaid_public_token:
+                type: string
+                nullable: true
+              micro_deposit_details:
+                type: object
+                additionalProperties: true
+                nullable: true
+                description: 'INFERRED element shape; 04 names the field but does not pin its schema.'
+    responses:
+      '201':
+        description: External account link created (E-14).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalAccountLink'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 VERIFICATION_FAILED (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '502':
+        description: >-
+          502 PLAID_UNAVAILABLE — upstream vendor unavailable (04 §3.4). The
+          vendor-named code is a known baseline leak (CLAUDE.md); pending Mongolia
+          migration.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+  get:
+    tags: [EP-4]
+    operationId: listExternalAccounts
+    summary: 'List the member''s external account links (04 §3.4). Auth: Member.'
+    responses:
+      '200':
+        description: External account links.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                links:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ExternalAccountLink'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/external-accounts/{id}:
+  delete:
+    tags: [EP-4]
+    operationId: removeExternalAccount
+    summary: 'Remove an external account link (04 §3.4). Auth: Member.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Link removed.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [REMOVED]
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 LINK_IN_USE — active schedules reference this link (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/payments/external:
+  post:
+    tags: [EP-4]
+    operationId: sendExternalPayment
+    summary: >-
+      Move funds inbound/outbound over an external rail (04 §3.4). Auth: Member
+      (ACTIVE); step-up above threshold (config, US-12.5). Money-movement —
+      Idempotency-Key required. PENDING REQUIREMENTS CHANGE: `rail` is ACH/WIRE/RTP
+      per 04; Mongolia uses Banksuljee (RTGS)/ACH+/NETC, not ACH/FedNow. Rails are
+      recorded verbatim from 04, not renamed or invented.
+    parameters:
+      - $ref: '#/components/schemas/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [direction, rail, amount]
+            properties:
+              direction:
+                $ref: '#/components/schemas/PaymentDirection'
+              rail:
+                $ref: '#/components/schemas/ExternalRail'
+              source_account_id:
+                type: string
+                format: uuid
+                nullable: true
+              external_account_link_id:
+                type: string
+                format: uuid
+                nullable: true
+              amount:
+                $ref: '#/components/schemas/Money'
+              memo:
+                type: string
+                nullable: true
+    responses:
+      '200':
+        description: External payment accepted (pending settlement).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                  format: uuid
+                status:
+                  $ref: '#/components/schemas/TransactionStatus'
+                expected_settlement:
+                  type: string
+                  format: date-time
+                  description: 'type inferred; 04 names `expected_settlement` but does not pin its representation.'
+                cutoff_notice:
+                  type: string
+                  nullable: true
+                fees:
+                  allOf:
+                    - $ref: '#/components/schemas/Money'
+                  description: Rail fees (config, US-12.5 — value not hard-coded).
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '402':
+        description: 402 FEE_BALANCE_INSUFFICIENT (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        description: 422 LIMIT_EXCEEDED or 422 RAIL_UNAVAILABLE (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/payments/{transaction_id}:
+  get:
+    tags: [EP-4]
+    operationId: getPaymentStatus
+    summary: 'Track a payment''s status incl. `RETURNED` + `failure_reason` (04 §3.4). Auth: Member (party).'
+    parameters:
+      - name: transaction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Payment status tracking.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/payees:
+  post:
+    tags: [EP-4]
+    operationId: createPayee
+    summary: 'Create a bill-pay payee (04 §3.4). Auth: Member (ACTIVE).'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, payee_type, target_ref]
+            properties:
+              name:
+                type: string
+                maxLength: 100
+              payee_type:
+                $ref: '#/components/schemas/PayeeType'
+              target_ref:
+                type: string
+    responses:
+      '201':
+        description: Created payee (E-15).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payee'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+  get:
+    tags: [EP-4]
+    operationId: listPayees
+    summary: 'List the member''s payees (04 §3.4). Auth: Member (ACTIVE).'
+    responses:
+      '200':
+        description: Payees.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Payee'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/payees/{id}:
+  patch:
+    tags: [EP-4]
+    operationId: updatePayee
+    summary: 'Update a payee (04 §3.4). Auth: Member (ACTIVE).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                maxLength: 100
+              payee_type:
+                $ref: '#/components/schemas/PayeeType'
+              target_ref:
+                type: string
+              status:
+                $ref: '#/components/schemas/PayeeStatus'
+    responses:
+      '200':
+        description: Updated payee.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payee'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+  delete:
+    tags: [EP-4]
+    operationId: deletePayee
+    summary: 'Delete a payee (04 §3.4). Auth: Member (ACTIVE).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Payee deleted.
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 PAYEE_IN_USE — the payee is referenced by an active schedule (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/payments/schedules:
+  post:
+    tags: [EP-4]
+    operationId: createPaymentSchedule
+    summary: >-
+      Create a future-dated or recurring payment schedule (04 §3.4). Auth: Member
+      (ACTIVE); step-up for external rails. Idempotency-Key required — the project
+      non-negotiable (CLAUDE.md) and task T4 classify scheduled payments as a
+      money-movement POST; NOTE: 04 §3.4 does not itself list Idempotency-Key on
+      this row.
+    parameters:
+      - $ref: '#/components/schemas/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [source_account_id, payee_id, amount, rail, schedule]
+            properties:
+              source_account_id:
+                type: string
+                format: uuid
+              payee_id:
+                type: string
+                format: uuid
+              amount:
+                $ref: '#/components/schemas/Money'
+              rail:
+                $ref: '#/components/schemas/Rail'
+              schedule:
+                $ref: '#/components/schemas/ScheduleSpec'
+              retry_policy:
+                type: object
+                additionalProperties: true
+                nullable: true
+                description: 'INFERRED element shape (04 §2.4 names the field, US-11.1).'
+    responses:
+      '201':
+        description: Created schedule (E-16).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduledPayment'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        description: 422 PAST_START_DATE or VALIDATION_FAILED (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+  get:
+    tags: [EP-4]
+    operationId: listPaymentSchedules
+    summary: 'List the member''s payment schedules (04 §3.4). Auth: Member (owner).'
+    responses:
+      '200':
+        description: Schedules.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ScheduledPayment'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/payments/schedules/{id}:
+  patch:
+    tags: [EP-4]
+    operationId: updatePaymentSchedule
+    summary: 'Pause or edit a payment schedule (04 §3.4). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      description: Pause/edit fields (04 §3.4).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              amount:
+                $ref: '#/components/schemas/Money'
+              schedule:
+                $ref: '#/components/schemas/ScheduleSpec'
+              retry_policy:
+                type: object
+                additionalProperties: true
+                nullable: true
+              status:
+                $ref: '#/components/schemas/ScheduledPaymentStatus'
+    responses:
+      '200':
+        description: Updated schedule.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduledPayment'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 EXECUTION_IN_FLIGHT — an execution is in progress (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+  delete:
+    tags: [EP-4]
+    operationId: deletePaymentSchedule
+    summary: 'Cancel a payment schedule (04 §3.4). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Schedule cancelled.
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 EXECUTION_IN_FLIGHT — an execution is in progress (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/payment-requests:
+  post:
+    tags: [EP-4]
+    operationId: createPaymentRequest
+    summary: >-
+      Create an expense-split / request-to-pay among members (04 §3.4). Auth:
+      Member (ACTIVE). Creation does not move funds — no Idempotency-Key required
+      here; settlement (POST /{id}/settle) is the money-movement call.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [split_mode, shares]
+            properties:
+              origin_transaction_id:
+                type: string
+                format: uuid
+                nullable: true
+              total_amount:
+                allOf:
+                  - $ref: '#/components/schemas/Money'
+                description: Provide either `origin_transaction_id` or `total_amount` (04 §3.4).
+              split_mode:
+                $ref: '#/components/schemas/SplitMode'
+              shares:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    identifier_type:
+                      $ref: '#/components/schemas/RecipientIdentifierType'
+                    identifier:
+                      type: string
+                    amount:
+                      allOf:
+                        - $ref: '#/components/schemas/Money'
+                      description: Required for CUSTOM split; omitted for EQUAL (04 §3.4).
+              note:
+                type: string
+                nullable: true
+    responses:
+      '201':
+        description: Created payment request with per-share status (E-17).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 SHARES_SUM_MISMATCH or 422 NON_MEMBER_RECIPIENT (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+  get:
+    tags: [EP-4]
+    operationId: listPaymentRequests
+    summary: 'List sent or received payment requests with per-share status (04 §3.4). Auth: Member.'
+    parameters:
+      - name: direction
+        in: query
+        required: true
+        description: 04 §3.4 `?direction=sent|received`.
+        schema:
+          type: string
+          enum: [sent, received]
+    responses:
+      '200':
+        description: Payment requests.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PaymentRequest'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/payment-requests/{id}/settle:
+  post:
+    tags: [EP-4]
+    operationId: settlePaymentRequest
+    summary: >-
+      One-tap settle a payment-request share via P2P; auto-reconciled (04 §3.4).
+      Auth: Debtor member. Money-movement — Idempotency-Key required.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/schemas/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [source_account_id]
+            properties:
+              source_account_id:
+                type: string
+                format: uuid
+    responses:
+      '200':
+        description: Settled via P2P.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settled_transaction_id:
+                  type: string
+                  format: uuid
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 ALREADY_PAID (04 §3.4). Also 409 IDEMPOTENCY_CONFLICT on key reuse (04 §3.0).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/payment-requests/{id}/remind:
+  post:
+    tags: [EP-4]
+    operationId: remindPaymentRequest
+    summary: 'Send a reminder for an open payment request (04 §3.4). Auth: Requester.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Reminder sent.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reminders_sent:
+                  type: integer
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '429':
+        description: 429 REMINDER_THROTTLED (04 §3.4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/payment-requests/{id}/cancel:
+  post:
+    tags: [EP-4]
+    operationId: cancelPaymentRequest
+    summary: 'Cancel an open payment request (04 §3.4). Auth: Requester.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Cancelled.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [CANCELLED]
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'

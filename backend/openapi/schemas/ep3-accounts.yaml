@@ -1,0 +1,575 @@
+# EP-3 Savings & Deposit Accounts — component schemas.
+# Derived from 04_technical_architecture.md §2.3 (entities E-6..E-13) and §3.3
+# (endpoint rows). Merged into components.schemas by openapi/validate.py.
+#
+# HONESTY: enum values are copied VERBATIM from 04 §2.3. Fields 04 does not type
+# carry `type inferred; 04 does not specify`. Money is modelled per the project
+# non-negotiable (integer minor units); see the Money schema note re: currency.
+
+# ---------------------------------------------------------------------------
+# Shared primitives (also referenced from ep4-payments.yaml — assembled doc)
+# ---------------------------------------------------------------------------
+Money:
+  type: integer
+  format: int64
+  description: >-
+    Money as INTEGER minor units (MNT minor units). Project non-negotiable:
+    no floating point in any monetary field. 04/DEC-18 (§3.0 "Money") states
+    the currency literal `"USD"`; the project market is Mongolia — MNT
+    (ISO 4217 numeric 496, minor unit 2). The unit here follows the project
+    money rule (CLAUDE.md); the `USD`→`MNT` re-denomination is a pending
+    requirements change, not settled by 04.
+
+Currency:
+  type: string
+  description: >-
+    Currency code accompanying a Money amount. 04 §3.0/DEC-18 fixes the literal
+    `"USD"`; recorded here as 04 states it. INFERRED-PENDING: project market is
+    MNT — the value is expected to change under the Mongolia migration.
+  example: USD
+
+# ---------------------------------------------------------------------------
+# Enums — values VERBATIM from 04 §2.3
+# ---------------------------------------------------------------------------
+AccountType:
+  type: string
+  description: E-6 `account_type` (04 §2.3). `SYSTEM` covers cash clearing, interest expense, surplus, Community Grant pool, suspense.
+  enum:
+    - MEMBERSHIP_SHARE
+    - PRIMARY_SAVINGS
+    - TRANSACTION
+    - GROUP_POT
+    - SYSTEM
+
+AccountStatus:
+  type: string
+  description: E-6 `status` (04 §2.3).
+  enum:
+    - ACTIVE
+    - FROZEN
+    - CLOSED
+
+LedgerDirection:
+  type: string
+  description: E-7 `direction` (04 §2.3).
+  enum:
+    - DEBIT
+    - CREDIT
+
+TransactionType:
+  type: string
+  description: E-8 `type` (04 §2.3) — values verbatim.
+  enum:
+    - P2P_INTERNAL
+    - EXTERNAL_ACH_IN
+    - EXTERNAL_ACH_OUT
+    - WIRE_OUT
+    - RTP_IN
+    - RTP_OUT
+    - CARD_PURCHASE
+    - CARD_REFUND
+    - SHARE_SUBSCRIPTION
+    - SHARE_REDEMPTION
+    - INTEREST_POSTING
+    - ROUND_UP_TRANSFER
+    - GOAL_TRANSFER
+    - GROUP_POT_CONTRIBUTION
+    - GROUP_POT_OUTBOUND
+    - LOAN_DISBURSEMENT
+    - LOAN_REPAYMENT
+    - GUARANTEE_APPLICATION
+    - POOLED_CIRCLE_CONTRIBUTION
+    - POOLED_CIRCLE_PAYOUT
+    - DIVIDEND_PAYOUT
+    - PROJECT_BACKING
+    - BACKING_REFUND
+    - SURPLUS_MATCH_DISBURSEMENT
+    - FEE
+    - ADJUSTMENT
+
+LedgerEntryType:
+  type: string
+  description: >-
+    E-7 `entry_type` (04 §2.3): "mirrors Transaction type + HOLD_PLACED |
+    HOLD_RELEASED | INTEREST_ACCRUAL | INTEREST_POSTING". The enum below is the
+    explicit union of all `TransactionType` values plus those four extras;
+    the union is derived from 04's "mirrors Transaction type" phrasing (no value
+    invented).
+  enum:
+    - P2P_INTERNAL
+    - EXTERNAL_ACH_IN
+    - EXTERNAL_ACH_OUT
+    - WIRE_OUT
+    - RTP_IN
+    - RTP_OUT
+    - CARD_PURCHASE
+    - CARD_REFUND
+    - SHARE_SUBSCRIPTION
+    - SHARE_REDEMPTION
+    - INTEREST_POSTING
+    - ROUND_UP_TRANSFER
+    - GOAL_TRANSFER
+    - GROUP_POT_CONTRIBUTION
+    - GROUP_POT_OUTBOUND
+    - LOAN_DISBURSEMENT
+    - LOAN_REPAYMENT
+    - GUARANTEE_APPLICATION
+    - POOLED_CIRCLE_CONTRIBUTION
+    - POOLED_CIRCLE_PAYOUT
+    - DIVIDEND_PAYOUT
+    - PROJECT_BACKING
+    - BACKING_REFUND
+    - SURPLUS_MATCH_DISBURSEMENT
+    - FEE
+    - ADJUSTMENT
+    - HOLD_PLACED
+    - HOLD_RELEASED
+    - INTEREST_ACCRUAL
+
+TransactionStatus:
+  type: string
+  description: E-8 `status` (04 §2.3).
+  enum:
+    - PENDING
+    - SETTLED
+    - FAILED
+    - CANCELLED
+    - RETURNED
+
+SavingsGoalStatus:
+  type: string
+  description: E-9 `status` (04 §2.3).
+  enum:
+    - ACTIVE
+    - ACHIEVED
+    - ARCHIVED
+
+GroupPotStatus:
+  type: string
+  description: E-10 `status` (04 §2.3).
+  enum:
+    - ACTIVE
+    - CLOSED
+
+GroupPotMemberRole:
+  type: string
+  description: E-11 `role` (04 §2.3).
+  enum:
+    - CREATOR
+    - MEMBER
+
+GroupPotMemberStatus:
+  type: string
+  description: E-11 `status` (04 §2.3).
+  enum:
+    - INVITED
+    - ACTIVE
+    - DECLINED
+    - REMOVED
+    - LEFT
+
+GroupPotApprovalRequestStatus:
+  type: string
+  description: E-12 `status` (04 §2.3).
+  enum:
+    - PENDING
+    - APPROVED_EXECUTED
+    - REJECTED
+    - CANCELLED_UNREACHABLE
+    - EXPIRED
+
+ApprovalDecision:
+  type: string
+  description: E-13 `decision` (04 §2.3); also the request body value for the outbound-request decision endpoint (§3.3).
+  enum:
+    - APPROVED
+    - REJECTED
+
+# ---------------------------------------------------------------------------
+# Entities
+# ---------------------------------------------------------------------------
+Account:
+  type: object
+  description: E-6 Account (04 §2.3). Balances are DERIVED from LedgerEntry sums and never directly writable.
+  properties:
+    id:
+      type: string
+      format: uuid
+    owner_member_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Null for `GROUP_POT` (owned via GroupPotMember) and `SYSTEM` accounts (04 §2.3).
+    account_number:
+      type: string
+      description: Sponsor-bank-issued or internal number (04 §2.3).
+    account_type:
+      $ref: '#/components/schemas/AccountType'
+    balance:
+      $ref: '#/components/schemas/Money'
+    available_balance:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: '`balance` minus active holds (guarantee pledges, Group Pot pending approvals, card authorizations) (04 §2.3).'
+    interest_rate_config_ref:
+      type: string
+      format: uuid
+      nullable: true
+      description: FK→ConfigurationParameter; rate parameters for `PRIMARY_SAVINGS` (04 §2.3, US-3.1/US-12.5).
+    status:
+      $ref: '#/components/schemas/AccountStatus'
+    opened_at:
+      type: string
+      format: date-time
+    closed_at:
+      type: string
+      format: date-time
+      nullable: true
+    accrued_interest_mtd:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Month-to-date accrued interest, savings accounts only (04 §3.3 GET /accounts/{id}).
+
+AccountSummary:
+  type: object
+  description: List-item projection returned by GET /accounts (04 §3.3 response keys).
+  properties:
+    id:
+      type: string
+      format: uuid
+    account_type:
+      $ref: '#/components/schemas/AccountType'
+    balance:
+      $ref: '#/components/schemas/Money'
+    available_balance:
+      $ref: '#/components/schemas/Money'
+    status:
+      $ref: '#/components/schemas/AccountStatus'
+
+AccountSettings:
+  type: object
+  description: Account settings (04 §3.3 GET/PUT /accounts/{id}/settings).
+  properties:
+    nickname:
+      type: string
+      nullable: true
+    statement_delivery:
+      type: string
+      description: 'type inferred; 04 does not specify — delivery channel/cadence for statements.'
+    low_balance_alert_threshold:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      nullable: true
+
+InterestHistory:
+  type: object
+  description: Response of GET /accounts/{id}/interest-history (04 §3.3).
+  properties:
+    postings:
+      type: array
+      items:
+        type: object
+        properties:
+          period:
+            type: string
+            description: 'type inferred; 04 does not specify — the accrual/posting period label.'
+          amount:
+            $ref: '#/components/schemas/Money'
+    earned_to_date:
+      $ref: '#/components/schemas/Money'
+    current_rate_bps:
+      type: integer
+      description: Current interest rate in basis points (04 §3.3 `current_rate_bps`).
+    last_posting_at:
+      type: string
+      format: date-time
+
+LedgerEntry:
+  type: object
+  description: >-
+    E-7 LedgerEntry read model (04 §2.3). Immutable double-entry posting line;
+    append-only, corrections are reversing entries. Surfaced in the Group Pot
+    shared sub-ledger (04 §3.3 GET /group-pots/{id}/ledger).
+  properties:
+    id:
+      type: string
+      format: uuid
+    transaction_id:
+      type: string
+      format: uuid
+    account_id:
+      type: string
+      format: uuid
+    direction:
+      $ref: '#/components/schemas/LedgerDirection'
+    amount:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Positive amount (04 §2.3 — `amount` Money positive).
+    currency:
+      $ref: '#/components/schemas/Currency'
+    entry_type:
+      $ref: '#/components/schemas/LedgerEntryType'
+    savings_goal_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Sub-account attribution (04 §2.3).
+    posted_at:
+      type: string
+      format: date-time
+    sequence:
+      type: integer
+      format: int64
+      description: Monotonic per-account sequence (04 §2.3 BIGINT).
+
+Transaction:
+  type: object
+  description: E-8 Transaction read model (04 §2.3) — the member-visible history row (US-3.2).
+  properties:
+    id:
+      type: string
+      format: uuid
+    idempotency_key:
+      type: string
+      nullable: true
+      description: Unique; required for all money-movement API calls (04 §2.3).
+    type:
+      $ref: '#/components/schemas/TransactionType'
+    status:
+      $ref: '#/components/schemas/TransactionStatus'
+    failure_reason:
+      type: string
+      nullable: true
+      description: e.g. ACH return code (04 §2.3).
+    amount:
+      $ref: '#/components/schemas/Money'
+    currency:
+      $ref: '#/components/schemas/Currency'
+    memo:
+      type: string
+      maxLength: 140
+      nullable: true
+    counterparty:
+      type: object
+      additionalProperties: true
+      description: >-
+        JSON — recipient identifier type/display name (P2P), external account
+        ref, merchant descriptor (card), etc. (04 §2.3). INFERRED shape: 04
+        names the field as JSON but does not pin its element schema.
+    category:
+      type: string
+      nullable: true
+      description: Automatic categorization (04 §2.3, US-3.2).
+    receipt_ref:
+      type: string
+      nullable: true
+      description: WORM object-store URI of the shareable confirmation receipt (04 §2.3).
+    initiated_by:
+      type: string
+      format: uuid
+      description: FK→Member or StaffUser (04 §2.3).
+    external_ref:
+      type: string
+      nullable: true
+      description: Sponsor bank / vendor id (04 §2.3 names Stripe/Lithic — vendor assumption pending Mongolia migration).
+    created_at:
+      type: string
+      format: date-time
+    settled_at:
+      type: string
+      format: date-time
+      nullable: true
+
+SavingsGoal:
+  type: object
+  description: E-9 SavingsGoal (04 §2.3) — personal sub-account pot under the Primary Savings Account (DEC-13, US-3.3).
+  properties:
+    id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    savings_account_id:
+      type: string
+      format: uuid
+    name:
+      type: string
+      maxLength: 60
+    emoji_or_image_ref:
+      type: string
+      nullable: true
+    target_amount:
+      $ref: '#/components/schemas/Money'
+    target_date:
+      type: string
+      format: date
+      nullable: true
+    current_amount:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Derived from attributed LedgerEntries (04 §2.3).
+    progress_pct:
+      type: number
+      description: 'type inferred; 04 does not specify — derived progress toward target (04 §3.3 response key `progress_pct`).'
+    auto_transfer:
+      $ref: '#/components/schemas/AutoTransfer'
+    status:
+      $ref: '#/components/schemas/SavingsGoalStatus'
+    created_at:
+      type: string
+      format: date-time
+
+AutoTransfer:
+  type: object
+  nullable: true
+  description: E-9 `auto_transfer` JSON (04 §2.3) — scheduled top-ups from the Transaction Account.
+  properties:
+    amount:
+      $ref: '#/components/schemas/Money'
+    frequency:
+      type: string
+      description: 'type inferred; 04 does not specify the frequency enum for auto_transfer.'
+    source_account_id:
+      type: string
+      format: uuid
+    next_run_at:
+      type: string
+      format: date-time
+
+GroupPot:
+  type: object
+  description: E-10 GroupPot (04 §2.3) — shared multi-member pot with collective m-of-n approval (DEC-13, US-3.4).
+  properties:
+    id:
+      type: string
+      format: uuid
+    account_id:
+      type: string
+      format: uuid
+      description: FK→Account (`GROUP_POT`), unique (04 §2.3).
+    creator_member_id:
+      type: string
+      format: uuid
+    name:
+      type: string
+      maxLength: 80
+    purpose:
+      type: string
+      maxLength: 280
+    approval_threshold_m:
+      type: integer
+      description: m-of-n approval threshold; approvers are the pot's ACTIVE members (04 §2.3).
+    status:
+      $ref: '#/components/schemas/GroupPotStatus'
+    created_at:
+      type: string
+      format: date-time
+    members:
+      type: array
+      description: Pot membership (04 §3.3 POST /group-pots returns `members[]`).
+      items:
+        $ref: '#/components/schemas/GroupPotMember'
+
+GroupPotMember:
+  type: object
+  description: E-11 GroupPotMember (04 §2.3).
+  properties:
+    id:
+      type: string
+      format: uuid
+    group_pot_id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    role:
+      $ref: '#/components/schemas/GroupPotMemberRole'
+    invited_via:
+      $ref: '#/components/schemas/RecipientIdentifierType'
+    status:
+      $ref: '#/components/schemas/GroupPotMemberStatus'
+    total_contributed:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Derived (04 §2.3).
+    invited_at:
+      type: string
+      format: date-time
+    responded_at:
+      type: string
+      format: date-time
+      nullable: true
+
+GroupPotLedger:
+  type: object
+  description: Shared sub-ledger view of a Group Pot (04 §3.3 GET /group-pots/{id}/ledger) — real-time, visible to all pot members.
+  properties:
+    balance:
+      $ref: '#/components/schemas/Money'
+    entries:
+      type: array
+      items:
+        $ref: '#/components/schemas/LedgerEntry'
+    contribution_breakdown:
+      type: array
+      items:
+        type: object
+        properties:
+          member:
+            type: string
+            format: uuid
+            description: 'INFERRED representation: 04 shows `{member, total}`; member rendered as member id.'
+          total:
+            $ref: '#/components/schemas/Money'
+    next_cursor:
+      type: string
+      nullable: true
+
+GroupPotApprovalRequest:
+  type: object
+  description: E-12 GroupPotApprovalRequest (04 §2.3) — pending outbound transfer awaiting m-of-n approval (US-3.5).
+  properties:
+    id:
+      type: string
+      format: uuid
+    approval_request_id:
+      type: string
+      format: uuid
+      description: Alias returned by 04 §3.3 POST /group-pots/{id}/outbound-requests (`approval_request_id`).
+    group_pot_id:
+      type: string
+      format: uuid
+    transaction_id:
+      type: string
+      format: uuid
+      description: Held `PENDING`; funds placed on hold (04 §2.3).
+    initiated_by_member_id:
+      type: string
+      format: uuid
+    amount:
+      $ref: '#/components/schemas/Money'
+    recipient:
+      type: object
+      additionalProperties: true
+      description: 'JSON recipient (internal account / DEC-3 identifier / external). INFERRED element shape.'
+    purpose:
+      type: string
+      maxLength: 280
+    required_approvals:
+      type: integer
+      description: Snapshot of m at creation (04 §2.3).
+    approvals_received:
+      type: integer
+      description: Running count of approvals (04 §3.3 decision response key).
+    status:
+      $ref: '#/components/schemas/GroupPotApprovalRequestStatus'
+    expires_at:
+      type: string
+      format: date-time
+    resolved_at:
+      type: string
+      format: date-time
+      nullable: true
