@@ -1,0 +1,475 @@
+# EP-13 Compliance, Risk & Transparency — component schemas
+# (04 §3.13, §2.11 E-56..E-59).
+# Merged into components.schemas by openapi/validate.py. All $refs local.
+# Shared schemas (Money, Error) are $ref'd, never redefined. ComplianceCase and
+# its enums live in schemas/ep12-admin.yaml (the AML alert queue feeds them) and
+# are $ref'd here, not redefined.
+
+# ---------------------------------------------------------------------------
+# AML rule tuning & alerts (04 §3.13 rows 1-2)
+# ---------------------------------------------------------------------------
+AdminAmlRule:
+  type: object
+  description: >-
+    A tunable AML scenario/rule set (04 §3.13, US-13.1) with model-governance doc
+    refs. INFERRED field set — 04 says "scenario/rule tuning params" without
+    pinning a schema; parameters are left open (tunable configuration).
+  properties:
+    id:
+      type: string
+      format: uuid
+    scenario_key:
+      type: string
+      description: Scenario/rule identifier (04 §3.13). type inferred.
+    params:
+      type: object
+      additionalProperties: true
+      description: Tuning parameters (thresholds, windows). INFERRED open shape — runtime-tunable, no seed values baked here.
+    model_governance_ref:
+      type: string
+      nullable: true
+      description: Model-governance document reference (04 §3.13).
+    enabled:
+      type: boolean
+
+AdminAmlRuleUpdateRequest:
+  type: object
+  description: Body of `PUT /api/v1/admin/aml/rules/{id}` (04 §3.13). COMPLIANCE_OFFICER (maker-checker).
+  properties:
+    params:
+      type: object
+      additionalProperties: true
+    model_governance_ref:
+      type: string
+      nullable: true
+    enabled:
+      type: boolean
+
+AdminAmlRuleListResponse:
+  type: object
+  description: Response of `GET /api/v1/admin/aml/rules` (04 §3.13) — tunable rule sets + scenario management.
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/AdminAmlRule'
+
+AdminAmlAlert:
+  type: object
+  description: >-
+    An AML alert across P2P, external, cards, Group Pots, Loan Circles and Backings
+    (04 §3.13) that feeds the ComplianceCase queue (§3.12). INFERRED shape — 04
+    lists the alert surfaces but does not pin a schema; the persisted case is E-54
+    ComplianceCase.
+  properties:
+    id:
+      type: string
+      format: uuid
+    scenario_key:
+      type: string
+    score:
+      type: number
+      description: Alert score (04 §3.13). type inferred; 04 does not pin the representation.
+    matched_pattern:
+      type: string
+      nullable: true
+    source:
+      type: string
+      description: Alert source surface — P2P, external, cards, Group Pots, Loan Circles, Backings (04 §3.13).
+    case_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: The ComplianceCase (E-54) this alert opened/attached to (04 §3.13 → §3.12 queue).
+    created_at:
+      type: string
+      format: date-time
+
+AdminAmlAlertListResponse:
+  type: object
+  description: Response of `GET /api/v1/admin/aml/alerts` (04 §3.13).
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/AdminAmlAlert'
+    next_cursor:
+      type: string
+      nullable: true
+
+# ---------------------------------------------------------------------------
+# Regulatory report runs (E-58) — 04 §3.13 report rows
+# ---------------------------------------------------------------------------
+ReportRunStatus:
+  type: string
+  description: E-58 RegulatoryReportRun `status` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'RUNNING'
+    - 'COMPLETED'
+    - 'FAILED'
+    - 'SUBMITTED'
+
+RegulatoryReportRun:
+  type: object
+  description: >-
+    E-58 RegulatoryReportRun (04 §2.11) — one execution of a catalog report
+    (US-13.2): point-in-time snapshot, export format, submission log, KPI-2.3/2.4/
+    2.5 breach alerts. Report definitions are configuration-driven (Open Item 3);
+    no report values baked here.
+  properties:
+    id:
+      type: string
+      format: uuid
+    report_key:
+      type: string
+      description: E-58 `report_key`, e.g. capital adequacy, liquidity, deposit-to-loan, portfolio quality/NPL (04 §2.11). Definitions configuration-driven.
+    as_of:
+      type: string
+      format: date-time
+      description: E-58 `as_of` — point-in-time snapshot (04 §2.11).
+    output_ref:
+      type: string
+      nullable: true
+      description: E-58 `output_ref` — export in the required format (04 §2.11).
+    schedule_ref:
+      type: string
+      nullable: true
+    threshold_breaches:
+      type: object
+      additionalProperties: true
+      description: E-58 `threshold_breaches` JSON — KPI-2.3/2.4/2.5 breach alerts to P-5 (04 §2.11). INFERRED shape.
+    status:
+      $ref: '#/components/schemas/ReportRunStatus'
+    submission_log:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: E-58 `submission_log` JSON (04 §2.11). INFERRED shape.
+    run_at:
+      type: string
+      format: date-time
+
+ReportRunCreateRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/reports/runs` (04 §3.13). COMPLIANCE_OFFICER,
+    FINANCE_ADMIN, AUDITOR. `409 SNAPSHOT_UNAVAILABLE` if the point-in-time
+    snapshot cannot be produced.
+  required:
+    - report_key
+    - as_of
+  properties:
+    report_key:
+      type: string
+    as_of:
+      type: string
+      format: date-time
+    schedule:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: 04 §3.13 `schedule?`. INFERRED shape.
+
+ReportCatalogEntry:
+  type: object
+  description: >-
+    An entry of `GET /api/v1/admin/reports/catalog` (04 §3.13) — an available
+    report definition. INFERRED shape; definitions are configuration-driven
+    (Open Item 3).
+  properties:
+    report_key:
+      type: string
+    title:
+      type: string
+      nullable: true
+    export_formats:
+      type: array
+      items:
+        type: string
+      description: Available export formats (04 §3.13 / E-58). INFERRED.
+
+ReportCatalogResponse:
+  type: object
+  description: Response of `GET /api/v1/admin/reports/catalog` (04 §3.13).
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/ReportCatalogEntry'
+
+# ---------------------------------------------------------------------------
+# Audit log (E-56) — 04 §3.13 audit-log row
+# ---------------------------------------------------------------------------
+AuditLogEntry:
+  type: object
+  description: >-
+    E-56 AuditLogEntry (04 §2.11) — a platform-wide append-only, tamper-evident
+    (hash-chained) audit event; WORM storage. Every financial, governance and
+    administrative action writes this envelope (US-13.3).
+  properties:
+    id:
+      type: string
+      format: uuid
+    sequence:
+      type: integer
+      format: int64
+      description: E-56 `sequence` — monotonic BIGINT (04 §2.11).
+    prev_hash:
+      type: string
+      description: E-56 `prev_hash` — hash chain link (04 §2.11).
+    entry_hash:
+      type: string
+      description: E-56 `entry_hash` — this entry's chain hash (04 §2.11).
+    actor:
+      type: object
+      additionalProperties: true
+      description: E-56 `actor` JSON — member/staff/system + auth context (04 §2.11).
+    action:
+      type: string
+    subject:
+      type: object
+      additionalProperties: true
+      description: E-56 `subject` JSON — entity type + id (04 §2.11).
+    before:
+      type: object
+      additionalProperties: true
+      nullable: true
+    after:
+      type: object
+      additionalProperties: true
+      nullable: true
+    occurred_at:
+      type: string
+      format: date-time
+    correlation_id:
+      type: string
+      format: uuid
+
+AuditLogResponse:
+  type: object
+  description: >-
+    Response of `GET /api/v1/admin/audit-log` (04 §3.13) — hash-chained entries
+    (E-56), the chain-verification result and a scoped export. AUDITOR,
+    COMPLIANCE_OFFICER (scoped); `403 SCOPE_EXCEEDED` on an out-of-scope query.
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/AuditLogEntry'
+    chain_verification:
+      type: object
+      description: Continuous hash-chain verification result (04 §3.13 / US-13.3). INFERRED shape.
+      properties:
+        verified:
+          type: boolean
+        checked_through_sequence:
+          type: integer
+          format: int64
+          nullable: true
+      additionalProperties: true
+    next_cursor:
+      type: string
+      nullable: true
+
+# ---------------------------------------------------------------------------
+# Transparent Capital Ledger & Impact Scorecard (E-59) — 04 §3.13 member rows
+# ---------------------------------------------------------------------------
+CapitalAllocation:
+  type: object
+  description: >-
+    One category allocation within E-59 `allocations` (04 §2.11) — e.g. local
+    loans, green lending, Community Grants, liquidity reserves; the set reconciles
+    to 100%.
+  properties:
+    category:
+      type: string
+      description: Allocation category (04 §2.11). type inferred; 04 gives examples, not a closed enum.
+    amount:
+      $ref: '#/components/schemas/Money'
+    percentage:
+      type: number
+      description: Share of total managed funds (04 §2.11 `percentage`); the set reconciles to 100%. type inferred.
+
+CapitalLedgerResponse:
+  type: object
+  description: >-
+    Member-facing Transparent Capital Ledger (DEC-15, US-13.4), projected from the
+    E-59 CapitalAllocationSnapshot behind `GET /api/v1/capital-ledger` (04 §3.13).
+    Allocations reconcile to 100%; refreshed ≥ daily; modeled figures labeled
+    "estimated" (DEC-15). NEVER describes deposits as insured/protected/guaranteed
+    (project non-negotiable, CLAUDE.md).
+  properties:
+    as_of:
+      type: string
+      format: date-time
+      description: E-59 `as_of` (04 §2.11).
+    total_managed_funds:
+      $ref: '#/components/schemas/Money'
+    allocations:
+      type: array
+      items:
+        $ref: '#/components/schemas/CapitalAllocation'
+    spotlights:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: E-59 `spotlights` — anonymized/consented funded-project highlights, figures labeled "estimated" (04 §2.11, DEC-15).
+    source_ledger_hash:
+      type: string
+      description: E-59 `source_ledger_hash` — reconciliation proof against the ledger (04 §2.11).
+
+CapitalLedgerCategoryDrilldown:
+  type: object
+  description: >-
+    Drill-down for `GET /api/v1/capital-ledger/categories/{category}` (04 §3.13) —
+    detail behind one Transparent Capital Ledger category. INFERRED shape; 04
+    names the drill-down endpoint but does not pin its body.
+  properties:
+    category:
+      type: string
+    as_of:
+      type: string
+      format: date-time
+    amount:
+      $ref: '#/components/schemas/Money'
+    percentage:
+      type: number
+    detail:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Per-category breakdown / consented project spotlights (04 §3.13). INFERRED element shape.
+
+ImpactScorecard:
+  type: object
+  description: >-
+    Response of `GET /api/v1/members/me/impact-scorecard` (04 §3.13, US-13.5) —
+    per-member proportional attribution over E-59 + project outcomes. EVERY figure
+    is labeled "estimated" with a one-tap methodology link (DEC-15). Optional
+    share-card ref. `404 INSUFFICIENT_DATA` when attribution cannot be computed.
+  properties:
+    as_of:
+      type: string
+      format: date-time
+    attributions:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Per-member proportional attribution + project outcomes; each figure labeled "estimated" (04 §3.13). INFERRED element shape.
+    methodology_link:
+      type: string
+      description: One-tap methodology link (04 §3.13, DEC-15).
+    share_card_ref:
+      type: string
+      nullable: true
+      description: Optional share-card reference (04 §3.13).
+
+# ---------------------------------------------------------------------------
+# Data Subject Requests (E-57) — 04 §3.13 DSAR rows
+# ---------------------------------------------------------------------------
+DataSubjectRequestType:
+  type: string
+  description: E-57 `request_type` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'ACCESS'
+    - 'DELETION'
+    - 'RECTIFICATION'
+    - 'PORTABILITY'
+
+DataSubjectRequestStatus:
+  type: string
+  description: E-57 `status` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'RECEIVED'
+    - 'IN_PROGRESS'
+    - 'PENDING_REDACTION'
+    - 'DELIVERED'
+    - 'PARTIALLY_FULFILLED'
+    - 'REJECTED_LEGAL_BASIS'
+
+DataSubjectRequest:
+  type: object
+  description: >-
+    E-57 DataSubjectRequest (04 §2.11) — DSAR/deletion workflow with statutory
+    deadline tracking (US-13.6). Erasure respects financial-records retention
+    obligations, which lawfully override deletion and are itemized in
+    `retention_overrides`.
+  properties:
+    id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    request_type:
+      $ref: '#/components/schemas/DataSubjectRequestType'
+    status:
+      $ref: '#/components/schemas/DataSubjectRequestStatus'
+    deadline_at:
+      type: string
+      format: date-time
+      description: E-57 `deadline_at` — statutory deadline (04 §2.11).
+    fulfilment_package_ref:
+      type: string
+      nullable: true
+      description: E-57 `fulfilment_package_ref` — present on delivery (04 §2.11).
+    retention_overrides:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: E-57 `retention_overrides` JSON — financial-records retention that lawfully overrides deletion, itemized (04 §2.11).
+    received_at:
+      type: string
+      format: date-time
+    resolved_at:
+      type: string
+      format: date-time
+      nullable: true
+
+DataSubjectRequestCreateRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/members/me/data-requests` (04 §3.13). Member (any status
+    incl. post-CLOSED via support channel). `409 OPEN_REQUEST_EXISTS` if one is
+    already open.
+  required:
+    - request_type
+  properties:
+    request_type:
+      $ref: '#/components/schemas/DataSubjectRequestType'
+
+AdminDataRequestActionRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/data-requests/{id}/actions` (04 §3.13) — DSAR
+    workflow action (compile/redact/deliver/reject). COMPLIANCE_OFFICER; deadline
+    tracking; erasure respects financial-records retention (`422 RETENTION_CONFLICT`).
+  required:
+    - action
+  properties:
+    action:
+      type: string
+      description: DSAR workflow action (04 §3.13). Verbatim values.
+      enum:
+        - 'COMPILE'
+        - 'REDACT'
+        - 'DELIVER'
+        - 'REJECT'
+    note:
+      type: string
+      nullable: true
+
+AdminDataRequestListResponse:
+  type: object
+  description: Response of `GET /api/v1/admin/data-requests` (04 §3.13) — DSAR workflow queue with deadline tracking.
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/DataSubjectRequest'
+    next_cursor:
+      type: string
+      nullable: true

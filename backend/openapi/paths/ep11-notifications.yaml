@@ -1,0 +1,221 @@
+# EP-11 Notifications & Engagement — path operations (04 §3.11).
+# One operation per §3.11 method. Member rows inherit the document default
+# (memberOAuth2); the admin catalog CRUD row uses the staff audience (`staffSSO`)
+# and is maker-checker + audit-logged (04 §3.12). Common error codes apply
+# everywhere (04 §3.0). All $refs local.
+
+/api/v1/notifications:
+  get:
+    tags: [EP-11]
+    operationId: listNotifications
+    summary: 'In-app inbox (04 §3.11). Auth: Member. `?filter=unread` supported.'
+    parameters:
+      - name: filter
+        in: query
+        required: false
+        description: 04 §3.11 `?filter=unread` — restrict to unread items. INFERRED enum; 04 names only the `unread` value.
+        schema:
+          type: string
+          enum: [unread]
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: In-app inbox items (E-50).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationInboxResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/notifications/{id}/read:
+  post:
+    tags: [EP-11]
+    operationId: markNotificationRead
+    summary: 'Mark one notification read (04 §3.11). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Marked read.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationReadResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/notifications/read-all:
+  post:
+    tags: [EP-11]
+    operationId: markAllNotificationsRead
+    summary: 'Mark all notifications read (04 §3.11). Auth: Member.'
+    responses:
+      '200':
+        description: All marked read.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationReadResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/notifications/push-registrations:
+  post:
+    tags: [EP-11]
+    operationId: registerPushToken
+    summary: >-
+      Register a device push token for FCM/APNs dispatch (04 §3.11). Auth: Member.
+      Not a money movement — no Idempotency-Key. VENDOR ASSUMPTION: FCM/APNs
+      transports are a pending requirements change (CLAUDE.md).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PushRegistrationRequest'
+    responses:
+      '201':
+        description: Push registration created.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRegistrationResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 UNBOUND_DEVICE — `device_binding_id` is not a bound device (04 §3.11).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/notifications/preferences:
+  get:
+    tags: [EP-11]
+    operationId: getNotificationPreferences
+    summary: 'Read the notification preference matrix per E-51 (04 §3.11). Auth: Member.'
+    responses:
+      '200':
+        description: Preference matrix (regulatory/security notices flagged `suppressible:false`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferences'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  put:
+    tags: [EP-11]
+    operationId: updateNotificationPreferences
+    summary: >-
+      Update the notification preference matrix and quiet hours (04 §3.11). Auth:
+      Member. Regulatory/security notices are exempt from suppression.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationPreferences'
+    responses:
+      '200':
+        description: Updated preference matrix.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferences'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 CANNOT_DISABLE_REGULATORY — attempt to suppress a non-suppressible notice (04 §3.11).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/notification-event-types:
+  get:
+    tags: [EP-11]
+    operationId: adminListNotificationEventTypes
+    summary: >-
+      List the notification event catalog (04 §3.11). Auth: staff OPS_ADMIN. Staff
+      token audience.
+    security:
+      - staffSSO: []
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Event catalog (E-49).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/NotificationEventType'
+                next_cursor:
+                  type: string
+                  nullable: true
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  post:
+    tags: [EP-11]
+    operationId: adminCreateNotificationEventType
+    summary: >-
+      Create a notification event type — new event types via configuration, not
+      code (04 §3.11). Auth: staff OPS_ADMIN. Maker-checker + audit-logged (04
+      §3.12); the created entry takes effect only after checker approval.
+    security:
+      - staffSSO: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationEventTypeCreateRequest'
+    responses:
+      '201':
+        description: Catalog entry created (E-49); mutation is maker-checker + audit-logged (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationEventType'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 EVENT_KEY_EXISTS — `event_key` already present (04 §3.11).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
