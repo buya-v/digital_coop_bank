@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info:
+  title: Digital Coop Bank API
+  version: 0.0.1
+  description: Architecture-of-record derived from 04_technical_architecture.md §3. Scaffold.
+servers: []
+security: []
+tags: []
+components:
+  schemas: {}
