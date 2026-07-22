@@ -44,9 +44,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": ""
+      "note": "branch softhouse/T2-review-foundation @ 5b27130. VERDICT MICRO-FIX (applied on main @ 830e78d). Independently re-validated (PASS). Fact-checked the 2 pinned details (step-up endpoint \u00a73.1, step_up_token body \u00a73.5) \u2014 both real, not fabricated. Only fix: S256 PKCE value inferred but not flagged in-spec \u2014 now flagged."
     },
     {
       "id": "T3",
@@ -65,7 +65,7 @@
       "dependencies": [
         "T2"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
@@ -86,7 +86,7 @@
       "dependencies": [
         "T2"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
