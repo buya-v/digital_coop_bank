@@ -65,9 +65,9 @@
       "dependencies": [
         "T2"
       ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T3-openapi-ep1-ep2 @ 515d14f. 22 paths/23 ops/50 schemas, validates independently PASS. All 12 \u00a73.1 + 9 \u00a73.2 rows covered (2 rows split into GET/DELETE, GET/PUT). Enums quoted verbatim from 04; every inferred type marked in-spec. KEY JUDGMENT: refused to reproduce 04 currency:USD enum literal (would encode the invalidated non-negotiable) \u2014 modelled currency as free ISO-4217 string with the conflict flagged in-spec. Money=int64 MNT minor units; no config-seed value hardcoded as const."
     },
     {
       "id": "T4",
