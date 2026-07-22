@@ -319,7 +319,7 @@ class LoanCircle(Base, UUIDPrimaryKey, Timestamps):
         UUID(as_uuid=True), ForeignKey("member.id")
     )
     loan_application_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("loan_application.id"), unique=True
+        UUID(as_uuid=True), ForeignKey("loan_application.id", use_alter=True, name="fk_loan_circle_application"), unique=True
     )
     status: Mapped[LoanCircleStatus] = mapped_column(
         Enum(LoanCircleStatus, name="loan_circle_status")

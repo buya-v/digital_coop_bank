@@ -1,24 +1,37 @@
-"""Alembic environment — skeleton. No models bound yet.
-
-The schema (from 04_technical_architecture.md's 59 entities) lands in a later
-pass; when it does, set target_metadata to the SQLAlchemy Base.metadata here.
-The chain MUST stay linear (ledger requirement).
+"""Alembic environment. target_metadata is the ORM Base.metadata so
+`alembic revision --autogenerate` (in CI, against Postgres) produces migrations
+that track the models. The chain MUST stay linear (ledger requirement).
 """
+from logging.config import fileConfig
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
-target_metadata = None  # set when the ORM models exist
+from app.db.check_models import _load_all_models
+from app.db.base import Base
+
+_load_all_models()
+target_metadata = Base.metadata
+
+config = context.config
+if config.config_file_name:
+    fileConfig(config.config_file_name)
 
 
 def run_migrations_offline() -> None:
-    context.configure(url=context.config.get_main_option("sqlalchemy.url"),
-                      target_metadata=target_metadata, literal_binds=True)
+    context.configure(url=config.get_main_option("sqlalchemy.url"),
+                      target_metadata=target_metadata, literal_binds=True,
+                      dialect_opts={"paramstyle": "named"})
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    # Real online config is wired when models exist; scaffold is a no-op guard.
-    run_migrations_offline()
+    connectable = engine_from_config(config.get_section(config.config_ini_section, {}),
+                                     prefix="sqlalchemy.", poolclass=pool.NullPool)
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():

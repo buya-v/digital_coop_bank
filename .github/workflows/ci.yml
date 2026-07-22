@@ -25,6 +25,17 @@ jobs:
         run: ruff check app tests
       - name: Types
         run: mypy app
+      - name: ORM schema gate
+        run: python -m app.db.check_models
+      - name: Apply migration to Postgres
+        env: { DATABASE_URL: "postgresql+psycopg://dcb:dcb@localhost:5432/dcb" }
+        run: |
+          python - <<'PY'
+          from alembic.config import Config; from alembic import command
+          import os
+          cfg = Config("alembic.ini"); cfg.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+          command.upgrade(cfg, "head")
+          PY
       - name: Tests
         env: { DATABASE_URL: "postgresql+psycopg://dcb:dcb@localhost:5432/dcb" }
         run: pytest -q

@@ -116,7 +116,7 @@ class Proposal(Base, UUIDPrimaryKey, Timestamps):
     cosignature_threshold: Mapped[int] = mapped_column(Integer)  # config
     cosignature_count: Mapped[int] = mapped_column(Integer)  # derived
     ballot_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("ballot.id")
+        UUID(as_uuid=True), ForeignKey("ballot.id", use_alter=True, name="fk_proposal_ballot")
     )
     linked_project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("community_project.id")
@@ -182,7 +182,7 @@ class Ballot(Base, UUIDPrimaryKey, Timestamps):
     quorum_rule = mapped_column(JSONB)  # quorum % + result-visibility rules
     seats: Mapped[Optional[int]] = mapped_column(Integer)  # BOARD_ELECTION only
     eligibility_snapshot_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("eligibility_snapshot.id")
+        UUID(as_uuid=True), ForeignKey("eligibility_snapshot.id", use_alter=True, name="fk_ballot_eligibility_snapshot")
     )
     status: Mapped[BallotStatus] = mapped_column(Enum(BallotStatus, name="ballot_status"))
     results = mapped_column(JSONB)  # tallies/turnout/outcome, set at certification
