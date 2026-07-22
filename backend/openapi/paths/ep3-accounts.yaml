@@ -416,7 +416,7 @@
         schema:
           type: string
           format: uuid
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     requestBody:
       required: true
       content:
@@ -663,7 +663,7 @@
         schema:
           type: string
           format: uuid
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     requestBody:
       required: true
       content:
@@ -715,7 +715,7 @@
         schema:
           type: string
           format: uuid
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     requestBody:
       required: true
       content:
@@ -769,7 +769,7 @@
         schema:
           type: string
           format: uuid
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     security:
       - memberOAuth2: []
         stepUpAssertion: []

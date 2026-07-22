@@ -3,7 +3,7 @@
 # Merged into `paths` by openapi/validate.py. All $refs are local.
 #
 # Idempotency-Key (project non-negotiable, 04 §3.0/§5.1) is applied to every
-# money-movement POST via the reusable `#/components/schemas/IdempotencyKey`
+# money-movement POST via the reusable `#/components/parameters/IdempotencyKey`
 # parameter (see ep4-payments.yaml schemas). External-rail operations carry a
 # PENDING REQUIREMENTS CHANGE note (Mongolia = Banksuljee/ACH+/NETC).
 
@@ -61,7 +61,7 @@
       step-up required above the configured limit (US-12.5 — value NOT hard-coded
       here). Money-movement — Idempotency-Key required.
     parameters:
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     requestBody:
       required: true
       content:
@@ -239,7 +239,7 @@
       per 04; Mongolia uses Banksuljee (RTGS)/ACH+/NETC, not ACH/FedNow. Rails are
       recorded verbatim from 04, not renamed or invented.
     parameters:
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     requestBody:
       required: true
       content:
@@ -467,7 +467,7 @@
       money-movement POST; NOTE: 04 §3.4 does not itself list Idempotency-Key on
       this row.
     parameters:
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     requestBody:
       required: true
       content:
@@ -713,7 +713,7 @@
         schema:
           type: string
           format: uuid
-      - $ref: '#/components/schemas/IdempotencyKey'
+      - $ref: '#/components/parameters/IdempotencyKey'
     requestBody:
       required: true
       content:

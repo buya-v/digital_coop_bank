@@ -5,9 +5,11 @@ Layout (so parallel authors never collide on one file):
   openapi/root.yaml        info, servers, security, tags, components (NO paths)
   openapi/paths/*.yaml     each a map { "/path": { method: operation, ... } }
   openapi/schemas/*.yaml   each a map { SchemaName: <schema>, ... }
+  openapi/params/*.yaml    each a map { ParamName: <Parameter Object>, ... }
 
-This script deep-merges paths/* into `paths` and schemas/* into
-`components.schemas`, writes the bundled `openapi/openapi.yaml` (the
+This script deep-merges paths/* into `paths`, schemas/* into
+`components.schemas`, and params/* into `components.parameters`, writes the
+bundled `openapi/openapi.yaml` (the
 architecture-of-record artifact), then validates it. All $refs are local
 (#/components/...), so no external resolution is needed after assembly.
 
@@ -47,6 +49,7 @@ def assemble() -> tuple[dict, list[str]]:
     spec = _load(root_path)
     spec.setdefault("paths", {})
     spec.setdefault("components", {}).setdefault("schemas", {})
+    spec["components"].setdefault("parameters", {})
 
     for pf in sorted(glob.glob(os.path.join(HERE, "paths", "*.yaml"))):
         for path, ops in (_load(pf) or {}).items():
@@ -59,6 +62,14 @@ def assemble() -> tuple[dict, list[str]]:
             if name in spec["components"]["schemas"]:
                 problems.append(f"duplicate schema {name} (also in {os.path.basename(sf)})")
             spec["components"]["schemas"][name] = schema
+
+    # Reusable Parameter Objects (e.g. the Idempotency-Key header) contributed by
+    # slices, merged like schemas. root.yaml may already hold some (Cursor/Limit).
+    for qf in sorted(glob.glob(os.path.join(HERE, "params", "*.yaml"))):
+        for name, param in (_load(qf) or {}).items():
+            if name in spec["components"]["parameters"]:
+                problems.append(f"duplicate parameter {name} (also in {os.path.basename(qf)})")
+            spec["components"]["parameters"][name] = param
 
     return spec, problems
 

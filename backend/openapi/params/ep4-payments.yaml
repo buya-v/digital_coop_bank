@@ -1,0 +1,11 @@
+IdempotencyKey:
+  name: Idempotency-Key
+  in: header
+  required: true
+  description: Client-generated idempotency key (UUID) required on every money-movement POST (04 §3.0
+    Idempotency; §5.1). Replaying the same key returns the original result; the same key with a different
+    payload yields `409 IDEMPOTENCY_CONFLICT` (see the Conflict response). Mandatory per the project non-negotiable
+    in CLAUDE.md.
+  schema:
+    type: string
+    format: uuid
