@@ -33,7 +33,7 @@
         "backend/openapi/schemas/ep9-funding.yaml"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 1,
       "note": "branch softhouse/T1-openapi-gov-div-fund @ 608f704. 29 ops (EP-7 5, EP-8 17, EP-9 7). Member-rows only (admin rows are EP-12; defined entity schemas for EP-12 to $ref). Secret ballot: VoteParticipation/VoteRecord separate, no member-to-choice join. IdempotencyKey only on backings. Enums only what 04 names (ProposalRejectionReason=QUORUM_NOT_MET only, none invented).",
       "description": "Paths+schemas for EP-8 governance (\u00a73.8), EP-7 dividends (\u00a73.7), EP-9 funding (\u00a73.9). $ref shared schemas, own the governance/dividend/funding entity schemas. branch softhouse/T1-openapi-gov-div-fund."
@@ -92,7 +92,7 @@
         "backend/openapi/schemas/webhooks.yaml"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 1,
       "note": "branch softhouse/T4-openapi-webhooks @ 922a48a. 7 ops/9 schemas (all 7 \u00a73.14 rows). Validates on base (+7/+7/+9). security:[] for vendor auth; signature verification as x-webhook-verification extension (correctly noted assembler does not merge securitySchemes from slices); vendor names verbatim + pending-Mongolia notes; Money $ref shared; inferred payloads marked. Held for T5 review (needs T1).",
       "description": "Paths+schemas for inbound webhooks (\u00a73.14) \u2014 vendor signature auth, not member OAuth2. Vendor names verbatim + pending-Mongolia note. branch softhouse/T4-openapi-webhooks."
@@ -109,9 +109,9 @@
         "T1",
         "T4"
       ],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "branch softhouse/T5-review-gov-webhooks @ cea2065. VERDICT APPROVED, no defects. Assembled+validated (100 ops PASS). Secret-ballot separation intact (no member-to-choice join). Enums verbatim (ProposalRejectionReason=[QUORUM_NOT_MET] only). Webhooks security:[]+vendor notes. Idempotency only on backCommunityProject. No config-seed constants. Confirmed \u00a73.7/\u00a73.9 admin rows are genuinely /admin/-prefixed (the known 9-op gap for T8), not dropped member endpoints.",
       "description": "Independent review of T1+T4: assemble+validate, coverage vs \u00a73.7/3.8/3.9/3.14 rows, no shared-schema redefinition, honesty. branch softhouse/T5-review-gov-webhooks."
     },
     {
