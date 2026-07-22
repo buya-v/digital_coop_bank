@@ -54,9 +54,9 @@
         "backend/openapi/schemas/ep13-compliance.yaml"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": "",
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T2-openapi-admin-compliance @ a1c313c. 45 ops (EP-11 8, EP-12 23, EP-13 14). staffSSO on admin ops, maker-checker modelled, Admin* prefix guard (no governance/loan collision), config non-seed. Deliberately excluded 2 cross-ref paths (status-transitions -> EP-2; dividend-run admin -> thought EP-7). COVERAGE GAP (orchestrator-found): the \u00a73.7 admin dividend-run (5) + \u00a73.9 admin funding (4) rows are in NEITHER T1 nor T2 = 9 missing ops. Fill post-merge (needs T1 dividend/funding schemas). Assembled all-4: 183 ops, 9 missing, validates.",
       "description": "Paths+schemas for EP-12 admin (\u00a73.12, staffSSO + maker-checker), EP-13 compliance (\u00a73.13), EP-11 notifications (\u00a73.11). Prefix admin views of governance entities to avoid EP-8 collision. branch softhouse/T2-openapi-admin-compliance."
     },
     {
@@ -75,9 +75,9 @@
         "backend/openapi/schemas/ep10-roundups.yaml"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": "",
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T3-openapi-entity-gated @ edc7fcf. 38 ops (EP-5 10, EP-6 25, EP-10 3), ALL x-entity-gated (verified). All \u00a73.5/3.6/3.10 rows. Step-up on 7 PAN/credential ops; IdempotencyKey on 2 money POSTs. BLOCKED rate model NOT encoded (0 APR/bps fields); round-up denomination deferred. LoanScheduleType named to avoid EP-4 ScheduleType collision; LoanStatus newly defined per DEC-20.",
       "description": "Paths+schemas for ENTITY-GATED EP-5 cards (\u00a73.5), EP-6 lending (\u00a73.6), EP-10 round-ups (\u00a73.10). Every op tagged x-entity-gated + reason. No rate/computed-installment (blocked). branch softhouse/T3-openapi-entity-gated."
     },
     {
@@ -126,7 +126,7 @@
         "T2",
         "T3"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": "",
       "description": "Independent review of T2+T3: assemble+validate, coverage vs \u00a73.5/3.6/3.10/3.11/3.12/3.13, EVERY gated op carries x-entity-gated, governance-entity collision check. branch softhouse/T6-review-admin-gated."
@@ -143,12 +143,32 @@
       ],
       "dependencies": [
         "T5",
-        "T6"
+        "T6",
+        "T8"
       ],
       "status": "pending",
       "attempts": 0,
       "note": "",
       "description": "Orchestrator: validate.py on merged main; reconcile total ops vs all 04 \u00a73.1-\u00a73.14; confirm gated ops tagged; docs+backend gates green."
+    },
+    {
+      "id": "T8",
+      "title": "Fill the 9 missing admin dividend/funding operations",
+      "description": "Add the 9 \u00a73.7-admin dividend-run + \u00a73.9-admin funding ops that fell between T1 and T2. Forks from COMPLETE merged main (T1 schemas present). EP-12 tag, staffSSO, \\$ref T1's DividendDeclaration/DividendAllocation/CommunityGrantPool/SurplusMatch. branch softhouse/T8-openapi-admin-gap.",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [
+        "backend/openapi/paths/ep12-admin-dividends-funding.yaml"
+      ],
+      "dependencies": [
+        "T5",
+        "T6"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "9 ops: POST /admin/dividends/runs(+calculate/approve/execute), GET .../reconciliation, GET/POST /admin/community-projects(+review), GET /admin/grant-pools/{fy}, POST .../matches"
     }
   ]
 }
