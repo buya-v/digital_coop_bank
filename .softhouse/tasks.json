@@ -1,10 +1,11 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
+  "run_id": "20260722-openapi-rest",
+  "feature": "OpenAPI 3.1 \u2014 remaining epics (EP-5..EP-13 + webhooks), completing the contract",
+  "requirement": "Complete the OpenAPI architecture-of-record from 04 \u00a73.5-\u00a73.14 (~92 ops) on the merged foundation+core. $ref the 95 existing shared schemas (Money/Currency/Error/enums), never redefine. Entity-gated EP-5/6/10 tagged x-entity-gated, included but not-buildable. Honesty rule: type inferable, mark rest inferred, invent nothing. Money-movement POSTs carry IdempotencyKey. Vendors/rails verbatim + pending-Mongolia notes. Gate = validate.py.",
+  "status": "planning",
   "backlog": [
-    "OpenAPI follow-up slice: EP-5 cards / EP-6 lending / EP-10 round-ups (tag x-entity-gated, not buildable), EP-7 dividends, EP-8 governance, EP-9 funding, EP-11 notifications, EP-13 compliance, \u00a73.12 admin, \u00a73.14 webhooks. USE A SHARED-SCHEMAS FILE (Money/Currency/common enums) that one task owns, so parallel authors don't re-collide (Currency collided this run). Foundation, params/ layout, and validate.py are ready.",
+    "ORM schema + first Alembic migration from 04's 59 entities \u2014 NEXT after OpenAPI. Ledger tables from the CORRECTED design, NOT 06's five defects (inverted hold formula).",
+    "OpenAPI follow-up slice: EP-5 cards (entity-gated), EP-6 lending (entity-gated), EP-7 dividends, EP-8 governance, EP-9 funding, EP-10 round-ups (entity-gated), EP-11 notifications, EP-13 compliance, \u00a73.14 webhooks, \u00a73.12 admin/back-office. Entity-gated epics must be tagged x-entity-gated in the spec, included for record completeness but marked not-buildable.",
     "ORM schema + first Alembic migration from 04's 59 entities \u2014 the NEXT architecture task after OpenAPI. Ledger tables must come from the CORRECTED ledger design, NOT encode 06_ledger_addendum's five known defects (esp. the inverted hold formula).",
     "DEC-18 currency APPLY: apply the PO-confirmed derivation table (.softhouse/runs/20260721-currency-policy.json). Anchors: share par \u20ae10,000 provisional; step-up \u20ae550k; P2P velocity \u20ae1.15m; loan min \u20ae100k / max \u20ae5.7m; AML monitor \u20ae11.4m. LINE-BY-LINE by role (polysemy $25 vs $25M). Round-ups/KPIs/$88.20 held. Re-baseline usd after. Decide 06 scope.",
     "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
@@ -15,5 +16,139 @@
     "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
     "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling."
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "OpenAPI paths \u2014 EP-8 Governance + EP-7 Dividends + EP-9 Funding",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [
+        "backend/openapi/paths/ep7-dividends.yaml",
+        "backend/openapi/paths/ep8-governance.yaml",
+        "backend/openapi/paths/ep9-funding.yaml",
+        "backend/openapi/schemas/ep7-dividends.yaml",
+        "backend/openapi/schemas/ep8-governance.yaml",
+        "backend/openapi/schemas/ep9-funding.yaml"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Paths+schemas for EP-8 governance (\u00a73.8), EP-7 dividends (\u00a73.7), EP-9 funding (\u00a73.9). $ref shared schemas, own the governance/dividend/funding entity schemas. branch softhouse/T1-openapi-gov-div-fund."
+    },
+    {
+      "id": "T2",
+      "title": "OpenAPI paths \u2014 EP-12 Admin + EP-13 Compliance + EP-11 Notifications",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [
+        "backend/openapi/paths/ep11-notifications.yaml",
+        "backend/openapi/paths/ep12-admin.yaml",
+        "backend/openapi/paths/ep13-compliance.yaml",
+        "backend/openapi/schemas/ep11-notifications.yaml",
+        "backend/openapi/schemas/ep12-admin.yaml",
+        "backend/openapi/schemas/ep13-compliance.yaml"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Paths+schemas for EP-12 admin (\u00a73.12, staffSSO + maker-checker), EP-13 compliance (\u00a73.13), EP-11 notifications (\u00a73.11). Prefix admin views of governance entities to avoid EP-8 collision. branch softhouse/T2-openapi-admin-compliance."
+    },
+    {
+      "id": "T3",
+      "title": "OpenAPI paths \u2014 entity-gated: EP-5 Cards + EP-6 Lending + EP-10 Round-Ups",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [
+        "backend/openapi/paths/ep5-cards.yaml",
+        "backend/openapi/paths/ep6-lending.yaml",
+        "backend/openapi/paths/ep10-roundups.yaml",
+        "backend/openapi/schemas/ep5-cards.yaml",
+        "backend/openapi/schemas/ep6-lending.yaml",
+        "backend/openapi/schemas/ep10-roundups.yaml"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Paths+schemas for ENTITY-GATED EP-5 cards (\u00a73.5), EP-6 lending (\u00a73.6), EP-10 round-ups (\u00a73.10). Every op tagged x-entity-gated + reason. No rate/computed-installment (blocked). branch softhouse/T3-openapi-entity-gated."
+    },
+    {
+      "id": "T4",
+      "title": "OpenAPI paths \u2014 inbound webhooks (\u00a73.14)",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [
+        "backend/openapi/paths/webhooks.yaml",
+        "backend/openapi/schemas/webhooks.yaml"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Paths+schemas for inbound webhooks (\u00a73.14) \u2014 vendor signature auth, not member OAuth2. Vendor names verbatim + pending-Mongolia note. branch softhouse/T4-openapi-webhooks."
+    },
+    {
+      "id": "T5",
+      "title": "Review \u2014 governance/dividends/funding + webhooks (T1, T4)",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [],
+      "dependencies": [
+        "T1",
+        "T4"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Independent review of T1+T4: assemble+validate, coverage vs \u00a73.7/3.8/3.9/3.14 rows, no shared-schema redefinition, honesty. branch softhouse/T5-review-gov-webhooks."
+    },
+    {
+      "id": "T6",
+      "title": "Review \u2014 admin/compliance/notifications + entity-gated (T2, T3)",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [],
+      "dependencies": [
+        "T2",
+        "T3"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Independent review of T2+T3: assemble+validate, coverage vs \u00a73.5/3.6/3.10/3.11/3.12/3.13, EVERY gated op carries x-entity-gated, governance-entity collision check. branch softhouse/T6-review-admin-gated."
+    },
+    {
+      "id": "T7",
+      "title": "Assemble & validate the complete OpenAPI on merged main",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "haiku",
+      "target": "verification",
+      "files_hint": [
+        "backend/openapi/validate.py"
+      ],
+      "dependencies": [
+        "T5",
+        "T6"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Orchestrator: validate.py on merged main; reconcile total ops vs all 04 \u00a73.1-\u00a73.14; confirm gated ops tagged; docs+backend gates green."
+    }
+  ]
 }
