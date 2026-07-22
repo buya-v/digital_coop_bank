@@ -92,9 +92,9 @@
         "backend/openapi/schemas/webhooks.yaml"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": "",
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T4-openapi-webhooks @ 922a48a. 7 ops/9 schemas (all 7 \u00a73.14 rows). Validates on base (+7/+7/+9). security:[] for vendor auth; signature verification as x-webhook-verification extension (correctly noted assembler does not merge securitySchemes from slices); vendor names verbatim + pending-Mongolia notes; Money $ref shared; inferred payloads marked. Held for T5 review (needs T1).",
       "description": "Paths+schemas for inbound webhooks (\u00a73.14) \u2014 vendor signature auth, not member OAuth2. Vendor names verbatim + pending-Mongolia note. branch softhouse/T4-openapi-webhooks."
     },
     {
