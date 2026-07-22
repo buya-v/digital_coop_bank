@@ -29,9 +29,9 @@
         "backend/app/models/deposits.py"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T1-orm-identity-deposits @ 7882f3d. E-2,3,4 (identity.py) + E-9..13 (deposits.py) = 8 entities. Gate PASS (13 tables, 9 money cols). All 14 enums real (04 enumerates them, verbatim); money MoneyMinor; FKs by string; Timestamps on lifecycle, event-ts on append-only (ConsentRecord/ApprovalDecision). persona_inquiry_id kept + vendor-leak comment. Held for T6 (needs T2,T3)."
     },
     {
       "id": "T2",
