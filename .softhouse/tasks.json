@@ -166,9 +166,9 @@
         "T5",
         "T6"
       ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": "9 ops: POST /admin/dividends/runs(+calculate/approve/execute), GET .../reconciliation, GET/POST /admin/community-projects(+review), GET /admin/grant-pools/{fy}, POST .../matches"
+      "status": "approved",
+      "attempts": 1,
+      "note": "branch softhouse/T8-openapi-admin-gap @ df98c3f. 9 admin dividend/funding ops, 183->192, validates. Orchestrator-verified (NOT independently reviewed \u2014 plan gap, lower assurance bar noted): all 9 staffSSO+EP-12, idempotency on execute only, no rate/formula/split constant, $refs to the 4 entity schemas resolve, maker-checker noted. AdminCommunityProjectReviewDecision enum {APPROVE,DECLINE} verbatim."
     }
   ]
 }
