@@ -1,0 +1,244 @@
+# EP-12 admin — dividend-run & community-funding administration: request/response
+# WRAPPERS only (04 §3.7 admin rows, §3.9 admin rows; US-12.6).
+# These 9 admin operations fell between the EP-7/EP-9 member slices and the
+# EP-12 slice and are added here (task T8). The ENTITY schemas are NOT redefined:
+#   DividendDeclaration / DividendAllocation  -> owned by schemas/ep7-dividends.yaml
+#   CommunityGrantPool / SurplusMatch / CommunityProject -> owned by schemas/ep9-funding.yaml
+#   Money / Error / MakerCheckerApproval      -> $ref'd from the assembled namespace
+# This file only adds the request bodies and response projections that 04's admin
+# rows name and that no existing schema already provides.
+# Typing rule: id/*_id -> uuid; *_at -> date-time; money -> $ref Money;
+# 04-listed enums verbatim; untyped -> typed guess + INFERRED note. The dividend
+# calculation formula, surplus split %, and the 10% grant allocation are ENGINE
+# behavior / config, never encoded here as constants (CLAUDE.md; 04 leaves the
+# math to the engine — the contract only triggers/reports it).
+
+# --- POST /admin/dividends/runs (04 §3.7) -------------------------------------
+
+AdminDividendRunCreateRequest:
+  type: object
+  description: >-
+    Body for `POST /api/v1/admin/dividends/runs` (04 §3.7). Opens a new annual
+    Patronage Dividend run in `DRAFT` (DividendDeclaration per E-32). `agm_record_ref`
+    is mandatory (else `422 AGM_REF_REQUIRED`).
+  required:
+    - fiscal_year
+    - ratified_surplus
+    - agm_record_ref
+  additionalProperties: false
+  properties:
+    fiscal_year:
+      type: integer
+      description: 04 §3.7 `fiscal_year` — the run is unique per year (else `409 RUN_EXISTS_FOR_YEAR`).
+    ratified_surplus:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: 04 §3.7 `ratified_surplus` — the AGM-ratified surplus input (E-32).
+    agm_record_ref:
+      type: string
+      description: 04 §3.7 `agm_record_ref` (mandatory) — linkage to the ratifying AGM record.
+    community_grant_allocation:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: >-
+        04 §3.7 `community_grant_allocation` — the Community Grant pool feed
+        (KPI-4.2). Carried as an amount (`Money`); the split PERCENTAGE is engine
+        /config, deliberately NOT encoded here as a constant.
+      nullable: true
+
+# --- POST /admin/dividends/runs/{id}/calculate (04 §3.7) ----------------------
+
+AdminDividendCalculateRequest:
+  type: object
+  description: >-
+    Body for `POST /api/v1/admin/dividends/runs/{id}/calculate` (04 §3.7).
+    Deterministic re-runs are supported. `409 SURPLUS_NOT_SET` if the run has no
+    ratified surplus.
+  required:
+    - dry_run
+  additionalProperties: false
+  properties:
+    dry_run:
+      type: boolean
+      description: 04 §3.7 `dry_run:true|false` — a dry run computes without committing allocations.
+
+AdminDividendCalculationResult:
+  type: object
+  description: >-
+    Response for `POST /admin/dividends/runs/{id}/calculate` (04 §3.7). `totals`
+    must reconcile (`sum_entitlements` vs. `distributable_pool`). The figures are
+    engine OUTPUT — this schema reports them; it does not encode the formula.
+  properties:
+    calculation_run_ref:
+      type: string
+      description: 04 §3.7 `calculation_run_ref` — deterministic run identifier for re-runs.
+    totals:
+      type: object
+      description: 04 §3.7 `totals{sum_entitlements, distributable_pool}` — must reconcile.
+      properties:
+        sum_entitlements:
+          $ref: '#/components/schemas/Money'
+        distributable_pool:
+          $ref: '#/components/schemas/Money'
+    sample_allocations:
+      type: array
+      description: 04 §3.7 `sample_allocations[]` — a preview subset of per-member allocations.
+      items:
+        $ref: '#/components/schemas/DividendAllocation'
+    exceptions:
+      type: array
+      description: >-
+        04 §3.7 `exceptions[]` — per-member calculation exceptions. INFERRED
+        element shape; 04 names the array but does not pin its item schema.
+      items:
+        type: object
+        additionalProperties: true
+
+# --- POST /admin/dividends/runs/{id}/approve (04 §3.7) ------------------------
+
+AdminDividendApproveRequest:
+  type: object
+  description: >-
+    Body for `POST /api/v1/admin/dividends/runs/{id}/approve` (04 §3.7). The
+    checker (a SECOND FINANCE_ADMIN) must differ from the maker (else
+    `403 MAKER_CANNOT_CHECK`); this is the maker-checker gate before execution.
+  required:
+    - approval_note
+  additionalProperties: false
+  properties:
+    approval_note:
+      type: string
+      description: 04 §3.7 `approval_note` — the checker's approval rationale (audit-logged, 04 §3.12).
+
+# --- POST /admin/dividends/runs/{id}/execute (04 §3.7) -----------------------
+
+AdminDividendExecuteResponse:
+  type: object
+  description: >-
+    Response for `POST /api/v1/admin/dividends/runs/{id}/execute` (04 §3.7). The
+    run moves to `EXECUTING`; per-member payouts follow each standing election
+    within 5 business days (KPI-4.3), failed postings retried then escalated.
+  properties:
+    status:
+      allOf:
+        - $ref: '#/components/schemas/DividendDeclarationStatus'
+      description: 04 §3.7 — set to `EXECUTING` on accepted execution.
+    progress_ref:
+      type: string
+      description: 04 §3.7 "live progress ref" — handle for tracking payout progress.
+
+# --- GET /admin/dividends/runs/{id}/reconciliation (04 §3.7) ------------------
+
+AdminDividendReconciliation:
+  type: object
+  description: >-
+    Response for `GET /api/v1/admin/dividends/runs/{id}/reconciliation` (04 §3.7).
+    Reports the immutable run record: entitlements vs. postings vs. pool, with
+    any deltas and exceptions.
+  properties:
+    reconciliation:
+      type: object
+      description: 04 §3.7 `reconciliation{entitlements, postings, pool, deltas[]}`.
+      properties:
+        entitlements:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Total member entitlements computed for the run.
+        postings:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Total value of payout ledger postings executed.
+        pool:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: The distributable pool the run drew from.
+        deltas:
+          type: array
+          description: >-
+            04 §3.7 `deltas[]` — reconciliation discrepancies. INFERRED element
+            shape; 04 names the array but does not pin its item schema.
+          items:
+            type: object
+            additionalProperties: true
+    exceptions:
+      type: array
+      description: 04 §3.7 `exceptions[]`. INFERRED element shape (04 pins no item schema).
+      items:
+        type: object
+        additionalProperties: true
+    run_record_ref:
+      type: string
+      description: 04 §3.7 "immutable run record ref" — pointer to the append-only run record.
+
+# --- GET /admin/community-projects (04 §3.9) ---------------------------------
+
+AdminCommunityProjectListResponse:
+  type: object
+  description: >-
+    Response for `GET /api/v1/admin/community-projects` (04 §3.9) — the OPS_ADMIN
+    review queue (default `SUBMITTED`). Items are CommunityProject (E-43),
+    cursor-paginated (04 §3.0).
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/CommunityProject'
+    next_cursor:
+      type: string
+      nullable: true
+      description: 04 §3.0 pagination `next_cursor`; `null`/absent on the last page.
+
+# --- POST /admin/community-projects/{id}/review (04 §3.9) ---------------------
+
+AdminCommunityProjectReviewDecision:
+  type: string
+  description: 04 §3.9 review `decision` (`APPROVE|DECLINE`). Enum verbatim from 04.
+  enum:
+    - APPROVE
+    - DECLINE
+
+AdminCommunityProjectReviewRequest:
+  type: object
+  description: >-
+    Body for `POST /api/v1/admin/community-projects/{id}/review` (04 §3.9).
+    OPS_ADMIN maker-checker: `APPROVE` -> `PUBLISHED`, `DECLINE` -> `DECLINED`.
+  required:
+    - decision
+    - reasons
+  additionalProperties: false
+  properties:
+    decision:
+      $ref: '#/components/schemas/AdminCommunityProjectReviewDecision'
+    reasons:
+      type: string
+      description: >-
+        04 §3.9 `reasons`. INFERRED type: 04 names the key but does not pin
+        string vs. array; carried as free text here.
+
+# --- POST /admin/grant-pools/{fiscal_year}/matches (04 §3.9) ------------------
+
+AdminSurplusMatchCreateRequest:
+  type: object
+  description: >-
+    Body for `POST /api/v1/admin/grant-pools/{fiscal_year}/matches` (04 §3.9).
+    Creates a SurplusMatch (E-46, `ACCRUING`). `422 RATIO_ABOVE_1_TO_1` if
+    `match_ratio_bps > 10000`; `409 POOL_EXHAUSTED` if the pool cannot fund it.
+    Release is later governed by a certified `COMMUNITY_GRANT` ballot — never
+    staff discretion (DEC-14).
+  required:
+    - project_id
+    - match_ratio_bps
+    - project_cap
+  additionalProperties: false
+  properties:
+    project_id:
+      type: string
+      format: uuid
+      description: 04 §3.9 `project_id` — FK -> CommunityProject (E-43).
+    match_ratio_bps:
+      type: integer
+      description: 04 §3.9 `match_ratio_bps` — basis points; `<= 10000` (1:1) or `422 RATIO_ABOVE_1_TO_1`.
+    project_cap:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: 04 §3.9 `project_cap` — the per-project accrual ceiling (E-46).
