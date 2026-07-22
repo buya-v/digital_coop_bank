@@ -54,7 +54,7 @@
         "backend/openapi/schemas/ep13-compliance.yaml"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 1,
       "note": "branch softhouse/T2-openapi-admin-compliance @ a1c313c. 45 ops (EP-11 8, EP-12 23, EP-13 14). staffSSO on admin ops, maker-checker modelled, Admin* prefix guard (no governance/loan collision), config non-seed. Deliberately excluded 2 cross-ref paths (status-transitions -> EP-2; dividend-run admin -> thought EP-7). COVERAGE GAP (orchestrator-found): the \u00a73.7 admin dividend-run (5) + \u00a73.9 admin funding (4) rows are in NEITHER T1 nor T2 = 9 missing ops. Fill post-merge (needs T1 dividend/funding schemas). Assembled all-4: 183 ops, 9 missing, validates.",
       "description": "Paths+schemas for EP-12 admin (\u00a73.12, staffSSO + maker-checker), EP-13 compliance (\u00a73.13), EP-11 notifications (\u00a73.11). Prefix admin views of governance entities to avoid EP-8 collision. branch softhouse/T2-openapi-admin-compliance."
@@ -75,7 +75,7 @@
         "backend/openapi/schemas/ep10-roundups.yaml"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 1,
       "note": "branch softhouse/T3-openapi-entity-gated @ edc7fcf. 38 ops (EP-5 10, EP-6 25, EP-10 3), ALL x-entity-gated (verified). All \u00a73.5/3.6/3.10 rows. Step-up on 7 PAN/credential ops; IdempotencyKey on 2 money POSTs. BLOCKED rate model NOT encoded (0 APR/bps fields); round-up denomination deferred. LoanScheduleType named to avoid EP-4 ScheduleType collision; LoanStatus newly defined per DEC-20.",
       "description": "Paths+schemas for ENTITY-GATED EP-5 cards (\u00a73.5), EP-6 lending (\u00a73.6), EP-10 round-ups (\u00a73.10). Every op tagged x-entity-gated + reason. No rate/computed-installment (blocked). branch softhouse/T3-openapi-entity-gated."
@@ -126,9 +126,9 @@
         "T2",
         "T3"
       ],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "branch softhouse/T6-review-admin-gated @ 758cc80. VERDICT APPROVED. Assembled+validated (147 ops PASS). Entity-gating 38/38 mechanically verified (operationId count==x-entity-gated count per file). Zero APR/bps/rate fields in EP-6. staffSSO on all 23 EP-12 ops; maker-checker noted. Collision guard clean (Admin* prefixes, LoanScheduleType). Step-up on 7 ops. Enums verbatim (LoanStatus==DEC-20). NON-BLOCKING: EP-12 lending-admin ops use prose note not x-entity-gated extension \u2014 consistency follow-up.",
       "description": "Independent review of T2+T3: assemble+validate, coverage vs \u00a73.5/3.6/3.10/3.11/3.12/3.13, EVERY gated op carries x-entity-gated, governance-entity collision check. branch softhouse/T6-review-admin-gated."
     },
     {
