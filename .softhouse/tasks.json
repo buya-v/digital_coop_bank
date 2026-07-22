@@ -2,7 +2,7 @@
   "run_id": "20260722-orm-schema",
   "feature": "ORM models + first migration from 04's 59 entities",
   "requirement": "Derive SQLAlchemy 2.0 ORM models for the remaining ~54 entities of 04 \u00a72 (E-1/E-5/E-6/E-7/E-8 done). money->MoneyMinor (never Float/Numeric); ids UUID; *_at via Timestamps mixin; enums real only where 04 lists values else DeferredEnum(String); FKs by table-name string; distinct model files per slice; do NOT touch ledger-core E-6/7/8; entity-gated epics modelled as tables w/ docstring note; table definitions only, no logic. Gate = check_models.py.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "ORM initial migration: after models complete, first Alembic revision creating all tables (linear chain). Ledger posting logic + entry_type/account-discriminator enum values still HELD on the corrected ledger design.",
     "OpenAPI follow-up slice: EP-5 cards (entity-gated), EP-6 lending (entity-gated), EP-7 dividends, EP-8 governance, EP-9 funding, EP-10 round-ups (entity-gated), EP-11 notifications, EP-13 compliance, \u00a73.14 webhooks, \u00a73.12 admin/back-office. Entity-gated epics must be tagged x-entity-gated in the spec, included for record completeness but marked not-buildable.",
@@ -29,7 +29,7 @@
         "backend/app/models/deposits.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
@@ -47,7 +47,7 @@
         "backend/app/models/roundups.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
@@ -62,7 +62,7 @@
         "backend/app/models/lending.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
@@ -78,7 +78,7 @@
         "backend/app/models/funding.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
@@ -95,7 +95,7 @@
         "backend/app/models/compliance.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
