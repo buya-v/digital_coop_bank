@@ -1,0 +1,135 @@
+# EP-10 Round-Up Savings — path operations (04_technical_architecture.md §3.10).
+# One operation per §3.10 endpoint row (config GET/PUT split into two ops).
+# Merged into `paths` by openapi/validate.py. All $refs are local.
+#
+# ============================================================================
+# ENTITY-GATED EPIC. CLAUDE.md: Round-Ups depend on card settlement events and
+# fall with EP-5 Cards (SCCs have no payment-service power). EVERY operation
+# carries `x-entity-gated: true` + `x-entity-gated-reason` and a description
+# note — documented for record completeness ONLY, not readiness.
+# ============================================================================
+#
+# DEFERRED — NOT ENCODED: the "nearest $1/$2/$5" round-up denomination is
+# deferred; NO denomination value is encoded. `multiplier` (1/2/3) is the 04
+# E-47 field and is retained. No public money-movement write endpoint exists in
+# §3.10 (capture / threshold-batched `ROUND_UP_TRANSFER` / insufficient-funds
+# skip are internal engine behavior on settled-card-transaction events), so no
+# Idempotency-Key parameter appears in this slice.
+
+/api/v1/round-ups/config:
+  get:
+    tags: [EP-10]
+    operationId: getRoundUpConfig
+    summary: 'Get the member''s Round-Up settings (04 §3.10, E-47). Auth: Member (ACTIVE).'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    responses:
+      '200':
+        description: Round-Up config (E-47).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoundUpConfig'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  put:
+    tags: [EP-10]
+    operationId: updateRoundUpConfig
+    summary: >-
+      Update Round-Up settings; effective on the next card transaction (04 §3.10,
+      DEC-12). Auth: Member (ACTIVE).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Only two
+      destinations (SAVINGS_GOAL | COMMUNITY_PROJECT, DEC-12). The "nearest
+      $1/$2/$5" denomination is DEFERRED — not encoded. Not buildable until the
+      SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [enabled, destination_type, multiplier]
+            properties:
+              enabled:
+                type: boolean
+              destination_type:
+                $ref: '#/components/schemas/RoundUpDestinationType'
+              savings_goal_id:
+                type: string
+                format: uuid
+                nullable: true
+                description: Required when `destination_type = SAVINGS_GOAL` (04 §3.10).
+              project_id:
+                type: string
+                format: uuid
+                nullable: true
+                description: Required when `destination_type = COMMUNITY_PROJECT`; project must be PUBLISHED (04 §3.10, DEC-12).
+              multiplier:
+                $ref: '#/components/schemas/RoundUpMultiplier'
+              monthly_cap:
+                allOf:
+                  - $ref: '#/components/schemas/Money'
+                nullable: true
+    responses:
+      '200':
+        description: Updated Round-Up config (E-47; effective on next card transaction).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoundUpConfig'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 PROJECT_NOT_PUBLISHED — destination project is not PUBLISHED (04 §3.10, DEC-12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 DESTINATION_REQUIRED — no valid destination for the selected `destination_type` (04 §3.10).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/round-ups/activity:
+  get:
+    tags: [EP-10]
+    operationId: getRoundUpActivity
+    summary: >-
+      List Round-Up captures with linked purchase + transfer ledger refs, pending
+      total, and impact summary (04 §3.10). Auth: Member.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. `impact_summary`
+      is labeled "estimated" (DEC-15). Not buildable until the SCC entity /
+      payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: period
+        in: query
+        required: false
+        description: 04 §3.10 `?period=` filter.
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Round-Up activity (captures per E-48 + running totals).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoundUpActivityResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'

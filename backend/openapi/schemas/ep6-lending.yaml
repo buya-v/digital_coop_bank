@@ -1,0 +1,731 @@
+# EP-6 Lending & Loan Circles — component schemas (04_technical_architecture.md
+# §2.6, entities E-19..E-30). Merged into components.schemas by validate.py.
+# Money -> $ref '#/components/schemas/Money' (shared). LoanStatus per DEC-20.
+#
+# ENTITY-GATED epic (see paths/ep6-lending.yaml header): schemas exist for
+# record completeness only. NOT buildable until the SCC entity / payment-licence
+# decision (CLAUDE.md).
+#
+# BLOCKED — NOT ENCODED: the loan RATE model (DEC-48/49). The 04 §2.6 APR keys
+# (`base_rate_apr_bps`, `apr_bps`, `standard_apr_bps`, `discounted_apr_bps`,
+# `circle_rate_discount_tiers`) are intentionally OMITTED from these schemas;
+# installment / repayment / principal / interest amounts are typed `Money` only.
+
+# --- Enums (verbatim from 04 §2.6) -------------------------------------------
+
+LoanStatus:
+  type: string
+  description: >-
+    Single loan lifecycle for origination, servicing, and NPL reporting
+    (DEC-20; 01 §6 normative). `DRAFT..APPROVED` live on the application;
+    `ACTIVE` begins at disbursement. Enum verbatim.
+  enum:
+    - DRAFT
+    - SUBMITTED
+    - UNDER_REVIEW
+    - APPROVED
+    - ACTIVE
+    - DELINQUENT
+    - PAID_OFF
+    - DEFAULTED
+    - WRITTEN_OFF
+
+LoanProductType:
+  type: string
+  description: E-19 `product_type` (04 §2.6).
+  enum:
+    - PERSONAL
+    - MICRO_BUSINESS
+
+LoanProductStatus:
+  type: string
+  description: E-19 `status` (04 §2.6).
+  enum:
+    - ACTIVE
+    - RETIRED
+
+LoanScheduleType:
+  type: string
+  description: >-
+    Repayment schedule type (E-19 `schedule_types_allowed`, E-25 `schedule_type`,
+    04 §2.6). Distinct from the EP-4 payment `ScheduleType`. Enum verbatim.
+  enum:
+    - STANDARD
+    - SEASONAL
+    - INCOME_LINKED
+
+LoanDecisionOutcome:
+  type: string
+  description: E-20 `decision.outcome` (04 §2.6, US-6.2).
+  enum:
+    - APPROVE
+    - DECLINE
+    - REFER
+
+LoanCircleStatus:
+  type: string
+  description: E-21 `status` (04 §2.6, DEC-7). FORMED at 3–5 acceptances; ACTIVE while backed loan outstanding.
+  enum:
+    - FORMING
+    - FORMED
+    - ACTIVE
+    - RELEASED
+    - DISSOLVED
+
+LoanCircleInvitationStatus:
+  type: string
+  description: E-22 `status` (04 §2.6). Declining is frictionless and private.
+  enum:
+    - SENT
+    - ACCEPTED
+    - DECLINED
+    - EXPIRED
+    - WITHDRAWN
+
+InvitationResponse:
+  type: string
+  description: Invitation response verb (04 §3.6 `response`). Applies to loan-circle and pooled-circle invitations.
+  enum:
+    - ACCEPT
+    - DECLINE
+
+PledgeSource:
+  type: string
+  description: >-
+    E-23 `pledge_source` (04 §2.6, DEC-7). Share-capital enforceability behind
+    `jurisdiction_flag` (Open Item 2).
+  enum:
+    - SAVINGS
+    - SHARE_CAPITAL
+
+PeerGuaranteeStatus:
+  type: string
+  description: E-23 `status` (04 §2.6). LOCKED + ledger hold on signature; released pro-rata on principal repayment.
+  enum:
+    - PENDING_SIGNATURE
+    - LOCKED
+    - PARTIALLY_RELEASED
+    - RELEASED
+    - APPLIED_TO_DEFAULT
+    - CANCELLED
+
+RepaymentScheduleStatus:
+  type: string
+  description: E-25 `status` (04 §2.6). One ACTIVE version per loan.
+  enum:
+    - ACTIVE
+    - SUPERSEDED
+
+RepaymentScheduleOrigin:
+  type: string
+  description: E-25 `origin` (04 §2.6).
+  enum:
+    - ORIGINATION
+    - RESTRUCTURE
+    - HARDSHIP_RESCHEDULE
+
+RepaymentInstallmentStatus:
+  type: string
+  description: E-26 `status` (04 §2.6).
+  enum:
+    - SCHEDULED
+    - DUE
+    - PAID
+    - PARTIALLY_PAID
+    - MISSED
+    - RESCHEDULED
+    - WAIVED
+
+PooledLoanCircleStatus:
+  type: string
+  description: E-27 `status` (04 §2.6, DEC-7).
+  enum:
+    - FORMING
+    - ACTIVE
+    - COMPLETED
+    - HALTED
+
+PayoutOrderMode:
+  type: string
+  description: E-27 `payout_order_mode` (04 §2.6). Fixed at creation.
+  enum:
+    - AGREED
+    - RANDOMIZED
+
+PooledParticipantPayoutStatus:
+  type: string
+  description: E-28 `payout_status` (04 §2.6).
+  enum:
+    - WAITING
+    - PAID
+
+CollectionsCaseTrigger:
+  type: string
+  description: E-29 `trigger` (04 §2.6, US-6.8).
+  enum:
+    - EARLY_WARNING
+    - FAILED_COLLECTION
+    - DELINQUENT_MILESTONE
+    - HARDSHIP_REQUEST
+
+CollectionsCaseStatus:
+  type: string
+  description: E-29 `status` (04 §2.6, US-12.3).
+  enum:
+    - OPEN
+    - IN_PROGRESS
+    - RESOLVED_CURED
+    - RESOLVED_RESCHEDULED
+    - ESCALATED_DEFAULT
+    - CLOSED
+
+SignedDocumentType:
+  type: string
+  description: E-30 `document_type` (04 §2.6, US-6.6).
+  enum:
+    - LOAN_AGREEMENT
+    - GUARANTEE_PLEDGE_AGREEMENT
+    - MEMBERSHIP_CONFIRMATION
+    - OTHER_AGREEMENT
+
+SignedDocumentStatus:
+  type: string
+  description: E-30 `status` (04 §2.6).
+  enum:
+    - DRAFT
+    - SENT
+    - SIGNED
+    - DECLINED
+    - VOIDED
+    - EXPIRED
+
+# --- Entity schemas ----------------------------------------------------------
+
+LoanProduct:
+  type: object
+  description: >-
+    E-19 LoanProduct (04 §2.6). Parameters live in the Configuration Registry
+    (US-12.5), never hard-coded. RATE FIELDS OMITTED: `base_rate_apr_bps` and
+    `circle_rate_discount_tiers` are blocked pending DEC-48/49 and are NOT
+    encoded here.
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    product_type:
+      $ref: '#/components/schemas/LoanProductType'
+    amount_min:
+      $ref: '#/components/schemas/Money'
+    amount_max:
+      $ref: '#/components/schemas/Money'
+    term_options_months:
+      type: array
+      items:
+        type: integer
+    schedule_types_allowed:
+      type: array
+      items:
+        $ref: '#/components/schemas/LoanScheduleType'
+    status:
+      $ref: '#/components/schemas/LoanProductStatus'
+
+LoanApplicationOffer:
+  type: object
+  description: >-
+    E-20 `offer` (04 §2.6/§3.6). RATE FIELDS OMITTED: `standard_apr_bps` /
+    `discounted_apr_bps` are blocked pending DEC-48/49 and are NOT encoded here;
+    only the Money amount, term, and expiry are modeled.
+  properties:
+    amount:
+      $ref: '#/components/schemas/Money'
+    term_months:
+      type: integer
+    schedule_preview_ref:
+      type: string
+      nullable: true
+    expires_at:
+      type: string
+      format: date-time
+
+LoanApplication:
+  type: object
+  description: >-
+    E-20 LoanApplication (04 §2.6). Status per DEC-20 (subset
+    DRAFT|SUBMITTED|UNDER_REVIEW|APPROVED during origination; declined outcomes
+    recorded in `decision.outcome`).
+  properties:
+    id:
+      type: string
+      format: uuid
+    applicant_member_id:
+      type: string
+      format: uuid
+    loan_product_id:
+      type: string
+      format: uuid
+    requested_amount:
+      $ref: '#/components/schemas/Money'
+    requested_term_months:
+      type: integer
+    purpose:
+      type: string
+      maxLength: 500
+    affordability_inputs:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Declared income/expenses (04 §2.6). INFERRED element shape.
+    status:
+      $ref: '#/components/schemas/LoanStatus'
+    decision:
+      type: object
+      nullable: true
+      description: >-
+        Engine output (E-20 `decision`): outcome, reasons, adverse_action_ref?,
+        cooperative_history_factors, model_version — fully logged for fair-lending
+        review (US-13.3). INFERRED inner shape beyond `outcome`.
+      properties:
+        outcome:
+          $ref: '#/components/schemas/LoanDecisionOutcome'
+        reasons:
+          type: array
+          items:
+            type: string
+        adverse_action_ref:
+          type: string
+          nullable: true
+        cooperative_history_factors:
+          type: object
+          additionalProperties: true
+          description: '{savings_score, repayment_score, participation_score} (04 §2.6).'
+        model_version:
+          type: string
+          nullable: true
+    offer:
+      allOf:
+        - $ref: '#/components/schemas/LoanApplicationOffer'
+      nullable: true
+    loan_circle_id:
+      type: string
+      format: uuid
+      nullable: true
+    repayment_estimate:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      nullable: true
+      description: >-
+        Live estimator output as a typed Money amount (04 §3.6). No rate / APR /
+        computed installment encoded (blocked DEC-48/49).
+    created_at:
+      type: string
+      format: date-time
+    submitted_at:
+      type: string
+      format: date-time
+      nullable: true
+    decided_at:
+      type: string
+      format: date-time
+      nullable: true
+
+LoanCircle:
+  type: object
+  description: E-21 LoanCircle (04 §2.6, DEC-7). 3–5 ACTIVE members vouching for one borrower.
+  properties:
+    id:
+      type: string
+      format: uuid
+    borrower_member_id:
+      type: string
+      format: uuid
+    loan_application_id:
+      type: string
+      format: uuid
+    status:
+      $ref: '#/components/schemas/LoanCircleStatus'
+    min_members:
+      type: integer
+      description: '= 3 (DEC-7, config-asserted).'
+    max_members:
+      type: integer
+      description: '= 5 (DEC-7, config-asserted).'
+    created_at:
+      type: string
+      format: date-time
+    formed_at:
+      type: string
+      format: date-time
+      nullable: true
+
+LoanCircleInvitation:
+  type: object
+  description: E-22 LoanCircleInvitation (04 §2.6). Declining is frictionless and private.
+  properties:
+    id:
+      type: string
+      format: uuid
+    loan_circle_id:
+      type: string
+      format: uuid
+    invitee_member_id:
+      type: string
+      format: uuid
+    addressed_via:
+      $ref: '#/components/schemas/RecipientIdentifierType'
+    disclosure:
+      type: object
+      additionalProperties: true
+      description: >-
+        Amount, term, requested pledge, risk statement shown before acceptance
+        (US-6.3). INFERRED element shape.
+    status:
+      $ref: '#/components/schemas/LoanCircleInvitationStatus'
+    sent_at:
+      type: string
+      format: date-time
+    responded_at:
+      type: string
+      format: date-time
+      nullable: true
+
+PeerGuarantee:
+  type: object
+  description: >-
+    E-23 PeerGuarantee — the guarantee pledge (04 §2.6, DEC-7). Locked portion of
+    savings/share capital backing the borrower; the hold posting is excluded from
+    withdrawal, transfer, and Round-Up sweeps.
+  properties:
+    id:
+      type: string
+      format: uuid
+    loan_circle_id:
+      type: string
+      format: uuid
+    guarantor_member_id:
+      type: string
+      format: uuid
+    loan_id:
+      type: string
+      format: uuid
+      nullable: true
+    pledge_source:
+      $ref: '#/components/schemas/PledgeSource'
+    source_account_id:
+      type: string
+      format: uuid
+    pledged_amount:
+      $ref: '#/components/schemas/Money'
+    released_amount:
+      $ref: '#/components/schemas/Money'
+    applied_amount:
+      $ref: '#/components/schemas/Money'
+    hold_ledger_entry_id:
+      type: string
+      format: uuid
+      nullable: true
+    agreement_document_id:
+      type: string
+      format: uuid
+      nullable: true
+    status:
+      $ref: '#/components/schemas/PeerGuaranteeStatus'
+    created_at:
+      type: string
+      format: date-time
+    locked_at:
+      type: string
+      format: date-time
+      nullable: true
+    released_at:
+      type: string
+      format: date-time
+      nullable: true
+
+GuarantorDashboard:
+  type: object
+  description: Guarantor exposure dashboard (04 §3.6 `GET /members/me/guarantees`), aggregated over E-23.
+  properties:
+    pledges:
+      type: array
+      items:
+        type: object
+        properties:
+          loan_ref:
+            type: string
+            format: uuid
+          pledged_amount:
+            $ref: '#/components/schemas/Money'
+          released_amount:
+            $ref: '#/components/schemas/Money'
+          applied_amount:
+            $ref: '#/components/schemas/Money'
+          status:
+            $ref: '#/components/schemas/PeerGuaranteeStatus'
+    total_exposure:
+      $ref: '#/components/schemas/Money'
+
+Loan:
+  type: object
+  description: >-
+    E-24 Loan — the servicing entity created at disbursement (04 §2.6, US-6.7).
+    RATE FIELD OMITTED: `apr_bps` is blocked pending DEC-48/49 and is NOT encoded;
+    principal / interest amounts are typed `Money`.
+  properties:
+    id:
+      type: string
+      format: uuid
+    loan_application_id:
+      type: string
+      format: uuid
+    borrower_member_id:
+      type: string
+      format: uuid
+    loan_product_id:
+      type: string
+      format: uuid
+    loan_circle_id:
+      type: string
+      format: uuid
+      nullable: true
+    principal_amount:
+      $ref: '#/components/schemas/Money'
+    outstanding_principal:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Derived (04 §2.6).
+    accrued_interest:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Derived Money amount (04 §2.6). No rate encoded (blocked DEC-48/49).
+    disbursement_transaction_id:
+      type: string
+      format: uuid
+      nullable: true
+    status:
+      $ref: '#/components/schemas/LoanStatus'
+    days_past_due:
+      type: integer
+      description: Derived (04 §2.6).
+    schedule_version:
+      type: integer
+      nullable: true
+      description: Version of the active RepaymentSchedule (04 §3.6).
+    agreement_document_id:
+      type: string
+      format: uuid
+      nullable: true
+    disbursed_at:
+      type: string
+      format: date-time
+      nullable: true
+    maturity_date:
+      type: string
+      format: date
+      nullable: true
+    closed_at:
+      type: string
+      format: date-time
+      nullable: true
+
+RepaymentInstallment:
+  type: object
+  description: >-
+    E-26 RepaymentInstallment (04 §2.6). Amounts are typed `Money`; the specific
+    computed installment number is blocked (DEC-48/49) — these fields carry the
+    stored Money values, not a contract-encoded computation.
+  properties:
+    id:
+      type: string
+      format: uuid
+    sequence:
+      type: integer
+    due_date:
+      type: string
+      format: date
+    principal_due:
+      $ref: '#/components/schemas/Money'
+    interest_due:
+      $ref: '#/components/schemas/Money'
+    total_due:
+      $ref: '#/components/schemas/Money'
+    paid_amount:
+      $ref: '#/components/schemas/Money'
+    status:
+      $ref: '#/components/schemas/RepaymentInstallmentStatus'
+    paid_at:
+      type: string
+      format: date-time
+      nullable: true
+
+RepaymentSchedule:
+  type: object
+  description: E-25 RepaymentSchedule — versioned header + installments (04 §2.6).
+  properties:
+    id:
+      type: string
+      format: uuid
+    loan_id:
+      type: string
+      format: uuid
+    version:
+      type: integer
+    schedule_type:
+      $ref: '#/components/schemas/LoanScheduleType'
+    installment_count:
+      type: integer
+    first_due_date:
+      type: string
+      format: date
+    status:
+      $ref: '#/components/schemas/RepaymentScheduleStatus'
+    origin:
+      $ref: '#/components/schemas/RepaymentScheduleOrigin'
+    installments:
+      type: array
+      items:
+        $ref: '#/components/schemas/RepaymentInstallment'
+    created_at:
+      type: string
+      format: date-time
+
+PooledLoanCircle:
+  type: object
+  description: >-
+    E-27 PooledLoanCircle — the ROSCA variant (04 §2.6, DEC-7, US-6.5). Fixed
+    monthly contribution, rotating lump-sum payout, order fixed at creation.
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+      maxLength: 80
+    creator_member_id:
+      type: string
+      format: uuid
+    contribution_amount:
+      $ref: '#/components/schemas/Money'
+    cycle_count:
+      type: integer
+      description: '= participant count (04 §2.6).'
+    current_cycle:
+      type: integer
+    collection_day_of_month:
+      type: integer
+    next_collection_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: 04 §3.6 detail field.
+    payout_order_mode:
+      $ref: '#/components/schemas/PayoutOrderMode'
+    status:
+      $ref: '#/components/schemas/PooledLoanCircleStatus'
+    participants:
+      type: array
+      items:
+        $ref: '#/components/schemas/PooledLoanCircleParticipant'
+    created_at:
+      type: string
+      format: date-time
+    activated_at:
+      type: string
+      format: date-time
+      nullable: true
+
+PooledLoanCircleParticipant:
+  type: object
+  description: E-28 PooledLoanCircleParticipant (04 §2.6).
+  properties:
+    id:
+      type: string
+      format: uuid
+    pooled_loan_circle_id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    payout_position:
+      type: integer
+    payout_status:
+      $ref: '#/components/schemas/PooledParticipantPayoutStatus'
+    funding_account_id:
+      type: string
+      format: uuid
+    missed_contributions:
+      type: integer
+    joined_at:
+      type: string
+      format: date-time
+
+CollectionsCase:
+  type: object
+  description: E-29 CollectionsCase — arrears/hardship case (04 §2.6, US-6.8/US-12.3).
+  properties:
+    id:
+      type: string
+      format: uuid
+    loan_id:
+      type: string
+      format: uuid
+    borrower_member_id:
+      type: string
+      format: uuid
+    trigger:
+      $ref: '#/components/schemas/CollectionsCaseTrigger'
+    hardship_request:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Borrower's proposed reschedule (04 §2.6). INFERRED element shape.
+    status:
+      $ref: '#/components/schemas/CollectionsCaseStatus'
+    opened_at:
+      type: string
+      format: date-time
+    closed_at:
+      type: string
+      format: date-time
+      nullable: true
+
+SignedDocument:
+  type: object
+  description: >-
+    E-30 SignedDocument — e-signature ceremony record + encrypted vault entry
+    (04 §2.6, US-6.6). Members access their own; staff via US-12.3 with audit.
+  properties:
+    id:
+      type: string
+      format: uuid
+    document_type:
+      $ref: '#/components/schemas/SignedDocumentType'
+    subject_refs:
+      type: object
+      additionalProperties: true
+      description: Linked domain entities (loan, pledge, member) (04 §2.6). INFERRED element shape.
+    signer_member_ids:
+      type: array
+      items:
+        type: string
+        format: uuid
+    document_sha256:
+      type: string
+      nullable: true
+      description: Tamper-evidence hash of the executed PDF (04 §2.6).
+    status:
+      $ref: '#/components/schemas/SignedDocumentStatus'
+    download_url:
+      type: string
+      nullable: true
+      description: Encrypted, watermarked download URL (04 §3.6).
+    sent_at:
+      type: string
+      format: date-time
+      nullable: true
+    completed_at:
+      type: string
+      format: date-time
+      nullable: true

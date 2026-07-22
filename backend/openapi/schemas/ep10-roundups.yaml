@@ -1,0 +1,139 @@
+# EP-10 Round-Up Savings — component schemas (04_technical_architecture.md §2.9,
+# entities E-47 RoundUpConfig, E-48 RoundUpCapture). Merged into
+# components.schemas by validate.py. Money -> $ref '#/components/schemas/Money'.
+#
+# ENTITY-GATED epic (see paths/ep10-roundups.yaml header): schemas exist for
+# record completeness only. NOT buildable until the SCC entity / payment-licence
+# decision (CLAUDE.md).
+#
+# DEFERRED — NOT ENCODED: the "nearest $1/$2/$5" round-up denomination is
+# deferred; NO denomination value is encoded. `multiplier` (1/2/3) is the 04
+# E-47 field and is retained verbatim.
+
+# --- Enums (verbatim from 04 §2.9) -------------------------------------------
+
+RoundUpDestinationType:
+  type: string
+  description: >-
+    E-47 `destination_type` (04 §2.9, DEC-12). The only two Round-Up
+    destinations. Enum verbatim.
+  enum:
+    - SAVINGS_GOAL
+    - COMMUNITY_PROJECT
+
+RoundUpMultiplier:
+  type: integer
+  description: >-
+    E-47 `multiplier` ∈ {1, 2, 3} (04 §2.9). This is the round-up multiplier, NOT
+    a denomination — the "nearest $1/$2/$5" denomination is DEFERRED and not
+    encoded.
+  enum:
+    - 1
+    - 2
+    - 3
+
+RoundUpCaptureStatus:
+  type: string
+  description: E-48 `status` (04 §2.9). Whole-dollar transactions produce a 0 round-up.
+  enum:
+    - ACCUMULATED
+    - TRANSFERRED
+    - SKIPPED_INSUFFICIENT_FUNDS
+    - SKIPPED_CAP
+
+# --- Entity schemas ----------------------------------------------------------
+
+RoundUpConfig:
+  type: object
+  description: >-
+    E-47 RoundUpConfig — per-member Round-Up settings, one row per member
+    (04 §2.9, DEC-12, US-10.1). Changes take effect on the next card transaction.
+  properties:
+    id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    enabled:
+      type: boolean
+    destination_type:
+      $ref: '#/components/schemas/RoundUpDestinationType'
+    savings_goal_id:
+      type: string
+      format: uuid
+      nullable: true
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Must reference a PUBLISHED CommunityProject (04 §2.9, DEC-12).
+    multiplier:
+      $ref: '#/components/schemas/RoundUpMultiplier'
+    monthly_cap:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      nullable: true
+    accumulated_pending:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Pending accumulation awaiting the threshold-batched transfer (04 §2.9).
+    updated_at:
+      type: string
+      format: date-time
+
+RoundUpCapture:
+  type: object
+  description: >-
+    E-48 RoundUpCapture — one computed round-up on a settled card transaction
+    (04 §2.9, US-10.2). Amounts are typed `Money`. Whole-dollar transactions
+    produce a 0 round-up; batched `ROUND_UP_TRANSFER` links purchase and Round-Up
+    in the ledger.
+  properties:
+    id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    card_transaction_id:
+      type: string
+      format: uuid
+    base_amount:
+      $ref: '#/components/schemas/Money'
+    roundup_amount:
+      $ref: '#/components/schemas/Money'
+    multiplier_applied:
+      $ref: '#/components/schemas/RoundUpMultiplier'
+    capped:
+      type: boolean
+    status:
+      $ref: '#/components/schemas/RoundUpCaptureStatus'
+    transfer_transaction_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Batched `ROUND_UP_TRANSFER` Transaction (04 §2.9).
+    captured_at:
+      type: string
+      format: date-time
+
+RoundUpActivityResponse:
+  type: object
+  description: >-
+    Round-Up activity view (04 §3.10). `impact_summary` modeled figures are
+    labeled "estimated" (DEC-15).
+  properties:
+    captures:
+      type: array
+      items:
+        $ref: '#/components/schemas/RoundUpCapture'
+    accumulated_pending:
+      $ref: '#/components/schemas/Money'
+    running_total:
+      $ref: '#/components/schemas/Money'
+    impact_summary:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Labeled "estimated" (DEC-15). INFERRED element shape.

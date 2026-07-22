@@ -1,0 +1,1167 @@
+# EP-6 Lending & Loan Circles — path operations (04_technical_architecture.md §3.6).
+# One operation per §3.6 endpoint row (multi-endpoint rows split per method+path).
+# Merged into `paths` by openapi/validate.py. All $refs are local.
+#
+# ============================================================================
+# ENTITY-GATED EPIC. CLAUDE.md: lending should be DEFERRED and is unlawful-until
+# the entity decision (DEC-48's 12% APR below the 17.45% market rate; FRC DTI
+# folding of fintech credit; over-credited market; SCC constraints). EVERY
+# operation carries `x-entity-gated: true` + `x-entity-gated-reason` and a
+# description note — documented for record completeness ONLY, not readiness.
+# ============================================================================
+#
+# BLOCKED — NOT ENCODED: the loan RATE model (DEC-48/49) and any computed
+# installment number are blocked on a pending decision. NO interest rate, APR,
+# or basis-points field appears in this contract; installment / repayment /
+# principal / interest amounts are typed `Money` fields only. The 04 §2.6/§3.6
+# APR keys (`base_rate_apr_bps`, `apr_bps`, `standard_apr_bps`,
+# `discounted_apr_bps`, `circle_rate_discount_tiers`) are intentionally OMITTED
+# pending DEC-48/49 (see per-schema notes).
+#
+# Step-up (04 §3.6/§5.1): offer-acceptance, pledges, signature-sessions, autopay.
+# Idempotency-Key (money-movement, CLAUDE.md non-negotiable): loan payments and
+# guarantee pledges (a pledge places a ledger hold).
+
+/api/v1/loan-products:
+  get:
+    tags: [EP-6]
+    operationId: listLoanProducts
+    summary: 'List available loan products (04 §3.6). Auth: Member (ACTIVE).'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Rate fields
+      (`base_rate_apr_bps`) OMITTED pending DEC-48/49. Not buildable until the SCC
+      entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    responses:
+      '200':
+        description: Loan products (E-19; rate fields omitted — blocked DEC-48/49).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                products:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/LoanProduct'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/loan-applications:
+  post:
+    tags: [EP-6]
+    operationId: createLoanApplication
+    summary: >-
+      Start a loan application draft with a live repayment estimate (04 §3.6).
+      Auth: Member (ACTIVE).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. `repayment_estimate`
+      is a typed `Money` amount only — no rate / APR / computed installment
+      (blocked DEC-48/49). Not buildable until the SCC entity / payment-licence
+      decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [loan_product_id, requested_amount, requested_term_months, purpose]
+            properties:
+              loan_product_id:
+                type: string
+                format: uuid
+              requested_amount:
+                $ref: '#/components/schemas/Money'
+              requested_term_months:
+                type: integer
+              purpose:
+                type: string
+                maxLength: 500
+              affordability_inputs:
+                type: object
+                additionalProperties: true
+                nullable: true
+                description: Declared income/expenses (04 §2.6). INFERRED element shape.
+    responses:
+      '201':
+        description: 'Application created (E-20; `status:"DRAFT"`).'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanApplication'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        description: 403 MEMBER_NOT_ACTIVE (04 §3.6, US-2.2 / DEC-4).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 AMOUNT_OUT_OF_RANGE (config bounds, US-12.5) (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loan-applications/{id}:
+  patch:
+    tags: [EP-6]
+    operationId: updateLoanApplication
+    summary: 'Edit a draft loan application (04 §3.6). Auth: Applicant.'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      description: Draft edits (04 §3.6).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              requested_amount:
+                $ref: '#/components/schemas/Money'
+              requested_term_months:
+                type: integer
+              purpose:
+                type: string
+                maxLength: 500
+              affordability_inputs:
+                type: object
+                additionalProperties: true
+                nullable: true
+    responses:
+      '200':
+        description: Updated draft application.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanApplication'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 NOT_DRAFT — application is not editable outside DRAFT (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+  get:
+    tags: [EP-6]
+    operationId: getLoanApplication
+    summary: >-
+      Get application status, decision, and offer — standard vs. circle-discounted
+      side by side (04 §3.6). Auth: Applicant.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Offer
+      amounts are typed `Money`; APR fields OMITTED pending DEC-48/49. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Application detail (E-20; status per DEC-20, decision, offer).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanApplication'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/loan-applications/{id}/submit:
+  post:
+    tags: [EP-6]
+    operationId: submitLoanApplication
+    summary: >-
+      Submit a draft for decisioning (`SUBMITTED` → `UNDER_REVIEW`) (04 §3.6).
+      Auth: Applicant.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: 'Submitted (`status:"SUBMITTED"`, then decisioning to `UNDER_REVIEW`).'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanApplication'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 NOT_DRAFT (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loan-applications/{id}/offer-acceptance:
+  post:
+    tags: [EP-6]
+    operationId: acceptLoanOffer
+    summary: >-
+      Accept an approved offer; starts the e-sign ceremony (04 §3.6, US-6.6).
+      Auth: Applicant + step-up.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Step-up per
+      04 §3.6/§5.1. Not buildable until the SCC entity / payment-licence decision
+      (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [accepted_schedule_type]
+            properties:
+              accepted_schedule_type:
+                $ref: '#/components/schemas/LoanScheduleType'
+    responses:
+      '200':
+        description: Offer accepted; e-sign ceremony started (returns `agreement_document_id`).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agreement_document_id:
+                  type: string
+                  format: uuid
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '410':
+        description: 410 OFFER_EXPIRED (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loan-circles:
+  post:
+    tags: [EP-6]
+    operationId: createLoanCircle
+    summary: >-
+      Create a peer-guarantee Loan Circle for an application (04 §3.6, DEC-7).
+      Auth: Applicant (borrower).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [loan_application_id]
+            properties:
+              loan_application_id:
+                type: string
+                format: uuid
+    responses:
+      '201':
+        description: 'Circle created (E-21; `status:"FORMING"`).'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanCircle'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 CIRCLE_EXISTS (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loan-circles/{id}/invitations:
+  post:
+    tags: [EP-6]
+    operationId: createLoanCircleInvitations
+    summary: >-
+      Invite 3–5 members to a Loan Circle; full disclosure pack auto-attached
+      (04 §3.6, DEC-7). Auth: Borrower.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [invitations]
+            properties:
+              invitations:
+                type: array
+                items:
+                  type: object
+                  required: [identifier_type, identifier]
+                  properties:
+                    identifier_type:
+                      $ref: '#/components/schemas/RecipientIdentifierType'
+                    identifier:
+                      type: string
+                    requested_pledge:
+                      allOf:
+                        - $ref: '#/components/schemas/Money'
+                      nullable: true
+    responses:
+      '201':
+        description: Invitations created (E-22; max 5 accepted, DEC-7).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invitations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/LoanCircleInvitation'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 INVITEE_NOT_ACTIVE or 422 CIRCLE_FULL (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loan-circles/invitations/{id}/respond:
+  post:
+    tags: [EP-6]
+    operationId: respondLoanCircleInvitation
+    summary: >-
+      Accept or decline a Loan Circle invitation — decline is frictionless &
+      private; circle ⇒ FORMED at 3–5 acceptances (04 §3.6). Auth: Invitee (ACTIVE).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [response]
+            properties:
+              response:
+                $ref: '#/components/schemas/InvitationResponse'
+    responses:
+      '200':
+        description: Invitation status updated (circle ⇒ FORMED at 3–5 acceptances).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanCircleInvitation'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '410':
+        description: 410 INVITATION_EXPIRED (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loan-circles/{id}/pledges:
+  post:
+    tags: [EP-6]
+    operationId: createPeerGuaranteePledge
+    summary: >-
+      Pledge a guarantee (locks savings/share capital via a ledger hold on
+      signature) (04 §3.6, DEC-7, US-6.4). Auth: Circle member + step-up.
+      Money-movement (places a ledger hold) — Idempotency-Key required.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Step-up per
+      04 §3.6/§5.1; Idempotency-Key applied because the pledge posts a ledger hold
+      (CLAUDE.md money-movement non-negotiable) — NOTE: 04 §3.6 does not itself
+      list Idempotency-Key on this row. Not buildable until the SCC entity /
+      payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [pledge_source, source_account_id, pledged_amount]
+            properties:
+              pledge_source:
+                $ref: '#/components/schemas/PledgeSource'
+              source_account_id:
+                type: string
+                format: uuid
+              pledged_amount:
+                $ref: '#/components/schemas/Money'
+    responses:
+      '201':
+        description: >-
+          Pledge created (E-23; `status:"PENDING_SIGNATURE"`, `agreement_document_id`;
+          on signature ⇒ LOCKED + ledger hold).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeerGuarantee'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 IDEMPOTENCY_CONFLICT on key reuse with a different payload (04 §3.0).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: >-
+          422 EXCEEDS_AVAILABLE_BALANCE or 422 SHARE_PLEDGE_UNAVAILABLE_IN_JURISDICTION
+          (share-capital enforceability behind `jurisdiction_flag`, Open Item 2) (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/members/me/guarantees:
+  get:
+    tags: [EP-6]
+    operationId: getMyGuarantees
+    summary: 'Guarantor exposure dashboard (04 §3.6). Auth: Member.'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    responses:
+      '200':
+        description: Guarantor dashboard (pledges + total exposure, E-23 aggregate).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuarantorDashboard'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/pooled-circles:
+  post:
+    tags: [EP-6]
+    operationId: createPooledCircle
+    summary: >-
+      Create a Pooled Loan Circle (ROSCA); schedule fixed at creation (04 §3.6,
+      DEC-7, US-6.5). Auth: Member (ACTIVE).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, contribution_amount, collection_day_of_month, payout_order_mode, participants]
+            properties:
+              name:
+                type: string
+                maxLength: 80
+              contribution_amount:
+                $ref: '#/components/schemas/Money'
+              collection_day_of_month:
+                type: integer
+              payout_order_mode:
+                $ref: '#/components/schemas/PayoutOrderMode'
+              participants:
+                type: array
+                items:
+                  type: object
+                  required: [identifier_type, identifier]
+                  properties:
+                    identifier_type:
+                      $ref: '#/components/schemas/RecipientIdentifierType'
+                    identifier:
+                      type: string
+                    payout_position:
+                      type: integer
+                      nullable: true
+    responses:
+      '201':
+        description: 'Pooled circle created (E-27; `status:"FORMING"`).'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PooledLoanCircle'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 POSITION_CONFLICT (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/pooled-circles/invitations/{id}/respond:
+  post:
+    tags: [EP-6]
+    operationId: respondPooledCircleInvitation
+    summary: 'Respond to a Pooled Loan Circle invitation (04 §3.6). Auth: Invitee.'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [response]
+            properties:
+              response:
+                $ref: '#/components/schemas/InvitationResponse'
+    responses:
+      '200':
+        description: Invitation response recorded.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PooledLoanCircleParticipant'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 CIRCLE_ACTIVE — composition locked once active (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/pooled-circles/{id}:
+  get:
+    tags: [EP-6]
+    operationId: getPooledCircle
+    summary: >-
+      Pooled circle detail (`current_cycle`, `next_collection_at`,
+      `payout_schedule`) (04 §3.6). Auth: Participant.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Pooled circle detail (E-27).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PooledLoanCircle'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/pooled-circles/{id}/ledger:
+  get:
+    tags: [EP-6]
+    operationId: getPooledCircleLedger
+    summary: >-
+      Full circle ledger — contributions, payouts, arrears — visible to all
+      participants (04 §3.6). Auth: Participant.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Derived
+      view over Transactions. Not buildable until the SCC entity / payment-licence
+      decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Circle ledger view (collections, payouts, missed-contribution alerts + backstop actions).
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: 'INFERRED shape: 04 describes a derived ledger view but does not pin its schema.'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/documents:
+  get:
+    tags: [EP-6]
+    operationId: listDocuments
+    summary: 'List the member''s signed-document vault (04 §3.6, E-30). Auth: Member (own docs).'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    responses:
+      '200':
+        description: Document vault list (E-30).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                documents:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SignedDocument'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/documents/{id}:
+  get:
+    tags: [EP-6]
+    operationId: getDocument
+    summary: >-
+      Get a signed document with an encrypted, watermarked `download_url`
+      (04 §3.6, E-30). Auth: Member (own docs).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Document detail with `download_url` (encrypted, watermarked).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignedDocument'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/documents/{id}/signature-sessions:
+  post:
+    tags: [EP-6]
+    operationId: createSignatureSession
+    summary: >-
+      Start an identity-bound e-sign ceremony (provider-embedded, tamper-evident)
+      (04 §3.6, US-6.6). Auth: Named signer + step-up.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Step-up per
+      04 §3.6/§5.1. Not buildable until the SCC entity / payment-licence decision
+      (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Signing session created (returns embedded `signing_url`).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                signing_url:
+                  type: string
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 ALREADY_SIGNED (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loans:
+  get:
+    tags: [EP-6]
+    operationId: listLoans
+    summary: 'List the borrower''s loans (04 §3.6). Auth: Borrower.'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    responses:
+      '200':
+        description: Loans (E-24; status per DEC-20).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                loans:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Loan'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/loans/{id}:
+  get:
+    tags: [EP-6]
+    operationId: getLoan
+    summary: >-
+      Get a loan (status per DEC-20, `outstanding_principal`, `days_past_due`,
+      `schedule_version`) (04 §3.6). Auth: Borrower.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Amounts are
+      typed `Money`; APR field OMITTED pending DEC-48/49. Not buildable until the
+      SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Loan detail (E-24).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Loan'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/loans/{id}/schedule:
+  get:
+    tags: [EP-6]
+    operationId: getLoanSchedule
+    summary: >-
+      Get the active repayment schedule + installments (amortization + history)
+      (04 §3.6). Auth: Borrower.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Installment
+      amounts are typed `Money`; no rate / computed installment encoded (blocked
+      DEC-48/49). Not buildable until the SCC entity / payment-licence decision
+      (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Active RepaymentSchedule + installments (E-25/E-26).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentSchedule'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/loans/{id}/autopay:
+  put:
+    tags: [EP-6]
+    operationId: updateLoanAutopay
+    summary: 'Configure loan autopay (04 §3.6). Auth: Borrower + step-up.'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Step-up per
+      04 §3.6. Not buildable until the SCC entity / payment-licence decision
+      (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [enabled, source_account_id]
+            properties:
+              enabled:
+                type: boolean
+              source_account_id:
+                type: string
+                format: uuid
+              retry_policy:
+                type: object
+                additionalProperties: true
+                nullable: true
+                description: 'INFERRED element shape (04 §2.6 `autopay.retry_policy`).'
+    responses:
+      '200':
+        description: Autopay config (E-24 `autopay`).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                source_account_id:
+                  type: string
+                  format: uuid
+                retry_policy:
+                  type: object
+                  additionalProperties: true
+                  nullable: true
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 ACCOUNT_NOT_OWNED (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loans/{id}/payments:
+  post:
+    tags: [EP-6]
+    operationId: makeLoanPayment
+    summary: >-
+      Make a loan repayment (extra payments allowed); triggers pro-rata pledge
+      release (04 §3.6, US-6.4/US-6.7). Auth: Borrower. Money-movement —
+      Idempotency-Key required (04 §3.6 explicitly).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Repayment
+      `amount` is a typed `Money` field; no rate / computed installment encoded
+      (blocked DEC-48/49). Not buildable until the SCC entity / payment-licence
+      decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [amount, source_account_id]
+            properties:
+              amount:
+                $ref: '#/components/schemas/Money'
+              source_account_id:
+                type: string
+                format: uuid
+    responses:
+      '200':
+        description: Repayment applied (returns `transaction_id`, updated installment states).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                  format: uuid
+                installments:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RepaymentInstallment'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 IDEMPOTENCY_CONFLICT on key reuse with a different payload (04 §3.0).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 EXCEEDS_PAYOFF (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/loans/{id}/payoff-quote:
+  get:
+    tags: [EP-6]
+    operationId: getLoanPayoffQuote
+    summary: 'Get a payoff quote (04 §3.6). Auth: Borrower.'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only.
+      `payoff_amount` / `interest_saved` are typed `Money`; no rate encoded
+      (blocked DEC-48/49). Not buildable until the SCC entity / payment-licence
+      decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: as_of
+        in: query
+        required: false
+        description: 04 §3.6 optional `as_of` date.
+        schema:
+          type: string
+          format: date
+    responses:
+      '200':
+        description: Payoff quote (amounts as Money).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payoff_amount:
+                  $ref: '#/components/schemas/Money'
+                valid_until:
+                  type: string
+                  format: date-time
+                interest_saved:
+                  $ref: '#/components/schemas/Money'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/loans/{id}/hardship-requests:
+  post:
+    tags: [EP-6]
+    operationId: createHardshipRequest
+    summary: >-
+      Submit a self-service hardship/reschedule request; opens a CollectionsCase
+      routed to US-12.3 (04 §3.6, US-6.8). Auth: Borrower.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Not
+      buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason, proposed_schedule]
+            properties:
+              reason:
+                type: string
+              proposed_schedule:
+                type: object
+                properties:
+                  type:
+                    $ref: '#/components/schemas/LoanScheduleType'
+                  params:
+                    type: object
+                    additionalProperties: true
+                    description: 'INFERRED element shape; 04 names `params` but does not pin it.'
+    responses:
+      '201':
+        description: 'CollectionsCase opened (E-29; `trigger:"HARDSHIP_REQUEST"`).'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionsCase'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 OPEN_HARDSHIP_EXISTS (04 §3.6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
