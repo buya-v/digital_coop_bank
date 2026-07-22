@@ -1,0 +1,183 @@
+# EP-5 Card Management — component schemas (04_technical_architecture.md §2.5,
+# entity E-18 Card). Merged into components.schemas by openapi/validate.py.
+# Money -> $ref '#/components/schemas/Money' (shared). Enum values verbatim.
+#
+# ENTITY-GATED epic (see paths/ep5-cards.yaml header): these schemas exist for
+# record completeness only; EP-5 is not buildable until the SCC entity /
+# payment-licence decision (CLAUDE.md).
+
+# --- Enums (E-18, verbatim) --------------------------------------------------
+
+CardType:
+  type: string
+  description: E-18 `card_type` (04 §2.5). Virtual issued automatically at Transaction Account opening.
+  enum:
+    - VIRTUAL
+    - PHYSICAL
+
+CardStatus:
+  type: string
+  description: E-18 `status` (04 §2.5). Freeze declines with explanatory notification (US-5.3).
+  enum:
+    - PENDING_ACTIVATION
+    - ACTIVE
+    - FROZEN
+    - REPORTED_LOST
+    - TERMINATED
+
+CardFulfilmentStage:
+  type: string
+  description: E-18 `fulfilment.stage` — physical-card fulfilment stage (04 §2.5, US-5.2).
+  enum:
+    - ORDERED
+    - PRINTED
+    - SHIPPED
+    - DELIVERED
+
+WalletType:
+  type: string
+  description: Mobile wallet for push-provisioning (04 §3.5 `wallet`, E-18 `wallet_tokens`, US-5.1).
+  enum:
+    - APPLE_PAY
+    - GOOGLE_PAY
+
+# --- Structured control / fulfilment objects (E-18) --------------------------
+
+CardControls:
+  type: object
+  description: >-
+    E-18 `controls` (04 §2.5). Evaluated at authorization time, effective in
+    seconds; changes audit-logged (US-13.3). Per-period limit amounts are typed
+    `Money`.
+  properties:
+    per_period_limits:
+      type: array
+      items:
+        type: object
+        properties:
+          period:
+            type: string
+            description: 'INFERRED: 04 names `period` but does not pin the enum (e.g. DAILY/MONTHLY).'
+          amount:
+            $ref: '#/components/schemas/Money'
+    channel_toggles:
+      type: object
+      properties:
+        online:
+          type: boolean
+        atm:
+          type: boolean
+        contactless:
+          type: boolean
+    mcc_blocks:
+      type: array
+      description: Blocked merchant-category codes (04 §2.5 `mcc_blocks`).
+      items:
+        type: string
+
+CardFulfilment:
+  type: object
+  description: E-18 `fulfilment` (physical only, 04 §2.5, US-5.2).
+  properties:
+    stage:
+      $ref: '#/components/schemas/CardFulfilmentStage'
+    shipped_at:
+      type: string
+      format: date-time
+      nullable: true
+    carrier:
+      type: string
+      nullable: true
+    tracking_ref:
+      type: string
+      nullable: true
+    delivered_at:
+      type: string
+      format: date-time
+      nullable: true
+
+# --- Card entity (E-18) ------------------------------------------------------
+
+Card:
+  type: object
+  description: >-
+    E-18 Card (04 §2.5). PAN/CVV never stored — issuer tokens only (PCI scope
+    reduction). VENDOR ASSUMPTION: 04 names Lithic; NETC is the Mongolian card
+    entity (pending requirements change, CLAUDE.md).
+  properties:
+    id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    funding_account_id:
+      type: string
+      format: uuid
+      description: FK→Account (`TRANSACTION`) (04 §2.5).
+    card_type:
+      $ref: '#/components/schemas/CardType'
+    masked_pan:
+      type: string
+      description: Display only (04 §2.5).
+    expiry_month:
+      type: integer
+      nullable: true
+    expiry_year:
+      type: integer
+      nullable: true
+    embossed_name:
+      type: string
+      nullable: true
+      description: >-
+        Physical only; copied verbatim from `mrz_name_latin` (DEC-6), never
+        transliterated from the Cyrillic name fields (04 §2.5).
+    status:
+      $ref: '#/components/schemas/CardStatus'
+    fulfilment:
+      allOf:
+        - $ref: '#/components/schemas/CardFulfilment'
+      nullable: true
+      description: Physical only (04 §2.5).
+    controls:
+      $ref: '#/components/schemas/CardControls'
+    pin_set:
+      type: boolean
+      description: The PIN itself lives at the issuer-processor only (04 §2.5).
+    created_at:
+      type: string
+      format: date-time
+    activated_at:
+      type: string
+      format: date-time
+      nullable: true
+    terminated_at:
+      type: string
+      format: date-time
+      nullable: true
+
+# --- Operation response shapes -----------------------------------------------
+
+CardCredentialRevealResponse:
+  type: object
+  description: >-
+    Short-lived reveal token for issuer-hosted PAN/CVV display (04 §3.5).
+    PAN never transits the platform (PCI).
+  properties:
+    reveal_token:
+      type: string
+      description: Single-use issuer-hosted reveal token.
+    expires_at:
+      type: string
+      format: date-time
+      description: 'INFERRED type; 04 names a short-lived token but does not pin its expiry representation.'
+
+WalletProvisionResponse:
+  type: object
+  description: Issuer push-provisioning payload (04 §3.5, E-18 `wallet_tokens`).
+  properties:
+    provisioning_payload:
+      type: string
+    status:
+      type: string
+      description: 'INFERRED: 04 names a `status` key but does not pin its enum.'

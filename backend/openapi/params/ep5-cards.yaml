@@ -1,0 +1,10 @@
+# EP-5 reusable path parameter. Merged into components.parameters by
+# openapi/validate.py.
+CardIdPath:
+  name: id
+  in: path
+  required: true
+  description: Card identifier (E-18 `id`, 04 §2.5/§3.5).
+  schema:
+    type: string
+    format: uuid

@@ -1,0 +1,441 @@
+# EP-5 Card Management — path operations (04_technical_architecture.md §3.5).
+# One operation per §3.5 endpoint row (freeze/unfreeze split into two ops).
+# Merged into `paths` by openapi/validate.py. All $refs are local.
+#
+# ============================================================================
+# ENTITY-GATED EPIC. EP-5 is flagged in CLAUDE.md as likely UNLAWFUL for an SCC
+# (SCCs have no payment-service power; none appears on Bank of Mongolia's PSP
+# register) until the entity / payment-licence decision. EVERY operation below
+# carries `x-entity-gated: true` + `x-entity-gated-reason` and a description
+# note. These are documented for record completeness ONLY — NOT a signal of
+# readiness; no application logic may be built against them until that decision.
+# ============================================================================
+#
+# Step-up: PAN / card-credential reveal + PIN set require the `stepUpAssertion`
+# security scheme (04 §5.1). VENDOR ASSUMPTION: 04 names Lithic as the issuer
+# processor; vendor substitution for the Mongolian market (NETC) is a pending
+# requirements change (CLAUDE.md). No money-movement POSTs here → no
+# Idempotency-Key parameter in this slice.
+
+/api/v1/cards:
+  get:
+    tags: [EP-5]
+    operationId: listCards
+    summary: 'List the member''s cards (04 §3.5). Auth: Member.'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. List cards
+      incl. the virtual card auto-issued at Transaction Account opening (04 §3.5).
+      Not buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    responses:
+      '200':
+        description: Cards list (E-18).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cards:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Card'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/cards/{id}/credentials:
+  post:
+    tags: [EP-5]
+    operationId: revealCardCredentials
+    summary: >-
+      Mint a short-lived reveal token for issuer-hosted PAN/CVV display (04 §3.5).
+      Auth: Member (owner) + step-up. PCI: PAN never transits the platform.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. PAN /
+      card-credential reveal — requires the `stepUpAssertion` scheme (04 §5.1).
+      Not buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    requestBody:
+      required: true
+      description: >-
+        04 §3.5 shows `step_up_token` in the body; the reusable `stepUpAssertion`
+        header scheme is ALSO applied (root.yaml notes the transport is INFERRED).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              step_up_token:
+                type: string
+                description: Step-up assertion (04 §3.5 body form); may duplicate the header scheme.
+    responses:
+      '200':
+        description: Short-lived reveal token for issuer-hosted PAN/CVV display.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardCredentialRevealResponse'
+      '401':
+        description: 401 STEP_UP_REQUIRED — fresh step-up assertion missing/expired (04 §3.5/§5.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 CARD_NOT_ACTIVE (04 §3.5).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/cards/{id}/wallet-tokens:
+  post:
+    tags: [EP-5]
+    operationId: provisionWalletToken
+    summary: >-
+      Push-provision the card to a mobile wallet (04 §3.5). Auth: Member (owner).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Apple
+      Pay / Google Pay push-provisioning (04 §3.5). Not buildable until the SCC
+      entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [wallet, device_payload]
+            properties:
+              wallet:
+                $ref: '#/components/schemas/WalletType'
+              device_payload:
+                type: string
+                description: Issuer push-provisioning device payload (04 §3.5).
+    responses:
+      '200':
+        description: Wallet provisioning payload (E-18 `wallet_tokens`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalletProvisionResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '502':
+        description: >-
+          502 ISSUER_UNAVAILABLE — upstream issuer processor unavailable
+          (04 §3.5). VENDOR ASSUMPTION: 04 names Lithic; NETC is the Mongolian
+          card entity (pending requirements change, CLAUDE.md).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/cards/physical:
+  post:
+    tags: [EP-5]
+    operationId: orderPhysicalCard
+    summary: >-
+      Order a physical card; lost/stolen replacement reuses this flow (04 §3.5).
+      Auth: Member (ACTIVE). `embossed_name` copied verbatim from `mrz_name_latin`
+      (DEC-6) — never transliterated from the Cyrillic name fields.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Physical
+      card issuance / replacement (04 §3.5). Not buildable until the SCC entity /
+      payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              delivery_address:
+                type: object
+                additionalProperties: true
+                nullable: true
+                description: >-
+                  Defaults to the DEC-6 profile address if omitted (04 §3.5).
+                  INFERRED element shape; 04 names the field but does not pin it.
+              replacement_for_card_id:
+                type: string
+                format: uuid
+                nullable: true
+                description: Lost/stolen replacement reuses the order flow (04 §3.5).
+    responses:
+      '201':
+        description: >-
+          Physical card created (E-18; `card_type:"PHYSICAL"`,
+          `status:"PENDING_ACTIVATION"`, `embossed_name` from `mrz_name_latin`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Card'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: >-
+          422 ADDRESS_INCOMPLETE or 422 MRZ_NAME_UNAVAILABLE — absent
+          `mrz_name_latin`, no physical card may be produced (04 §3.5, DEC-6).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/cards/{id}/fulfilment:
+  get:
+    tags: [EP-5]
+    operationId: getCardFulfilment
+    summary: 'Track physical-card fulfilment (04 §3.5). Auth: Member (owner).'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Physical
+      card fulfilment tracking (04 §3.5). Not buildable until the SCC entity /
+      payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    responses:
+      '200':
+        description: Fulfilment state (E-18 `fulfilment`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardFulfilment'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/cards/{id}/activate:
+  post:
+    tags: [EP-5]
+    operationId: activateCard
+    summary: >-
+      Activate a card via last-4 confirmation (04 §3.5). Auth: Member (owner) +
+      step-up.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Card
+      activation, step-up per 04 §3.5. Not buildable until the SCC entity /
+      payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [last4_confirmation]
+            properties:
+              last4_confirmation:
+                type: string
+                description: Last four digits of the PAN, confirmed by the member (04 §3.5).
+    responses:
+      '200':
+        description: 'Card activated (`status:"ACTIVE"`).'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Card'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 LAST4_MISMATCH (04 §3.5).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/cards/{id}/pin:
+  put:
+    tags: [EP-5]
+    operationId: setCardPin
+    summary: >-
+      Set the card PIN via issuer-hosted widget handshake (04 §3.5). Auth: Member
+      (owner) + step-up. The PIN itself lives at the issuer-processor only.
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Card
+      credential (PIN) set — requires the `stepUpAssertion` scheme (04 §5.1).
+      Not buildable until the SCC entity / payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [pin_set_token]
+            properties:
+              pin_set_token:
+                type: string
+                description: Issuer-hosted PIN-widget handshake token (04 §3.5).
+    responses:
+      '200':
+        description: 'PIN set (`pin_set:true`).'
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pin_set:
+                  type: boolean
+      '401':
+        description: 401 STEP_UP_REQUIRED — fresh step-up assertion missing/expired (04 §3.5/§5.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/cards/{id}/freeze:
+  post:
+    tags: [EP-5]
+    operationId: freezeCard
+    summary: >-
+      Freeze a card — effective in seconds; declines carry an explanatory
+      notification (04 §3.5). Auth: Member (owner).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Card freeze
+      (04 §3.5). Not buildable until the SCC entity / payment-licence decision
+      (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    responses:
+      '200':
+        description: Card frozen (returns updated `status`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Card'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 CARD_TERMINATED (04 §3.5).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/cards/{id}/unfreeze:
+  post:
+    tags: [EP-5]
+    operationId: unfreezeCard
+    summary: 'Unfreeze a card — effective in seconds (04 §3.5). Auth: Member (owner).'
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Card
+      unfreeze (04 §3.5). Not buildable until the SCC entity / payment-licence
+      decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    responses:
+      '200':
+        description: Card unfrozen (returns updated `status`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Card'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 CARD_TERMINATED (04 §3.5).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/cards/{id}/controls:
+  put:
+    tags: [EP-5]
+    operationId: updateCardControls
+    summary: >-
+      Update card controls — evaluated at authorization time, effective in
+      seconds, changes audit-logged (04 §3.5, US-13.3). Auth: Member (owner).
+    description: >-
+      ENTITY-GATED (not buildable): documented for completeness only. Card
+      spend controls (04 §3.5). Not buildable until the SCC entity /
+      payment-licence decision (CLAUDE.md).
+    x-entity-gated: true
+    x-entity-gated-reason: "Not buildable until the SCC entity / payment-licence decision (CLAUDE.md). Documented for completeness."
+    parameters:
+      - $ref: '#/components/parameters/CardIdPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CardControls'
+    responses:
+      '200':
+        description: Updated controls (applied at authorization time).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardControls'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 LIMIT_ABOVE_PRODUCT_MAX (04 §3.5).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
