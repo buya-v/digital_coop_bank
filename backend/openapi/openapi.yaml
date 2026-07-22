@@ -2,10 +2,204 @@ openapi: 3.1.0
 info:
   title: Digital Coop Bank API
   version: 0.0.1
-  description: Architecture-of-record derived from 04_technical_architecture.md §3. Scaffold.
+  description: 'Architecture-of-record for the Digital Coop Bank platform API, derived from `idea-lab/final_requirements/04_technical_architecture.md`
+    §3 (API Contracts). This is the shared OpenAPI foundation (T1): document-level metadata, security
+    schemes, reusable error responses, the standard error envelope, cursor pagination parameters, and
+    per-epic tags. It contains NO `paths` — endpoint definitions live in `openapi/paths/*.yaml` and are
+    deep-merged in by `openapi/validate.py`. Conventions are taken verbatim from §3.0; security from §5.1.
+    Where `04` does not pin a mechanical detail (e.g. concrete auth URLs, step-up transport, pagination
+    limit bounds), the relevant `description` field marks it INFERRED.'
 servers: []
-security: []
-tags: []
+security:
+- memberOAuth2: []
 components:
-  schemas: {}
+  securitySchemes:
+    memberOAuth2:
+      type: oauth2
+      description: 'Member authentication. OAuth 2.0 Authorization Code flow with PKCE for all member
+        clients; OIDC ID tokens issued alongside; access tokens are RS256-signed JWTs with a lifetime
+        <= 15 min and rotating refresh tokens bound to DeviceBindings (04 §5.1 Authentication; §3.0 AuthN).
+        Presented as `Authorization: Bearer <JWT>`. INFERRED: OpenAPI 3.1 has no native field to express
+        the PKCE requirement, so it is recorded here in prose and via the `x-pkce` extension below. The
+        `authorizationUrl` / `tokenUrl` / `refreshUrl` values are placeholders — the concrete identity-provider
+        endpoints are operator-chosen (data residency, 04 §5.3) and are NOT pinned by `04`.'
+      x-pkce: S256
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example.invalid/oauth2/authorize
+          tokenUrl: https://auth.example.invalid/oauth2/token
+          refreshUrl: https://auth.example.invalid/oauth2/token
+          scopes:
+            member: Default member scope for own accounts, payments, cards, governance.
+    memberOIDC:
+      type: openIdConnect
+      description: 'OpenID Connect discovery for member sign-in, corresponding to the OIDC ID tokens named
+        in 04 §5.1 Authentication. INFERRED: the `openIdConnectUrl` is a placeholder — the concrete discovery
+        document (`.well-known/openid-configuration`) is operator-chosen and NOT pinned by `04`.'
+      openIdConnectUrl: https://auth.example.invalid/.well-known/openid-configuration
+    staffSSO:
+      type: openIdConnect
+      description: 'Back-office / staff authentication. Staff SSO with mandatory MFA and short sessions
+        (04 §5.1); a SEPARATE staff token audience from member tokens (04 §3.0 — staff resources live
+        under `/api/v1/admin/...`). Referenced by admin operations in later path slices. INFERRED: the
+        `openIdConnectUrl` is a placeholder; the concrete staff IdP is operator-chosen and NOT pinned
+        by `04`.'
+      openIdConnectUrl: https://staff-auth.example.invalid/.well-known/openid-configuration
+    stepUpAssertion:
+      type: apiKey
+      in: header
+      name: X-Step-Up-Token
+      description: 'Step-up authentication assertion. 04 §5.1 requires a fresh biometric/MFA assertion
+        (a short-lived, single-use token) for sensitive actions: external payments above configured thresholds,
+        card credential reveal and PIN set, vote submission, Proxy Delegation create/revoke, guarantee
+        pledges, closure requests, and KYC-relevant profile changes (US-1.4). The token is minted by `POST
+        /api/v1/auth/step-up` (returns `step_up_token`, 04 §3.1). Sensitive operations reference this
+        scheme IN ADDITION TO `memberOAuth2` (it augments, not replaces, the session). INFERRED: `04`
+        pins that a single-use step-up token exists and that `POST /auth/step-up` returns it, but does
+        NOT pin its transport uniformly — §3.5 `POST /cards/{id}/credentials` shows it passed as a `step_up_token`
+        request-body field, whereas most rows just say "step-up". Representing it as an `apiKey` header
+        (`X-Step-Up-Token`) is the cleanest reusable, security-requirement-composable form; operations
+        that instead take it in the body may document that locally. The header name is INFERRED.'
+  responses:
+    Unauthorized:
+      description: '401 UNAUTHENTICATED — missing, invalid, or expired credentials (no valid `Authorization:
+        Bearer <JWT>`). (04 §3.0)'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: '403 FORBIDDEN / 403 MEMBER_NOT_ACTIVE — authenticated but not permitted: RBAC denial
+        (04 §5.1) or a member-rights action attempted while `MembershipStatus != ACTIVE` (04 §3.0 / US-2.2).
+        (04 §3.0)'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 404 NOT_FOUND — the requested resource does not exist or is not visible to the caller.
+        (04 §3.0)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: 409 STATE_CONFLICT — the request conflicts with the current resource state (e.g. illegal
+        state transition, or `409 IDEMPOTENCY_CONFLICT` on a replayed `Idempotency-Key` with a different
+        payload). (04 §3.0)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnprocessableEntity:
+      description: 422 VALIDATION_FAILED — the request was well-formed but failed validation; per-field
+        failures are carried in `error.details[]`. (04 §3.0)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: 429 RATE_LIMITED — gateway rate limit exceeded (per-token buckets, 04 §5.2). (04 §3.0)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      description: 'Uniform error envelope. 04 §3.0 pins the exact shape: `{ "error": { "code", "message",
+        "details[]", "correlation_id" } }`. Field names are taken verbatim from the source.'
+      required:
+      - error
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required:
+          - code
+          - message
+          - correlation_id
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code, e.g. `VALIDATION_FAILED`, `STATE_CONFLICT`, `RATE_LIMITED`
+                (04 §3.0).
+            message:
+              type: string
+              description: Human-readable description of the error.
+            details:
+              type: array
+              description: 'Optional structured detail, e.g. per-field validation failures for `422 VALIDATION_FAILED`
+                (04 §3.0). INFERRED item shape: `04` names `details[]` but does not pin the element schema,
+                so elements are left unconstrained here.'
+              items: {}
+            correlation_id:
+              type: string
+              description: Request correlation identifier for tracing/support (04 §3.0).
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque forward cursor for cursor-based pagination. Omit for the first page; pass the
+        `next_cursor` returned by the previous page to continue. A `null`/absent `next_cursor` in a response
+        indicates the last page. (04 §3.0)
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: 'Maximum number of items to return in one page (04 §3.0 `?...&limit=`). INFERRED: `04`
+        names the `limit` parameter but does NOT pin its default value or maximum; the bounds below (1..100,
+        default 20) are an inferred convention for the foundation and may be tuned per endpoint.'
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+tags:
+- name: EP-1
+  description: Identity, Onboarding & KYC — applications, KYC sessions, MFA, devices, member profile &
+    consents (04 §3.1).
+- name: EP-2
+  description: Membership Shares & Equity — share purchase, membership status, shares registry, closure
+    (04 §3.2).
+- name: EP-3
+  description: Savings & Deposit Accounts — accounts, transactions, interest, savings goals, group pots
+    (04 §3.3).
+- name: EP-4
+  description: Payments & Transfers — recipient lookup, P2P, external rails, payees, schedules, payment
+    requests (04 §3.4).
+- name: EP-5
+  description: Card Management — cards, credential reveal (step-up), wallet provisioning, controls (04
+    §3.5).
+- name: EP-6
+  description: Lending & Loan Circles — loan applications, underwriting, guarantee pledges, servicing
+    (04 §3.6).
+- name: EP-7
+  description: Dividends & Surplus Distribution — patronage factors, dividend estimator, allocations,
+    statements (04 §3.7).
+- name: EP-8
+  description: Democratic Governance & Voting — ballots, secret-ballot vote submission, proxy delegation
+    (04 §3.8).
+- name: EP-9
+  description: Community Funding Hub — community projects, backing, surplus matching (04 §3.9).
+- name: EP-10
+  description: Round-Up Savings — round-up configuration, captures, destinations (04 §3.10).
+- name: EP-11
+  description: Notifications & Engagement — notification delivery, preferences, engagement surfaces (04
+    §3.11).
+- name: EP-12
+  description: Admin & Back-Office — staff console; all mutations maker-checker + audit-logged (04 §3.12).
+- name: EP-13
+  description: Compliance, Risk & Transparency — KYC/AML cases, SAR workflow, transparency reporting (04
+    §3.13).
+- name: ops
+  description: Operational endpoints (health, readiness, service metadata) not tied to a single member-facing
+    epic.
+- name: webhooks
+  description: Inbound vendor webhooks under `/api/v1/webhooks/...` — signature-verified, no OAuth (04
+    §3.0).
 paths: {}
