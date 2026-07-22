@@ -1,0 +1,887 @@
+# EP-12 Admin & Back-Office — path operations (04 §3.12).
+# One operation per §3.12 method. This is the STAFF console: EVERY operation uses
+# the staff token audience (`security: - staffSSO: []`, root securityScheme;
+# 04 §3.0 — staff resources live under /api/v1/admin/...), overriding the document
+# default memberOAuth2. Per §3.12, ALL mutations are maker-checker + audit-logged
+# (E-53 / US-13.3): each mutating op notes this and, where the contract needs it,
+# surfaces the MakerCheckerApproval reference. Common error codes apply everywhere
+# (04 §3.0). All $refs local.
+#
+# NOT IN THIS SLICE (deliberate, to avoid duplicate-path/duplicate-schema at merge):
+#  * POST /api/v1/admin/members/{id}/status-transitions — the §3.12 row says
+#    "see §3.2"; the path is already defined in paths/ep2-shares.yaml. Not redefined
+#    here (the assembly duplicate-path check would reject it).
+#  * "Dividend run administration | See §3.7 admin rows" — those paths
+#    (/api/v1/admin/dividends/...) belong to EP-7; owned by that epic's slice.
+
+/api/v1/admin/members:
+  get:
+    tags: [EP-12]
+    operationId: adminSearchMembers
+    summary: >-
+      Search members by name / member_id / email / phone (04 §3.12). Auth: staff
+      OPS_ADMIN, COMPLIANCE_OFFICER, AUDITOR (read).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: q
+        in: query
+        required: false
+        description: 04 §3.12 `?q=` search term.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Search results.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMemberSearchResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/admin/members/{id}:
+  get:
+    tags: [EP-12]
+    operationId: adminGetMember360
+    summary: >-
+      360° member view — profile, membership/KYC status, accounts, loans,
+      guarantees, governance participation (never vote content), cases, unified
+      timeline (04 §3.12). Auth: staff OPS_ADMIN, COMPLIANCE_OFFICER, AUDITOR.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: 360° member view (AML_ALERT/SAR cases excluded — tipping-off safeguard).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMember360'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/admin/members/{id}/notes:
+  post:
+    tags: [EP-12]
+    operationId: adminCreateMemberNote
+    summary: >-
+      Add a case note, incl. card-dispute operational notes at launch (04 §3.12,
+      US-5.1). Auth: staff OPS_ADMIN. Audit-logged.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminMemberNoteRequest'
+    responses:
+      '201':
+        description: Case note created (audit-logged, 04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMemberNote'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/admin/approvals/{id}/decision:
+  post:
+    tags: [EP-12]
+    operationId: adminDecideApproval
+    summary: >-
+      Resolve a maker-checker approval (04 §3.12). Auth: any staff role holding
+      checker rights for the `action_type`; checker must differ from maker. The
+      target action executes on approval. Audit-logged.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MakerCheckerDecisionRequest'
+    responses:
+      '200':
+        description: MakerCheckerApproval resolved; target action executed on APPROVE (E-53).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MakerCheckerApproval'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        description: 403 MAKER_CANNOT_CHECK — the checker is the maker, or lacks checker rights for the `action_type` (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '410':
+        description: 410 APPROVAL_EXPIRED — the approval window has lapsed (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/cases:
+  get:
+    tags: [EP-12]
+    operationId: adminListCases
+    summary: >-
+      Compliance case queue with SLA timers, priorities and assignment state (04
+      §3.12). Auth: staff COMPLIANCE_OFFICER.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: type
+        in: query
+        required: false
+        description: 04 §3.12 `?type=KYC_REVIEW|AML_ALERT|SAR`.
+        schema:
+          $ref: '#/components/schemas/ComplianceCaseType'
+      - name: status
+        in: query
+        required: false
+        description: 04 §3.12 `&status=`.
+        schema:
+          $ref: '#/components/schemas/ComplianceCaseStatus'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Case queue (E-54).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplianceCaseQueueResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/cases/{id}/assign:
+  post:
+    tags: [EP-12]
+    operationId: adminAssignCase
+    summary: 'Assign a compliance case to a staff member (04 §3.12). Auth: staff COMPLIANCE_OFFICER. Audit-logged.'
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ComplianceCaseAssignRequest'
+    responses:
+      '200':
+        description: Assignment recorded.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplianceCase'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 ALREADY_ASSIGNED — the case is already assigned (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/cases/{id}/evidence:
+  get:
+    tags: [EP-12]
+    operationId: adminGetCaseEvidence
+    summary: >-
+      Retrieve a case evidence pack — vendor evidence / transaction bundle / member
+      360 link (04 §3.12). Auth: staff COMPLIANCE_OFFICER. VENDOR ASSUMPTION: 04
+      names Persona; substitution is a pending requirements change (CLAUDE.md).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Evidence pack (INFERRED shape; 04 §3.12 names the contents but does not pin a schema).
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/admin/cases/{id}/decision:
+  post:
+    tags: [EP-12]
+    operationId: adminDecideCase
+    summary: >-
+      Decide a compliance case (04 §3.12). Auth: staff COMPLIANCE_OFFICER;
+      rejections four-eyes. KYC APPROVE→KycStatus APPROVED / REJECT→REJECTED
+      (+reason_codes[]); AML DISMISS|ESCALATE_SAR (escalation opens a SAR case, no
+      member-visible traces). Audit-logged.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ComplianceCaseDecisionRequest'
+    responses:
+      '200':
+        description: Case resolved + downstream state changes (E-54).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplianceCase'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 REASON_CODES_REQUIRED — a KYC `REJECT` needs `reason_codes[]` (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/loan-referrals:
+  get:
+    tags: [EP-12]
+    operationId: adminListLoanReferrals
+    summary: >-
+      US-6.2 loan referral queue — full application, data inputs, engine
+      recommendation (04 §3.12). Auth: staff LOAN_OFFICER. NOTE: EP-6 lending is
+      entity-gated (CLAUDE.md); contract only.
+    security:
+      - staffSSO: []
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Referral queue.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLoanReferralQueueResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/loan-applications/{id}/decision:
+  post:
+    tags: [EP-12]
+    operationId: adminDecideLoanApplication
+    summary: >-
+      Decide a loan application — APPROVE|DECLINE|COUNTER_OFFER, adverse-action
+      artifact on decline (04 §3.12). Auth: staff LOAN_OFFICER (maker-checker).
+      Audit-logged. EP-6 entity-gated (CLAUDE.md); contract only.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminLoanDecisionRequest'
+    responses:
+      '200':
+        description: Decision recorded (maker-checker; adverse-action artifact on DECLINE).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision:
+                  $ref: '#/components/schemas/AdminLoanDecision'
+                approval_id:
+                  type: string
+                  format: uuid
+                  description: Maker-checker approval id (E-53).
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/admin/loans/{id}/restructures:
+  post:
+    tags: [EP-12]
+    operationId: adminCreateLoanRestructure
+    summary: >-
+      Create a new RepaymentSchedule version (RESTRUCTURE|HARDSHIP_RESCHEDULE);
+      prior version retained (04 §3.12). Auth: staff LOAN_OFFICER (maker-checker).
+      Audit-logged. EP-6 entity-gated (CLAUDE.md); contract only.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminLoanRestructureRequest'
+    responses:
+      '201':
+        description: New RepaymentSchedule version created.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                repayment_schedule_id:
+                  type: string
+                  format: uuid
+                origin:
+                  $ref: '#/components/schemas/AdminRestructureOrigin'
+                approval_id:
+                  type: string
+                  format: uuid
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 PENDING_RESTRUCTURE — a restructure is already pending (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/pledges:
+  get:
+    tags: [EP-12]
+    operationId: adminListPledges
+    summary: >-
+      List guarantee pledges for a loan (04 §3.12). Auth: staff LOAN_OFFICER.
+      EP-6 entity-gated (CLAUDE.md); contract only.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: loan_id
+        in: query
+        required: false
+        description: 04 §3.12 `?loan_id=`.
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Pledge list.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPledgeQueueResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/pledges/{id}/actions:
+  post:
+    tags: [EP-12]
+    operationId: adminPledgeAction
+    summary: >-
+      Administer a pledge — PARTIAL_RELEASE|APPLY_TO_DEFAULT (04 §3.12, US-6.4).
+      Auth: staff LOAN_OFFICER (maker-checker). Audit-logged. EP-6 entity-gated.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminPledgeActionRequest'
+    responses:
+      '200':
+        description: Pledge action recorded (maker-checker).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approval_id:
+                  type: string
+                  format: uuid
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 EXCEEDS_PLEDGED — `amount` exceeds the pledged amount (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/collections-cases:
+  get:
+    tags: [EP-12]
+    operationId: adminListCollectionsCases
+    summary: >-
+      Collections case management; feeds KPI-2.5 portfolio data to US-13.2 (04
+      §3.12). Auth: staff LOAN_OFFICER. EP-6 entity-gated (CLAUDE.md); contract only.
+    security:
+      - staffSSO: []
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Collections cases.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCollectionsQueueResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/collections-cases/{id}/actions:
+  post:
+    tags: [EP-12]
+    operationId: adminCollectionsAction
+    summary: >-
+      Perform a collections workflow action (04 §3.12). Auth: staff LOAN_OFFICER.
+      Audit-logged. EP-6 entity-gated (CLAUDE.md); contract only.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminCollectionsActionRequest'
+    responses:
+      '200':
+        description: Collections action recorded.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/admin/loans/{id}/write-off:
+  post:
+    tags: [EP-12]
+    operationId: adminWriteOffLoan
+    summary: >-
+      Write off a defaulted loan — DEFAULTED → WRITTEN_OFF under DUAL approval only
+      (04 §3.12). Auth: staff LOAN_OFFICER (maker) + a second approver (checker ≠
+      maker). Audit-logged. EP-6 entity-gated (CLAUDE.md); contract only.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminLoanWriteOffRequest'
+    responses:
+      '202':
+        description: >-
+          Write-off proposed under dual approval; effective only after the second
+          approver decides (E-53). INFERRED 202 — 04 names the maker-checker gate
+          but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approval_id:
+                  type: string
+                  format: uuid
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 NOT_DEFAULTED — the loan is not in DEFAULTED state (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/proposals:
+  get:
+    tags: [EP-12]
+    operationId: adminListProposals
+    summary: >-
+      Governance proposal review/scheduling queue (US-8.2 threshold arrivals) (04
+      §3.12). Auth: staff GOVERNANCE_ADMIN.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: status
+        in: query
+        required: false
+        description: 04 §3.12 `?status=SUBMITTED`. type inferred; enum owned by EP-8, not redefined here.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Proposal review/scheduling queue.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProposalQueueResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/ballots:
+  post:
+    tags: [EP-12]
+    operationId: adminCreateBallot
+    summary: >-
+      Schedule a ballot per E-37 (SCHEDULED); a proposal ballot moves the proposal
+      to OPEN_FOR_VOTING at open (only path that sets it, DEC-9) with an
+      auto-captured eligibility snapshot (04 §3.12). Auth: staff GOVERNANCE_ADMIN
+      (maker-checker). Audit-logged. Schema PREFIXED Admin... (collision guard,
+      EP-8 owns governance entities).
+    security:
+      - staffSSO: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminBallotCreateRequest'
+    responses:
+      '201':
+        description: Ballot scheduled (E-37; SCHEDULED).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBallot'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 PROPOSAL_NOT_SUBMITTED — the linked proposal is not in SUBMITTED state (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 WINDOW_INVALID — `opens_at`/`closes_at` window is invalid (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/ballots/{id}/candidates:
+  post:
+    tags: [EP-12]
+    operationId: adminAddBallotCandidate
+    summary: >-
+      Add a candidate to a board-election slate (US-8.3) (04 §3.12). Auth: staff
+      GOVERNANCE_ADMIN. Audit-logged. `409 BALLOT_OPEN` when the slate is locked.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminBallotCandidateRequest'
+    responses:
+      '201':
+        description: Candidate added to the slate.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCandidate'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 BALLOT_OPEN — the slate is locked because the ballot is open (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/candidates/{id}:
+  patch:
+    tags: [EP-12]
+    operationId: adminUpdateCandidate
+    summary: 'Edit a candidate before the slate locks (US-8.3) (04 §3.12). Auth: staff GOVERNANCE_ADMIN. Audit-logged.'
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminCandidatePatchRequest'
+    responses:
+      '200':
+        description: Candidate updated.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCandidate'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 BALLOT_OPEN — the slate is locked because the ballot is open (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/ballots/{id}/certify:
+  post:
+    tags: [EP-12]
+    operationId: adminCertifyBallot
+    summary: >-
+      Certify a closed ballot — tallies, turnout, Governance Participation Rate
+      (DEC-16), PASSED/REJECTED + QUORUM_NOT_MET; publish to archive (US-8.7),
+      record elected terms (04 §3.12). Auth: staff GOVERNANCE_ADMIN
+      (maker-checker). Audit-logged. `409 BALLOT_NOT_CLOSED` if still open.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Certified results (maker-checker; published to archive).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBallotCertification'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 BALLOT_NOT_CLOSED — the voting window has not closed (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/config-parameters:
+  get:
+    tags: [EP-12]
+    operationId: adminListConfigParameters
+    summary: >-
+      List configuration-parameter versions with effective dates, approvals and
+      `governing_ballot_id` links (04 §3.12). Auth: staff OPS_ADMIN, FINANCE_ADMIN,
+      AUDITOR (read).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: key
+        in: query
+        required: false
+        description: 04 §3.12 `?key=` — filter by parameter key.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Parameter versions (E-55).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationParameterListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+  post:
+    tags: [EP-12]
+    operationId: adminCreateConfigParameter
+    summary: >-
+      Create a new configuration-parameter version pending checker approval (04
+      §3.12). Auth: staff, role per parameter domain (maker-checker). Ballot link
+      mandatory for FINANCIAL_POLICY / GOVERNANCE_BYLAW-governed keys. Audit-logged.
+      NON-SEED: `value` is a typed value; no seed constants baked (task T2).
+    security:
+      - staffSSO: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConfigurationParameterCreateRequest'
+    responses:
+      '201':
+        description: New version created, pending checker approval (E-55; dual approval mandatory).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationParameter'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: >-
+          422 BALLOT_LINK_REQUIRED — a FINANCIAL_POLICY / GOVERNANCE_BYLAW-governed
+          key needs `governing_ballot_id`; or 422 EFFECTIVE_DATE_PAST —
+          `effective_from` is in the past (04 §3.12).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'

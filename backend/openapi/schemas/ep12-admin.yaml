@@ -1,0 +1,850 @@
+# EP-12 Admin & Back-Office — component schemas (04 §3.12, §2.11 E-52..E-55).
+# Merged into components.schemas by openapi/validate.py. All $refs local.
+#
+# COLLISION GUARD (task T2): §3.12 admin endpoints act on governance and lending
+# entities that EP-6/EP-8 also own. Schemas that would clash with those epics'
+# names are PREFIXED `Admin...` (e.g. AdminBallot, AdminBallotType,
+# AdminProposalQueueItem, AdminRestructureOrigin). Shared schemas (Money, Error,
+# MembershipStatus, KycStatus) are $ref'd, never redefined.
+#
+# CONFIG NON-SEED (task T2 / CLAUDE.md): ConfigurationParameter schemas model
+# typed values only. Seed VALUES (share par, velocity/step-up limits) are runtime
+# configuration and are NOT baked as constants/defaults/enums here.
+
+# ---------------------------------------------------------------------------
+# Staff identity & maker-checker (E-52, E-53)
+# ---------------------------------------------------------------------------
+StaffRole:
+  type: string
+  description: E-52 StaffUser `roles` (04 §2.11 / RBAC §5.1). Enum verbatim from 04.
+  enum:
+    - 'OPS_ADMIN'
+    - 'COMPLIANCE_OFFICER'
+    - 'LOAN_OFFICER'
+    - 'GOVERNANCE_ADMIN'
+    - 'FINANCE_ADMIN'
+    - 'AUDITOR'
+    - 'SUPER_ADMIN'
+
+StaffUserStatus:
+  type: string
+  description: E-52 StaffUser `status` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'ACTIVE'
+    - 'SUSPENDED'
+    - 'DEACTIVATED'
+
+StaffUser:
+  type: object
+  description: >-
+    E-52 StaffUser (04 §2.11) — P-5 back-office identity, a separate realm from
+    members (a staff user is never a Member row). MFA mandatory.
+  properties:
+    id:
+      type: string
+      format: uuid
+    staff_idp_id:
+      type: string
+      description: E-52 `staff_idp_id` (UQ) — identity from the staff SSO IdP (04 §2.11 / §5.1).
+    display_name:
+      type: string
+    email:
+      type: string
+      description: E-52 `email` (UQ) (04 §2.11).
+    roles:
+      type: array
+      items:
+        $ref: '#/components/schemas/StaffRole'
+    status:
+      $ref: '#/components/schemas/StaffUserStatus'
+    created_at:
+      type: string
+      format: date-time
+
+MakerCheckerStatus:
+  type: string
+  description: E-53 MakerCheckerApproval `status` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'PENDING'
+    - 'APPROVED'
+    - 'REJECTED'
+    - 'EXPIRED'
+    - 'CANCELLED'
+
+MakerCheckerDecision:
+  type: string
+  description: >-
+    Request-body `decision` value for `POST /admin/approvals/{id}/decision` (04
+    §3.12). Verbatim from the row (`APPROVE | REJECT`). Distinct from the
+    persisted E-53 `status` enum.
+  enum:
+    - 'APPROVE'
+    - 'REJECT'
+
+MakerCheckerApproval:
+  type: object
+  description: >-
+    E-53 MakerCheckerApproval (04 §2.11) — the generic four-eyes envelope for
+    every mutating back-office action (all of EP-12). `checker_staff_id` must
+    differ from `maker_staff_id` (enforced at the data layer, §5.1); every
+    decision is audit-logged (US-13.3). The target action executes on approval.
+  properties:
+    id:
+      type: string
+      format: uuid
+    action_type:
+      type: string
+      description: >-
+        E-53 `action_type`, e.g. `MEMBER_STATUS_TRANSITION`, `KYC_REJECTION`,
+        `LOAN_WRITE_OFF`, `BALLOT_CERTIFICATION`, `CONFIG_CHANGE`,
+        `DIVIDEND_EXECUTION` (04 §2.11). INFERRED as an open string — 04 gives
+        examples, not a closed enum.
+    subject_ref:
+      type: object
+      additionalProperties: true
+      description: E-53 `subject_ref` JSON — target entity type + id (04 §2.11).
+    proposed_change:
+      type: object
+      additionalProperties: true
+      description: E-53 `proposed_change` JSON — before/after (04 §2.11).
+    maker_staff_id:
+      type: string
+      format: uuid
+    checker_staff_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-53 `checker_staff_id` — null until decided; must differ from maker (04 §2.11).
+    status:
+      $ref: '#/components/schemas/MakerCheckerStatus'
+    maker_note:
+      type: string
+      nullable: true
+    checker_note:
+      type: string
+      nullable: true
+    created_at:
+      type: string
+      format: date-time
+    decided_at:
+      type: string
+      format: date-time
+      nullable: true
+
+MakerCheckerDecisionRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/approvals/{id}/decision` (04 §3.12). The checker
+    must hold checker rights for the `action_type` and must differ from the maker
+    (`403 MAKER_CANNOT_CHECK`); an expired approval returns `410 APPROVAL_EXPIRED`.
+  required:
+    - decision
+  properties:
+    decision:
+      $ref: '#/components/schemas/MakerCheckerDecision'
+    note:
+      type: string
+      nullable: true
+
+# ---------------------------------------------------------------------------
+# Member 360 & notes (04 §3.12 rows 1-3)
+# ---------------------------------------------------------------------------
+AdminMemberSearchResult:
+  type: object
+  description: >-
+    A row of `GET /api/v1/admin/members?q=` (04 §3.12) — name / member_id / email
+    / phone. Staff read (OPS_ADMIN, COMPLIANCE_OFFICER, AUDITOR).
+  properties:
+    member_id:
+      type: string
+      format: uuid
+    display_name:
+      type: string
+      description: Mongolian name display (three-field name model, DEC-35 / CLAUDE.md); never `first_name`/`last_name`.
+    email:
+      type: string
+      nullable: true
+    phone:
+      type: string
+      nullable: true
+    membership_status:
+      $ref: '#/components/schemas/MembershipStatus'
+
+AdminMemberSearchResponse:
+  type: object
+  description: Response of `GET /api/v1/admin/members?q=` (04 §3.12).
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/AdminMemberSearchResult'
+    next_cursor:
+      type: string
+      nullable: true
+
+AdminMember360:
+  type: object
+  description: >-
+    Response of `GET /api/v1/admin/members/{id}` (04 §3.12) — the 360° staff view.
+    Governance activity is participation-only and NEVER exposes vote content
+    (deliberate non-link, §2.11 / §2.12). AML_ALERT/SAR cases have no
+    member-visible projection (tipping-off safeguard) and are excluded here.
+    INFERRED aggregate shape — 04 §3.12 lists the sections but does not pin nested
+    schemas; sub-objects are referenced where a shared schema exists and left as
+    open objects otherwise.
+  properties:
+    member_id:
+      type: string
+      format: uuid
+    profile:
+      type: object
+      additionalProperties: true
+      description: Member profile projection (MemberProfile, EP-1). INFERRED open shape — the EP-1 profile schema is not $ref'd from this slice.
+    membership_status:
+      $ref: '#/components/schemas/MembershipStatus'
+    kyc_status:
+      $ref: '#/components/schemas/KycStatus'
+    accounts:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Account summaries (EP-3). INFERRED open shape.
+    loans:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Loan summaries (EP-6). INFERRED open shape; EP-6 is entity-gated (CLAUDE.md).
+    guarantees:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Guarantee/pledge summaries (EP-6). INFERRED open shape.
+    governance_activity:
+      type: object
+      additionalProperties: true
+      description: Participation only — turnout/participation, NEVER vote content (04 §3.12, §2.12 deliberate non-link).
+    cases:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Member-visible compliance cases only; AML_ALERT/SAR excluded (tipping-off safeguard, §2.11).
+    timeline:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Unified activity timeline (04 §3.12). INFERRED element shape.
+
+AdminMemberNoteRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/members/{id}/notes` (04 §3.12) — a case note,
+    incl. card-dispute operational notes at launch (US-5.1). OPS_ADMIN; audit-logged.
+  required:
+    - note
+  properties:
+    note:
+      type: string
+    case_ref:
+      type: string
+      nullable: true
+      description: Optional linked case reference (04 §3.12 `case_ref?`).
+
+AdminMemberNote:
+  type: object
+  description: Persisted case note (04 §3.12).
+  properties:
+    id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    note:
+      type: string
+    case_ref:
+      type: string
+      nullable: true
+    author_staff_id:
+      type: string
+      format: uuid
+    created_at:
+      type: string
+      format: date-time
+
+# ---------------------------------------------------------------------------
+# Compliance cases (E-54) — the §3.12 case-queue rows
+# ---------------------------------------------------------------------------
+ComplianceCaseType:
+  type: string
+  description: E-54 `case_type` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'KYC_REVIEW'
+    - 'AML_ALERT'
+    - 'SAR'
+    - 'FRAUD'
+    - 'DISPUTE'
+
+ComplianceCasePriority:
+  type: string
+  description: E-54 `priority` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'LOW'
+    - 'MEDIUM'
+    - 'HIGH'
+    - 'CRITICAL'
+
+ComplianceCaseStatus:
+  type: string
+  description: E-54 `status` (04 §2.11). Enum verbatim from 04.
+  enum:
+    - 'OPEN'
+    - 'ASSIGNED'
+    - 'IN_REVIEW'
+    - 'PENDING_APPROVAL'
+    - 'ESCALATED'
+    - 'CLOSED_APPROVED'
+    - 'CLOSED_REJECTED'
+    - 'CLOSED_FILED'
+    - 'CLOSED_NO_ACTION'
+
+ComplianceCase:
+  type: object
+  description: >-
+    E-54 ComplianceCase (04 §2.11) — unified work-queue case for KYC escalations,
+    AML alerts and SAR workflow (US-12.2, US-13.1). TIPPING-OFF SAFEGUARD: rows of
+    type `AML_ALERT`/`SAR` have NO member-visible projection, ever (§2.11); the
+    `sar_package` is staff-only.
+  properties:
+    id:
+      type: string
+      format: uuid
+    case_type:
+      $ref: '#/components/schemas/ComplianceCaseType'
+    subject_member_id:
+      type: string
+      format: uuid
+      nullable: true
+    source_refs:
+      type: object
+      additionalProperties: true
+      description: E-54 `source_refs` JSON — KycSubmission, Transactions, monitoring-rule hits (04 §2.11).
+    alert_details:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: E-54 `alert_details` JSON — rule/scenario id, score, matched pattern (04 §2.11, US-13.1).
+    sar_package:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: E-54 `sar_package` JSON — narrative, evidence refs, filing-ready output; dual review; staff-only, never member-visible (04 §2.11).
+    assigned_staff_id:
+      type: string
+      format: uuid
+      nullable: true
+    sla_due_at:
+      type: string
+      format: date-time
+      description: E-54 `sla_due_at` (04 §2.11).
+    priority:
+      $ref: '#/components/schemas/ComplianceCasePriority'
+    status:
+      $ref: '#/components/schemas/ComplianceCaseStatus'
+    opened_at:
+      type: string
+      format: date-time
+    closed_at:
+      type: string
+      format: date-time
+      nullable: true
+
+ComplianceCaseQueueResponse:
+  type: object
+  description: >-
+    Response of `GET /api/v1/admin/cases` (04 §3.12) — queue with SLA timers,
+    priorities and assignment state. COMPLIANCE_OFFICER.
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/ComplianceCase'
+    next_cursor:
+      type: string
+      nullable: true
+
+ComplianceCaseAssignRequest:
+  type: object
+  description: Body of `POST /api/v1/admin/cases/{id}/assign` (04 §3.12). `409 ALREADY_ASSIGNED` on conflict.
+  required:
+    - assignee_staff_id
+  properties:
+    assignee_staff_id:
+      type: string
+      format: uuid
+
+ComplianceCaseDecisionRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/cases/{id}/decision` (04 §3.12). For KYC:
+    `APPROVE` → KycStatus APPROVED, `REJECT` → REJECTED (with `reason_codes[]`,
+    else `422 REASON_CODES_REQUIRED`). For AML: `DISMISS | ESCALATE_SAR`;
+    escalation opens a `SAR` case. Rejections are four-eyes.
+  required:
+    - decision
+  properties:
+    decision:
+      type: string
+      description: 'Decision verbatim from 04 §3.12: KYC `APPROVE|REJECT`; AML `DISMISS|ESCALATE_SAR`.'
+      enum:
+        - 'APPROVE'
+        - 'REJECT'
+        - 'DISMISS'
+        - 'ESCALATE_SAR'
+    reason_codes:
+      type: array
+      items:
+        type: string
+      nullable: true
+      description: Required for KYC `REJECT` (04 §3.12 `reason_codes[]`), else `422 REASON_CODES_REQUIRED`.
+
+# ---------------------------------------------------------------------------
+# Loan/lending administration (04 §3.12) — LOAN_OFFICER rows.
+# EP-6 is entity-gated (CLAUDE.md); these are contract stubs only, no logic.
+# Loan-domain enums are PREFIXED Admin... to avoid clashing with EP-6 schemas.
+# ---------------------------------------------------------------------------
+AdminLoanDecision:
+  type: string
+  description: '`decision` for `POST /admin/loan-applications/{id}/decision` (04 §3.12). Verbatim.'
+  enum:
+    - 'APPROVE'
+    - 'DECLINE'
+    - 'COUNTER_OFFER'
+
+AdminLoanDecisionRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/loan-applications/{id}/decision` (04 §3.12).
+    LOAN_OFFICER maker-checker; an adverse-action artifact is produced on
+    `DECLINE`. EP-6 is entity-gated (CLAUDE.md) — contract only.
+  required:
+    - decision
+    - reasons
+  properties:
+    decision:
+      $ref: '#/components/schemas/AdminLoanDecision'
+    terms:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Offered/counter terms (04 §3.12 `terms?`). INFERRED shape.
+    reasons:
+      type: string
+      description: Decision rationale; basis of the adverse-action artifact on decline (04 §3.12 `reasons`).
+
+AdminLoanReferralQueueResponse:
+  type: object
+  description: >-
+    Response of `GET /api/v1/admin/loan-referrals` (04 §3.12) — US-6.2 referral
+    queue: full application, data inputs, engine recommendation. LOAN_OFFICER.
+    INFERRED item shape (EP-6 owns the loan schemas).
+  properties:
+    items:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    next_cursor:
+      type: string
+      nullable: true
+
+AdminRestructureOrigin:
+  type: string
+  description: >-
+    New RepaymentSchedule `origin` for a staff restructure (04 §3.12 / §2 E
+    RepaymentSchedule). Verbatim subset used by the admin restructure row. Prefixed
+    to avoid clashing with the EP-6 RepaymentSchedule origin enum.
+  enum:
+    - 'RESTRUCTURE'
+    - 'HARDSHIP_RESCHEDULE'
+
+AdminLoanRestructureRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/loans/{id}/restructures` (04 §3.12). LOAN_OFFICER
+    maker-checker; creates a new RepaymentSchedule version (prior retained).
+    `409 PENDING_RESTRUCTURE` if one is already open.
+  required:
+    - new_schedule
+  properties:
+    new_schedule:
+      type: object
+      description: 04 §3.12 `new_schedule{type, params}`. INFERRED nested shape (EP-6 owns schedule types).
+      additionalProperties: true
+    hardship_case_id:
+      type: string
+      format: uuid
+      nullable: true
+
+AdminPledgeAction:
+  type: string
+  description: '`action` for `POST /admin/pledges/{id}/actions` (04 §3.12). Verbatim.'
+  enum:
+    - 'PARTIAL_RELEASE'
+    - 'APPLY_TO_DEFAULT'
+
+AdminPledgeActionRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/pledges/{id}/actions` (04 §3.12). LOAN_OFFICER
+    maker-checker; `422 EXCEEDS_PLEDGED` if `amount` exceeds the pledge (US-6.4).
+  required:
+    - action
+    - amount
+  properties:
+    action:
+      $ref: '#/components/schemas/AdminPledgeAction'
+    amount:
+      $ref: '#/components/schemas/Money'
+
+AdminPledgeQueueResponse:
+  type: object
+  description: Response of `GET /api/v1/admin/pledges?loan_id=` (04 §3.12). INFERRED item shape (EP-6 owns pledge schemas).
+  properties:
+    items:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    next_cursor:
+      type: string
+      nullable: true
+
+AdminCollectionsActionRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/collections-cases/{id}/actions` (04 §3.12) —
+    collections workflow actions (feeds KPI-2.5 portfolio data to US-13.2).
+    LOAN_OFFICER. INFERRED shape — 04 says "workflow actions" without pinning keys.
+  required:
+    - action
+  properties:
+    action:
+      type: string
+      description: Collections workflow action (04 §3.12). type inferred; 04 does not enumerate the actions.
+    params:
+      type: object
+      additionalProperties: true
+      nullable: true
+
+AdminCollectionsQueueResponse:
+  type: object
+  description: Response of `GET /api/v1/admin/collections-cases` (04 §3.12). INFERRED item shape (EP-6 CollectionsCase, E-29).
+  properties:
+    items:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    next_cursor:
+      type: string
+      nullable: true
+
+AdminLoanWriteOffRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/loans/{id}/write-off` (04 §3.12). LOAN_OFFICER
+    maker + a second approver (dual). `DEFAULTED → WRITTEN_OFF` under dual approval
+    only; `422 NOT_DEFAULTED` otherwise.
+  required:
+    - justification
+  properties:
+    justification:
+      type: string
+
+# ---------------------------------------------------------------------------
+# Governance administration (04 §3.12) — GOVERNANCE_ADMIN rows.
+# COLLISION GUARD: all governance schemas PREFIXED Admin... — EP-8 owns the
+# member-facing Ballot/Proposal/Candidate schemas.
+# ---------------------------------------------------------------------------
+AdminBallotType:
+  type: string
+  description: '`ballot_type` for `POST /admin/ballots` (04 §3.12). Verbatim. Prefixed to avoid clashing with EP-8 BallotType.'
+  enum:
+    - 'PROPOSAL'
+    - 'BOARD_ELECTION'
+
+AdminProposalQueueResponse:
+  type: object
+  description: >-
+    Response of `GET /api/v1/admin/proposals?status=SUBMITTED` (04 §3.12) — the
+    review/scheduling queue (US-8.2 threshold arrivals). GOVERNANCE_ADMIN.
+    INFERRED item shape — EP-8 owns the Proposal schema.
+  properties:
+    items:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    next_cursor:
+      type: string
+      nullable: true
+
+AdminBallotCreateRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/ballots` (04 §3.12). GOVERNANCE_ADMIN
+    maker-checker. Creates a ballot per E-37 (`SCHEDULED`); a proposal ballot moves
+    the proposal to `OPEN_FOR_VOTING` at open (the only path that sets it, DEC-9)
+    and auto-captures the eligibility snapshot. `422 WINDOW_INVALID`;
+    `409 PROPOSAL_NOT_SUBMITTED`.
+  required:
+    - ballot_type
+    - opens_at
+    - closes_at
+    - quorum_rule
+  properties:
+    ballot_type:
+      $ref: '#/components/schemas/AdminBallotType'
+    proposal_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Required for `PROPOSAL` ballots (04 §3.12 `proposal_id?`).
+    opens_at:
+      type: string
+      format: date-time
+    closes_at:
+      type: string
+      format: date-time
+    quorum_rule:
+      type: object
+      additionalProperties: true
+      description: 04 §3.12 `quorum_rule`. INFERRED shape. E-VOTE QUORUM is a blocking question (CLAUDE.md); no rule values baked here.
+    seats:
+      type: integer
+      nullable: true
+      description: Number of seats for `BOARD_ELECTION` (04 §3.12 `seats?`).
+    result_visibility:
+      type: string
+      description: 04 §3.12 `result_visibility`. type inferred; 04 does not pin the enum.
+
+AdminBallot:
+  type: object
+  description: >-
+    Ballot per E-37 as created/administered by staff (04 §3.12). PREFIXED to avoid
+    clashing with the EP-8 member-facing Ballot schema. INFERRED field set beyond
+    the create keys — 04 does not fully pin E-37 in §3.12.
+  properties:
+    id:
+      type: string
+      format: uuid
+    ballot_type:
+      $ref: '#/components/schemas/AdminBallotType'
+    proposal_id:
+      type: string
+      format: uuid
+      nullable: true
+    opens_at:
+      type: string
+      format: date-time
+    closes_at:
+      type: string
+      format: date-time
+    seats:
+      type: integer
+      nullable: true
+    result_visibility:
+      type: string
+      nullable: true
+    status:
+      type: string
+      description: Ballot lifecycle (E-37). type inferred; enum owned by EP-8, not redefined here. `SCHEDULED` on creation.
+    created_at:
+      type: string
+      format: date-time
+
+AdminBallotCandidateRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/ballots/{id}/candidates` (04 §3.12) — candidate
+    slate administration (US-8.3). `409 BALLOT_OPEN` when the slate is locked.
+  required:
+    - member_id
+  properties:
+    member_id:
+      type: string
+      format: uuid
+    statement:
+      type: string
+      nullable: true
+    profile_ref:
+      type: string
+      nullable: true
+
+AdminCandidatePatchRequest:
+  type: object
+  description: Body of `PATCH /api/v1/admin/candidates/{id}` (04 §3.12) — edit a candidate before the slate locks.
+  properties:
+    statement:
+      type: string
+      nullable: true
+    profile_ref:
+      type: string
+      nullable: true
+
+AdminCandidate:
+  type: object
+  description: Election candidate as administered by staff (US-8.3, 04 §3.12). PREFIXED to avoid clashing with EP-8 ElectionCandidate.
+  properties:
+    id:
+      type: string
+      format: uuid
+    ballot_id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    statement:
+      type: string
+      nullable: true
+    profile_ref:
+      type: string
+      nullable: true
+
+AdminBallotCertification:
+  type: object
+  description: >-
+    Certified result of `POST /api/v1/admin/ballots/{id}/certify` (04 §3.12).
+    GOVERNANCE_ADMIN maker-checker. Tallies, turnout, Governance Participation Rate
+    (DEC-16), outcome `PASSED/REJECTED` + `QUORUM_NOT_MET`; published to the
+    archive (US-8.7), elected terms recorded. `409 BALLOT_NOT_CLOSED` if the window
+    is still open. PREFIXED to avoid clashing with an EP-8 certification schema.
+  properties:
+    ballot_id:
+      type: string
+      format: uuid
+    results:
+      type: object
+      additionalProperties: true
+      description: 04 §3.12 `results` — tallies, turnout, participation rate. INFERRED nested shape.
+    outcome:
+      type: string
+      description: Certified outcome (04 §3.12). Verbatim values.
+      enum:
+        - 'PASSED'
+        - 'REJECTED'
+        - 'QUORUM_NOT_MET'
+    governance_participation_rate:
+      type: number
+      description: Governance Participation Rate per DEC-16 (04 §3.12). type inferred (ratio/percentage); 04 does not pin the representation.
+    certified_at:
+      type: string
+      format: date-time
+    approval_id:
+      type: string
+      format: uuid
+      description: Maker-checker approval id (E-53); `action_type=BALLOT_CERTIFICATION`.
+
+# ---------------------------------------------------------------------------
+# Configuration registry (E-55) — 04 §3.12 config-parameter rows.
+# NON-SEED: typed values only; no seed constants/defaults/enums (task T2).
+# ---------------------------------------------------------------------------
+ConfigurationParameter:
+  type: object
+  description: >-
+    E-55 ConfigurationParameter (04 §2.11) — a versioned, effective-dated config
+    entry ("configuration is the execution of democracy"). Dual approval mandatory
+    (E-53). `governing_ballot_id` is mandatory when the key is governed by a
+    certified FINANCIAL_POLICY / GOVERNANCE_BYLAW outcome. NON-SEED: `value` is a
+    typed JSON value; no seed amounts (share par, velocity/step-up limits) are
+    baked here — they are runtime config (CLAUDE.md / task T2).
+  properties:
+    id:
+      type: string
+      format: uuid
+    key:
+      type: string
+      description: >-
+        E-55 `key`, e.g. `savings.interest_rate_bps`, `share.par_value_cents`,
+        `p2p.limits`, `underwriting.params`, `patronage.factor_weights`,
+        `eligibility.common_bond_rules` (04 §2.11). Keys are examples, not a closed
+        enum. `common_bond_rules` relates to a blocking question (CLAUDE.md).
+    value:
+      description: >-
+        E-55 `value` JSON — the typed parameter value (04 §2.11). Left
+        schema-open: values are runtime configuration and are NOT constrained to
+        seed constants/defaults/enums here (task T2 non-seed rule). Money-typed
+        values are still integer minor units per the project money rule.
+    version:
+      type: integer
+      description: E-55 `version` (UQ with key) (04 §2.11).
+    effective_from:
+      type: string
+      format: date-time
+    effective_to:
+      type: string
+      format: date-time
+      nullable: true
+    approval_id:
+      type: string
+      format: uuid
+      description: E-55 `approval_id` FK→MakerCheckerApproval — dual approval mandatory (04 §2.11).
+    governing_ballot_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-55 `governing_ballot_id` — mandatory for FINANCIAL_POLICY / GOVERNANCE_BYLAW-governed keys (04 §2.11 / §3.12).
+    created_by:
+      type: string
+      format: uuid
+      description: E-55 `created_by` FK→StaffUser (04 §2.11).
+    created_at:
+      type: string
+      format: date-time
+
+ConfigurationParameterListResponse:
+  type: object
+  description: >-
+    Response of `GET /api/v1/admin/config-parameters?key=` (04 §3.12) — versions
+    with effective dates, approvals and `governing_ballot_id` links. Read:
+    OPS_ADMIN, FINANCE_ADMIN, AUDITOR.
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/ConfigurationParameter'
+    next_cursor:
+      type: string
+      nullable: true
+
+ConfigurationParameterCreateRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/config-parameters` (04 §3.12) — a new version
+    pending checker approval. Role per parameter domain, maker-checker. Ballot link
+    mandatory for FINANCIAL_POLICY / GOVERNANCE_BYLAW-governed keys
+    (`422 BALLOT_LINK_REQUIRED`); `422 EFFECTIVE_DATE_PAST` if `effective_from` is
+    past. NON-SEED: `value` is a typed value; no seed constants baked here.
+  required:
+    - key
+    - value
+    - effective_from
+  properties:
+    key:
+      type: string
+    value:
+      description: Typed parameter value (04 §3.12 `value`). Schema-open per the non-seed rule (task T2); no seed constant/default.
+    effective_from:
+      type: string
+      format: date-time
+    governing_ballot_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Mandatory for FINANCIAL_POLICY / GOVERNANCE_BYLAW-governed keys, else `422 BALLOT_LINK_REQUIRED` (04 §3.12).

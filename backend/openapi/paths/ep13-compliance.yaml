@@ -1,0 +1,459 @@
+# EP-13 Compliance, Risk & Transparency — path operations (04 §3.13).
+# One operation per §3.13 method. Admin rows use the staff token audience
+# (`security: - staffSSO: []`; 04 §3.0) and, being mutating back-office actions,
+# are maker-checker + audit-logged (04 §3.12). Member-facing rows (capital-ledger,
+# impact-scorecard, data-requests) inherit the document default (memberOAuth2).
+# Common error codes apply everywhere (04 §3.0). All $refs local.
+
+# ---------------------------------------------------------------------------
+# AML rule tuning & alerts (04 §3.13)
+# ---------------------------------------------------------------------------
+/api/v1/admin/aml/rules:
+  get:
+    tags: [EP-13]
+    operationId: adminListAmlRules
+    summary: >-
+      List tunable AML rule sets + scenario management, with model-governance doc
+      refs (US-13.1) (04 §3.13). Auth: staff COMPLIANCE_OFFICER.
+    security:
+      - staffSSO: []
+    responses:
+      '200':
+        description: Tunable rule sets.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAmlRuleListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/aml/rules/{id}:
+  put:
+    tags: [EP-13]
+    operationId: adminUpdateAmlRule
+    summary: >-
+      Tune an AML scenario/rule set (04 §3.13, US-13.1). Auth: staff
+      COMPLIANCE_OFFICER (maker-checker). Audit-logged.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminAmlRuleUpdateRequest'
+    responses:
+      '200':
+        description: Updated rule set (maker-checker).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAmlRule'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/admin/aml/alerts:
+  get:
+    tags: [EP-13]
+    operationId: adminListAmlAlerts
+    summary: >-
+      AML alerts across P2P, external, cards, Group Pots, Loan Circles and Backings
+      → ComplianceCase queue (04 §3.13 → §3.12). Auth: staff COMPLIANCE_OFFICER.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: source
+        in: query
+        required: false
+        description: 04 §3.13 alert filters. type inferred; 04 says "filters" without pinning keys.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: AML alerts.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAmlAlertListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+# ---------------------------------------------------------------------------
+# Regulatory report runs (04 §3.13)
+# ---------------------------------------------------------------------------
+/api/v1/admin/reports/runs:
+  post:
+    tags: [EP-13]
+    operationId: adminCreateReportRun
+    summary: >-
+      Execute a catalog report — point-in-time snapshot, export, submission log,
+      KPI breach alerts (04 §3.13, E-58). Auth: staff COMPLIANCE_OFFICER,
+      FINANCE_ADMIN, AUDITOR. Audit-logged. `409 SNAPSHOT_UNAVAILABLE`.
+    security:
+      - staffSSO: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReportRunCreateRequest'
+    responses:
+      '201':
+        description: Report run started (E-58).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegulatoryReportRun'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 SNAPSHOT_UNAVAILABLE — the point-in-time snapshot is unavailable (04 §3.13).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/reports/runs/{id}:
+  get:
+    tags: [EP-13]
+    operationId: adminGetReportRun
+    summary: 'Fetch a regulatory report run (04 §3.13, E-58). Auth: staff COMPLIANCE_OFFICER, FINANCE_ADMIN, AUDITOR.'
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Report run (E-58).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegulatoryReportRun'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/admin/reports/catalog:
+  get:
+    tags: [EP-13]
+    operationId: adminGetReportCatalog
+    summary: >-
+      List available report definitions (configuration-driven, Open Item 3) (04
+      §3.13). Auth: staff COMPLIANCE_OFFICER, FINANCE_ADMIN, AUDITOR (read).
+    security:
+      - staffSSO: []
+    responses:
+      '200':
+        description: Report catalog.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCatalogResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+# ---------------------------------------------------------------------------
+# Immutable audit log (04 §3.13)
+# ---------------------------------------------------------------------------
+/api/v1/admin/audit-log:
+  get:
+    tags: [EP-13]
+    operationId: adminGetAuditLog
+    summary: >-
+      Query hash-chained audit entries with chain-verification result and scoped
+      export (04 §3.13, E-56/US-13.3). Auth: staff AUDITOR, COMPLIANCE_OFFICER
+      (scoped). `403 SCOPE_EXCEEDED` on an out-of-scope query.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: actor
+        in: query
+        required: false
+        description: 04 §3.13 `?actor=`.
+        schema:
+          type: string
+      - name: subject
+        in: query
+        required: false
+        description: 04 §3.13 `&subject=`.
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        description: 04 §3.13 `&from=` — range start. INFERRED date-time type.
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        description: 04 §3.13 `&to=` — range end. INFERRED date-time type.
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Hash-chained entries + chain-verification result (E-56).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditLogResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        description: 403 SCOPE_EXCEEDED — the query exceeds the caller's audit scope (04 §3.13).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+# ---------------------------------------------------------------------------
+# Transparent Capital Ledger & Impact Scorecard — member-facing (04 §3.13)
+# ---------------------------------------------------------------------------
+/api/v1/capital-ledger:
+  get:
+    tags: [EP-13]
+    operationId: getCapitalLedger
+    summary: >-
+      Transparent Capital Ledger (DEC-15, US-13.4) — allocations reconciling to
+      100%, consented project spotlights, refreshed ≥ daily (04 §3.13). Auth:
+      Member. Modeled figures labeled "estimated"; deposits are NEVER described as
+      insured/protected/guaranteed (project non-negotiable, CLAUDE.md).
+    parameters:
+      - name: as_of
+        in: query
+        required: false
+        description: 04 §3.13 `?as_of?` — point-in-time snapshot selector. INFERRED date-time type.
+        schema:
+          type: string
+          format: date-time
+    responses:
+      '200':
+        description: Transparent Capital Ledger (E-59 projection).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapitalLedgerResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/capital-ledger/categories/{category}:
+  get:
+    tags: [EP-13]
+    operationId: getCapitalLedgerCategory
+    summary: 'Drill down into one Transparent Capital Ledger category (04 §3.13, DEC-15). Auth: Member.'
+    parameters:
+      - name: category
+        in: path
+        required: true
+        description: Allocation category key (04 §3.13). type inferred — 04 does not pin a closed category enum.
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Category drill-down.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapitalLedgerCategoryDrilldown'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/members/me/impact-scorecard:
+  get:
+    tags: [EP-13]
+    operationId: getImpactScorecard
+    summary: >-
+      Per-member proportional attribution over E-59 + project outcomes; every
+      figure labeled "estimated" with a one-tap methodology link (04 §3.13,
+      US-13.5). Auth: Member. `404 INSUFFICIENT_DATA` when attribution cannot be
+      computed.
+    responses:
+      '200':
+        description: Impact scorecard (all figures "estimated").
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImpactScorecard'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        description: 404 INSUFFICIENT_DATA — not enough data to compute attribution (04 §3.13).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+# ---------------------------------------------------------------------------
+# Data Subject Requests — member + admin (04 §3.13)
+# ---------------------------------------------------------------------------
+/api/v1/members/me/data-requests:
+  post:
+    tags: [EP-13]
+    operationId: createDataRequest
+    summary: >-
+      Raise a DSAR — ACCESS|DELETION|RECTIFICATION|PORTABILITY, returns a
+      `deadline_at` (04 §3.13, E-57/US-13.6). Auth: Member (any status incl.
+      post-CLOSED via support channel). `409 OPEN_REQUEST_EXISTS`.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DataSubjectRequestCreateRequest'
+    responses:
+      '201':
+        description: DataSubjectRequest created with statutory `deadline_at` (E-57).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSubjectRequest'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 OPEN_REQUEST_EXISTS — an open data request already exists (04 §3.13).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/members/me/data-requests/{id}:
+  get:
+    tags: [EP-13]
+    operationId: getDataRequest
+    summary: >-
+      Track a DSAR; on delivery includes `fulfilment_package_ref` + itemized
+      `retention_overrides` (04 §3.13, E-57). Auth: Member (requester).
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: DataSubjectRequest status (E-57).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSubjectRequest'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/admin/data-requests:
+  get:
+    tags: [EP-13]
+    operationId: adminListDataRequests
+    summary: >-
+      DSAR workflow queue with deadline tracking (04 §3.13). Auth: staff
+      COMPLIANCE_OFFICER.
+    security:
+      - staffSSO: []
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: DSAR queue (E-57).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDataRequestListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/data-requests/{id}/actions:
+  post:
+    tags: [EP-13]
+    operationId: adminDataRequestAction
+    summary: >-
+      Advance a DSAR — compile/redact/deliver/reject; erasure respects
+      financial-records retention (04 §3.13). Auth: staff COMPLIANCE_OFFICER.
+      Audit-logged. `422 RETENTION_CONFLICT` when retention overrides deletion.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminDataRequestActionRequest'
+    responses:
+      '200':
+        description: DSAR action recorded (E-57).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSubjectRequest'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        description: 422 RETENTION_CONFLICT — financial-records retention lawfully overrides the requested erasure (04 §3.13).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'

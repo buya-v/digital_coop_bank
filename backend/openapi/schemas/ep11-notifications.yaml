@@ -1,0 +1,250 @@
+# EP-11 Notifications & Engagement — component schemas (04 §3.11, §2.10 E-49..E-51).
+# Merged into components.schemas by openapi/validate.py. All $refs local.
+# Shared schemas (Error, DevicePlatform) are $ref'd, never redefined.
+
+NotificationCategory:
+  type: string
+  description: E-49 `category` / E-51 `category` (04 §2.10). Enum verbatim from 04.
+  enum:
+    - 'PAYMENTS'
+    - 'CARDS'
+    - 'GROUP_POTS'
+    - 'GOVERNANCE'
+    - 'LENDING'
+    - 'GUARANTEES'
+    - 'DIVIDENDS'
+    - 'PROJECTS'
+    - 'SECURITY_REGULATORY'
+    - 'SYSTEM'
+
+NotificationChannel:
+  type: string
+  description: E-49 `default_channels` / E-51 `channel` (04 §2.10). Enum verbatim from 04.
+  enum:
+    - 'PUSH'
+    - 'EMAIL'
+    - 'SMS'
+    - 'IN_APP'
+
+NotificationDispatchStatus:
+  type: string
+  description: E-50 per-channel dispatch `status` (04 §2.10 `channel_dispatches`). Enum verbatim from 04.
+  enum:
+    - 'QUEUED'
+    - 'SENT'
+    - 'DELIVERED'
+    - 'FAILED'
+    - 'SUPPRESSED_PREFS'
+    - 'HELD_QUIET_HOURS'
+
+NotificationInboxItem:
+  type: object
+  description: >-
+    In-app inbox row returned by `GET /api/v1/notifications` (04 §3.11). Keys
+    (`event_key, payload, deep_link, created_at, read_at`) verbatim from the §3.11
+    response column; projected from E-50 Notification + E-49 event_key.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Notification id (E-50 `id`). INFERRED — 04 §3.11 lists the inbox item keys but does not include `id`; added so `POST /{id}/read` has a referent.
+    event_key:
+      type: string
+      description: E-49 `event_key` (e.g. `payment.received`, `ballot.closing_soon`) (04 §3.11 / §2.10).
+    payload:
+      type: object
+      additionalProperties: true
+      description: E-50 `payload` JSON (04 §2.10). INFERRED element shape — 04 does not pin per-event payload schemas.
+    deep_link:
+      type: string
+      description: E-50 `deep_link` — every notification carries one (04 §2.10 / §4.7).
+    created_at:
+      type: string
+      format: date-time
+      description: E-50 `created_at` (04 §2.10).
+    read_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: E-50 `read_at` — null while unread (04 §2.10, in-app inbox).
+
+NotificationInboxResponse:
+  type: object
+  description: Response of `GET /api/v1/notifications` (04 §3.11) — `items[]`.
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/NotificationInboxItem'
+    next_cursor:
+      type: string
+      nullable: true
+      description: Cursor pagination per 04 §3.0 (list endpoints return `next_cursor`).
+
+NotificationReadResponse:
+  type: object
+  description: Response of `POST /notifications/{id}/read` and `/notifications/read-all` (04 §3.11) — `read_at`.
+  properties:
+    read_at:
+      type: string
+      format: date-time
+      description: Timestamp the notification(s) were marked read (04 §3.11).
+
+PushRegistrationRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/notifications/push-registrations` (04 §3.11). Keys
+    (`platform, push_token, device_binding_id`) verbatim. VENDOR ASSUMPTION: 04
+    §2.10/§4.7 names FCM/APNs as the dispatch transports; vendor substitution for
+    the Mongolian market is a pending requirements change (CLAUDE.md).
+  required:
+    - platform
+    - push_token
+    - device_binding_id
+  properties:
+    platform:
+      allOf:
+        - $ref: '#/components/schemas/DevicePlatform'
+      description: Target platform for FCM/APNs dispatch (04 §3.11 `platform`). Reuses E-3 DevicePlatform (IOS/ANDROID/WEB).
+    push_token:
+      type: string
+      description: FCM/APNs registration token (04 §3.11 `push_token`).
+    device_binding_id:
+      type: string
+      format: uuid
+      description: E-3 DeviceBinding id the token is bound to (04 §3.11 `device_binding_id`); an unbound device is rejected with `422 UNBOUND_DEVICE`.
+
+PushRegistrationResponse:
+  type: object
+  description: Registration confirmation for FCM/APNs dispatch (04 §3.11).
+  properties:
+    id:
+      type: string
+      format: uuid
+    platform:
+      $ref: '#/components/schemas/DevicePlatform'
+    device_binding_id:
+      type: string
+      format: uuid
+    created_at:
+      type: string
+      format: date-time
+
+QuietHours:
+  type: object
+  description: >-
+    E-51 member-level `quiet_hours` JSON (04 §2.10 / §3.11). Honored at dispatch
+    except for non-suppressible regulatory/security notices.
+  properties:
+    start_local:
+      type: string
+      description: Local start time of the quiet window (04 §2.10 `start_local`). INFERRED representation (local wall-clock string); 04 does not pin the format.
+    end_local:
+      type: string
+      description: Local end time of the quiet window (04 §2.10 `end_local`). INFERRED representation.
+    timezone:
+      type: string
+      description: >-
+        IANA timezone for the quiet window (04 §2.10 `timezone`). Project
+        non-negotiable — two zones, no DST: `Asia/Ulaanbaatar` (+08) and
+        `Asia/Hovd` (+07); the offset is never hard-coded (CLAUDE.md).
+
+NotificationPreferenceEntry:
+  type: object
+  description: >-
+    One cell of the E-51 preference matrix (04 §3.11 `entries[]`), UQ(member,
+    category, channel).
+  required:
+    - category
+    - channel
+    - enabled
+  properties:
+    category:
+      $ref: '#/components/schemas/NotificationCategory'
+    channel:
+      $ref: '#/components/schemas/NotificationChannel'
+    enabled:
+      type: boolean
+      description: E-51 `enabled` (04 §2.10).
+    suppressible:
+      type: boolean
+      description: >-
+        Whether the member may suppress this category/channel (04 §3.11). `false`
+        for SECURITY_REGULATORY notices, which bypass quiet hours and cannot be
+        disabled (US-11.2). Read-only in responses; a request to disable a
+        non-suppressible entry returns `422 CANNOT_DISABLE_REGULATORY`.
+
+NotificationPreferences:
+  type: object
+  description: >-
+    Preference matrix per E-51 (04 §3.11), the shape of both `GET` and `PUT
+    /api/v1/notifications/preferences`. Regulatory/security notices are exempt
+    from suppression and flagged `suppressible:false`.
+  properties:
+    entries:
+      type: array
+      items:
+        $ref: '#/components/schemas/NotificationPreferenceEntry'
+    quiet_hours:
+      $ref: '#/components/schemas/QuietHours'
+
+NotificationEventType:
+  type: object
+  description: >-
+    E-49 NotificationEventType (04 §2.10) — a governed event-catalog entry. New
+    event types are configuration, not code forks (US-11.1). Administered via the
+    staff catalog CRUD (04 §3.11 admin row).
+  properties:
+    id:
+      type: string
+      format: uuid
+    event_key:
+      type: string
+      description: Unique event key, e.g. `payment.received`, `ballot.closing_soon`, `dividend.paid` (04 §2.10 `event_key`, UQ).
+    category:
+      $ref: '#/components/schemas/NotificationCategory'
+    default_channels:
+      type: array
+      items:
+        $ref: '#/components/schemas/NotificationChannel'
+      description: E-49 `default_channels` (04 §2.10).
+    template_refs:
+      type: object
+      additionalProperties: true
+      description: E-49 `template_refs` JSON — per-channel template references (04 §2.10). INFERRED element shape.
+    deep_link_pattern:
+      type: string
+      description: E-49 `deep_link_pattern` (04 §2.10).
+    suppressible:
+      type: boolean
+      description: E-49 `suppressible` — `false` for regulatory/security notices (04 §2.10, US-11.2).
+
+NotificationEventTypeCreateRequest:
+  type: object
+  description: >-
+    Body of `POST /api/v1/admin/notification-event-types` (04 §3.11) — a new
+    catalog entry per E-49. Staff, OPS_ADMIN, maker-checker + audit-logged (04
+    §3.12). A duplicate `event_key` returns `409 EVENT_KEY_EXISTS`.
+  required:
+    - event_key
+    - category
+    - default_channels
+    - suppressible
+  properties:
+    event_key:
+      type: string
+    category:
+      $ref: '#/components/schemas/NotificationCategory'
+    default_channels:
+      type: array
+      items:
+        $ref: '#/components/schemas/NotificationChannel'
+    template_refs:
+      type: object
+      additionalProperties: true
+      nullable: true
+    deep_link_pattern:
+      type: string
+      nullable: true
+    suppressible:
+      type: boolean
