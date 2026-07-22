@@ -166,7 +166,7 @@
         "T5",
         "T6"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": "9 ops: POST /admin/dividends/runs(+calculate/approve/execute), GET .../reconciliation, GET/POST /admin/community-projects(+review), GET /admin/grant-pools/{fy}, POST .../matches"
     }
