@@ -1,0 +1,379 @@
+# EP-12 admin — dividend-run administration (04 §3.7) & community-funding
+# administration (04 §3.9). COVERAGE-GAP FILL (task T8): these 9 admin operations
+# fell between the EP-7/EP-9 member slices (which defined member rows only, and
+# noted the admin rows were "EP-12 territory") and the EP-12 slice (which noted
+# they "belong to EP-7 / are EP-12 territory ... owned by that epic's slice") —
+# so they were in NEITHER. They are added here.
+#
+# ALL are STAFF console operations: `security: - staffSSO: []` (root scheme;
+# 04 §3.0 — staff resources live under /api/v1/admin/...), overriding the document
+# default memberOAuth2. Tag EP-12. Per 04 §3.12 ALL admin mutations are
+# maker-checker + audit-logged (E-53); the run `approve` (second FINANCE_ADMIN,
+# checker != maker) and `execute` steps ARE the maker-checker gate for a run.
+#
+# ENTITY schemas are $ref'd, never redefined:
+#   DividendDeclaration / DividendAllocation -> schemas/ep7-dividends.yaml
+#   CommunityGrantPool / SurplusMatch / CommunityProject -> schemas/ep9-funding.yaml
+#   Money / Error / MakerCheckerApproval + common error responses + Cursor/Limit
+#   -> the assembled namespace.
+# Request/response WRAPPERS are in schemas/ep12-admin-dividends-funding.yaml.
+# The dividend `execute` row is a money movement (payout) -> carries
+# `#/components/parameters/IdempotencyKey` (04 §3.0). No calculation formula,
+# split %, or seed value is encoded — those are engine/config behavior.
+# All $refs are local.
+
+# =============================================================================
+# 3.7 — Dividend-run administration (FINANCE_ADMIN; US-12.6)
+# =============================================================================
+
+/api/v1/admin/dividends/runs:
+  post:
+    tags: [EP-12]
+    operationId: adminCreateDividendRun
+    summary: >-
+      Open a new annual Patronage Dividend run in DRAFT (DividendDeclaration per
+      E-32) (04 §3.7). Auth: staff FINANCE_ADMIN. Maker-checker + audit-logged
+      (04 §3.12). `agm_record_ref` mandatory.
+    security:
+      - staffSSO: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminDividendRunCreateRequest'
+    responses:
+      '201':
+        description: Dividend run created (E-32; `status:"DRAFT"`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DividendDeclaration'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 RUN_EXISTS_FOR_YEAR — a dividend run already exists for `fiscal_year` (04 §3.7).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 AGM_REF_REQUIRED — `agm_record_ref` is mandatory (04 §3.7).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/dividends/runs/{id}/calculate:
+  post:
+    tags: [EP-12]
+    operationId: adminCalculateDividendRun
+    summary: >-
+      Run the dividend calculation engine for a run — deterministic re-runs
+      supported; `totals` must reconcile (04 §3.7). Auth: staff FINANCE_ADMIN.
+      Audit-logged (04 §3.12). Reports engine output only; encodes no formula.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminDividendCalculateRequest'
+    responses:
+      '200':
+        description: Calculation result — totals, sample allocations, exceptions.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDividendCalculationResult'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 SURPLUS_NOT_SET — the run has no ratified surplus to calculate against (04 §3.7).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/dividends/runs/{id}/approve:
+  post:
+    tags: [EP-12]
+    operationId: adminApproveDividendRun
+    summary: >-
+      Approve a calculated run -> `status:"APPROVED"` via MakerCheckerApproval
+      (04 §3.7). Auth: staff SECOND FINANCE_ADMIN (checker != maker) — this is
+      the maker-checker gate. Audit-logged (04 §3.12).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminDividendApproveRequest'
+    responses:
+      '200':
+        description: Run approved (`status:"APPROVED"`); the DividendDeclaration reflects the maker-checker resolution (E-53).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DividendDeclaration'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        description: 403 MAKER_CANNOT_CHECK — the checker is the maker of this run (04 §3.7).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/admin/dividends/runs/{id}/execute:
+  post:
+    tags: [EP-12]
+    operationId: adminExecuteDividendRun
+    summary: >-
+      Execute an APPROVED run — MONEY MOVEMENT: per-member payouts per standing
+      election within 5 business days (KPI-4.3); failed postings retried then
+      escalated (04 §3.7). Auth: staff FINANCE_ADMIN; Idempotency-Key mandatory
+      (04 §3.0). Second half of the maker-checker gate. Audit-logged (04 §3.12).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+    responses:
+      '202':
+        description: >-
+          Execution accepted — `status:"EXECUTING"` with a live progress ref.
+          INFERRED 202: 04 names the asynchronous EXECUTING status and live
+          progress but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDividendExecuteResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: >-
+          409 NOT_APPROVED — the run is not in APPROVED state (04 §3.7); or
+          409 IDEMPOTENCY_CONFLICT on a replayed `Idempotency-Key` with a
+          different payload (04 §3.0).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/admin/dividends/runs/{id}/reconciliation:
+  get:
+    tags: [EP-12]
+    operationId: adminGetDividendRunReconciliation
+    summary: >-
+      Reconciliation view of a run — entitlements vs. postings vs. pool, deltas,
+      exceptions, immutable run record ref (04 §3.7). Auth: staff FINANCE_ADMIN
+      or AUDITOR (read).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Reconciliation report for the run.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDividendReconciliation'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+# =============================================================================
+# 3.9 — Community-funding administration (OPS_ADMIN / FINANCE_ADMIN)
+# =============================================================================
+
+/api/v1/admin/community-projects:
+  get:
+    tags: [EP-12]
+    operationId: adminListCommunityProjects
+    summary: >-
+      Community-project review queue, filterable by status (default SUBMITTED)
+      (04 §3.9). Auth: staff OPS_ADMIN (maker-checker review workflow).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: status
+        in: query
+        required: false
+        description: 04 §3.9 `?status=SUBMITTED` — filter by project status (the shared CommunityProjectStatus enum, owned by EP-9).
+        schema:
+          $ref: '#/components/schemas/CommunityProjectStatus'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Community-project review queue (E-43).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCommunityProjectListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/admin/community-projects/{id}/review:
+  post:
+    tags: [EP-12]
+    operationId: adminReviewCommunityProject
+    summary: >-
+      Review a submitted project — APPROVE -> PUBLISHED | DECLINE -> DECLINED
+      (04 §3.9). Auth: staff OPS_ADMIN (maker-checker). Audit-logged (04 §3.12).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminCommunityProjectReviewRequest'
+    responses:
+      '200':
+        description: Review recorded; project moves to `PUBLISHED` or `DECLINED` (E-43).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityProject'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/admin/grant-pools/{fiscal_year}:
+  get:
+    tags: [EP-12]
+    operationId: adminGetGrantPool
+    summary: >-
+      Retrieve the Community Grant pool for a fiscal year (Pool per E-45) (04
+      §3.9). Auth: staff FINANCE_ADMIN.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: fiscal_year
+        in: path
+        required: true
+        description: 04 §3.9 `{fiscal_year}` — the pool is unique per year (E-45).
+        schema:
+          type: integer
+    responses:
+      '200':
+        description: The Community Grant pool for the fiscal year (E-45).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityGrantPool'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/admin/grant-pools/{fiscal_year}/matches:
+  post:
+    tags: [EP-12]
+    operationId: adminCreateSurplusMatch
+    summary: >-
+      Create a surplus match for a project from the pool — SurplusMatch per E-46
+      (`ACCRUING`); release only via a certified COMMUNITY_GRANT ballot, never
+      staff discretion; auto-halt on cap/pool exhaustion (04 §3.9). Auth: staff
+      FINANCE_ADMIN (maker-checker). Audit-logged (04 §3.12).
+    security:
+      - staffSSO: []
+    parameters:
+      - name: fiscal_year
+        in: path
+        required: true
+        description: 04 §3.9 `{fiscal_year}` — identifies the pool to match against (E-45).
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminSurplusMatchCreateRequest'
+    responses:
+      '201':
+        description: Surplus match created (E-46; `status:"ACCRUING"`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SurplusMatch'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 POOL_EXHAUSTED — the pool cannot fund the requested match (04 §3.9).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 RATIO_ABOVE_1_TO_1 — `match_ratio_bps` exceeds 10000 (1:1) (04 §3.9).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
