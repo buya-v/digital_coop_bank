@@ -78,7 +78,7 @@
         "backend/app/models/funding.py"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 1,
       "note": "branch softhouse/T4-orm-governance-funding @ fc26fa1. E-34..42 governance + E-43..46 funding. Gate PASS. SECRET BALLOT verified structurally: VoteRecord has NO member_id/no transitive member FK, omits Timestamps (coarsening), candidate_selections bare UUID[]; only VoteParticipation links member<->ballot, no choice. rejection_reason DeferredEnum (04 says incl.=open set). funded_from_declaration_id bare UUID -> promote at merge."
     },
@@ -95,7 +95,7 @@
         "backend/app/models/compliance.py"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 1,
       "note": "branch softhouse/T5-orm-platform @ 930584a. E-49..59 platform (notifications/admin/compliance). Gate PASS. StaffRole verbatim (7). ConfigurationParameter.value open JSONB (no seed baked). AuditLogEntry hash columns (WORM, no Timestamps mixin, own occurred_at). governing_ballot_id bare UUID -> promote at merge."
     },
@@ -128,9 +128,9 @@
         "T4",
         "T5"
       ],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": ""
+      "note": "branch softhouse/T7-review-gov-platform @ 4a45740. VERDICT APPROVED. Gate PASS (29 tables co-loaded, 17 money, no float, all FKs resolve). Secret ballot verified on metadata: vote_record no member FK, shares only ballot_id. Enums verbatim, rejection_reason DeferredEnum. Config open JSONB. CROSS-SLICE FKs to promote (2): configuration_parameter.governing_ballot_id->ballot, community_grant_pool.funded_from_declaration_id->dividend_declaration. MIGRATION WATCH: 4 enum type-names reused across columns (same class, benign) \u2014 CREATE TYPE once."
     },
     {
       "id": "T8",
