@@ -59,6 +59,28 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260722-openapi-core — OpenAPI core (foundation + EP-1..EP-4) (2026-07-22)
+
+First OpenAPI derivation. Produced a valid OpenAPI 3.1 architecture-of-record for the money-movement core: 54 paths / 64 operations / 95 schemas, covering every endpoint row in 04 §3.1-§3.4 (EP-1 14, EP-2 9, EP-3 21, EP-4 20). Gate = backend/openapi/validate.py (assembles root+paths+schemas+params, validates 3.1, checks all $refs). Multi-file layout let two authors work in parallel without file conflicts.
+
+**What worked**
+- The parallel split (T3 EP-1/2, T4 EP-3/4) into disjoint files worked; the only collision was one shared schema (Currency), a clean dedupe.
+- Two honesty judgments under the same discipline the requirements work used, now in code:
+  - T3 REFUSED to reproduce 04's `currency: USD` enum literal — it is an invalidated non-negotiable (currency is MNT). Modelled currency as a free ISO-4217 string, conflict flagged in-spec. Mirroring a source literal you know is wrong is encoding a defect, not fidelity.
+  - T4 applied the Idempotency-Key non-negotiable even to 2 money-movement POSTs where 04 omits it, and marked the addition inferred rather than silently.
+
+**What the reviewer caught that the gate could not**
+- T5 found IdempotencyKey was a Parameter Object mis-filed under components.schemas (required:true as a boolean, non-schema keywords). It PASSED validate.py because openapi-spec-validator does NOT type-check $ref targets by position. Strict codegen would reject it. LESSON: the OpenAPI gate has blind spots exactly like verify-docs' prose blind spot — a valid-per-validator spec can still be structurally wrong. Independent review remains load-bearing.
+- Fix: enhanced validate.py to merge params/*.yaml into components.parameters (like schemas); moved IdempotencyKey there; repointed all 9 refs across EP-3+EP-4. The params/ slice type is now part of the layout.
+
+**New knowledge / for the follow-up slice**
+- Shared schemas (Money, Currency, common enums like RecipientIdentifierType) will collide again if each parallel author redefines them. For the next slice, put shared component schemas in ONE foundation-owned file (or a _shared.yaml a single task owns) and have epic slices $ref them — don't let each slice define Money/Currency.
+- The generated bundle backend/openapi/openapi.yaml is gitignored (regenerate via validate.py). Source of truth = root.yaml + paths/ + schemas/ + params/. If a committed browsable bundle is wanted, un-ignore it and have only the final assembly write it.
+- validate.py's duplicate-schema/param and $ref-resolution checks are the real value; the 3.1 schema-validation alone is too lenient (see the IdempotencyKey miss).
+
+**Verifier**: OpenAPI 54/64/95 PASS; docs gate PASS (untouched); backend 14/14 (untouched). No re-baseline.
+**Backlog**: OpenAPI follow-up slice (EP-5..EP-13 + webhooks + admin; entity-gated tagged x-entity-gated; use a shared-schemas file). Then ORM schema from 04's 59 entities (from the CORRECTED ledger, not 06's defects).
+
 ### Run 20260721-currency-policy — currency re-derivation POLICY table (2026-07-22)
 
 Read-only run: gathered Mongolian income benchmarks, categorised all 312 USD amounts, produced a reviewable derivation table, and got the product owner to confirm the anchors. NO documents edited — a separate apply run does that.
