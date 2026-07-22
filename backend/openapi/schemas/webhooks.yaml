@@ -1,0 +1,295 @@
+# Inbound-webhook payload & ack schemas (task T4).
+# Merged into components.schemas by openapi/validate.py. All $refs are local.
+#
+# SOURCE: 04_technical_architecture.md §3.14 (the seven inbound-webhook rows)
+# and §4 (the four platform integration rules). §3.14 pins each webhook's PATH,
+# SOURCE vendor, PURPOSE, and VERIFICATION column verbatim. It does NOT pin the
+# vendor event *payload* shapes — those are vendor-specific and out of `04`'s
+# scope — so the body schemas below are INFERRED envelopes: the documented,
+# purpose-bearing fields are typed; the remainder of each vendor event is left
+# open via `additionalProperties: true`. Every field that `04` does not name is
+# marked INFERRED.
+#
+# VENDOR NAMES (Persona, Plaid, Lithic, Stripe) are recorded verbatim from §3.14.
+# They are a PENDING Mongolia requirements change: these US vendors are not the
+# Mongolian market (CLAUDE.md — vendor substitution is a requirements change, not
+# merely an integration change, because vendor names leak into the schema, e.g.
+# `persona_inquiry_id`, `plaid_item_ref`).
+#
+# Money is the shared integer-minor-units schema (#/components/schemas/Money) —
+# the project money non-negotiable applies inside webhook payloads too.
+
+# ---------------------------------------------------------------------------
+# Shared acknowledgement body. 04 §4 rule (1): inbound webhooks are idempotent;
+# the platform returns a 2xx ack once the event is durably accepted. Rule (2):
+# every vendor call carries a correlation ID (logged to US-13.3) — echoed here.
+# ---------------------------------------------------------------------------
+WebhookAck:
+  type: object
+  description: >-
+    Uniform acknowledgement returned once an inbound vendor event is durably
+    accepted (idempotent — a replayed event returns the same ack). 04 §4 rules
+    (1) idempotent and (2) correlation ID. INFERRED shape: `04` pins that
+    webhooks are idempotent and carry a correlation ID but does not pin the ack
+    body; these field names are a chosen convention.
+  additionalProperties: false
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum: [RECEIVED]
+      description: The event was accepted for processing (INFERRED literal).
+    correlation_id:
+      type: string
+      description: Correlation identifier for tracing/support (04 §3.0 / §4 rule 2).
+
+# ---------------------------------------------------------------------------
+# Persona — eKYC (DEC-5; US-1.2). 04 §3.14: "Inquiry outcome -> KycStatus
+# transitions; screening hits -> ComplianceCase". §4.1 line: the backend fetches
+# full inquiry results server-to-server and NEVER trusts the webhook payload
+# alone — so this payload is a notification envelope (an inquiry id + an event
+# kind), not the decision itself.
+# ---------------------------------------------------------------------------
+PersonaInquiryWebhook:
+  type: object
+  description: >-
+    Persona inquiry-outcome / screening notification (04 §3.14 row 1). VENDOR:
+    Persona is the DEC-5 eKYC choice and is recorded verbatim; it is a PENDING
+    Mongolia requirements change (CLAUDE.md — the compliant alternative is a
+    XYP/ХУР state-register lookup). INFERRED payload: `04` does not pin Persona's
+    event schema; only the outcome semantics are pinned.
+  additionalProperties: true
+  required: [event_type, inquiry_id]
+  properties:
+    event_type:
+      type: string
+      description: >-
+        Vendor event kind (e.g. inquiry approved / declined / marked-for-review).
+        INFERRED enumeration — `04` names the outcomes (mapped to KycStatus
+        APPROVED / PENDING_REVIEW / REJECTED) but not the vendor event strings.
+    inquiry_id:
+      type: string
+      description: >-
+        Persona inquiry identifier. Corresponds to the `persona_inquiry_id` field
+        `04` leaks into the schema (CLAUDE.md). The backend re-fetches full
+        results server-to-server keyed on this id (04 §4.1) — the payload is not
+        trusted alone.
+
+# ---------------------------------------------------------------------------
+# Stripe — share-purchase collection (US-2.1). 04 §3.14: "Share-purchase
+# payment_intent settlement/failure -> US-2.1 activation". §4.3 line: on
+# `payment_intent.succeeded` the ledger posts SHARE_SUBSCRIPTION and the member
+# becomes ACTIVE; the intent is created for exactly the DEC-11 par value with
+# `member_ref` metadata.
+# ---------------------------------------------------------------------------
+StripePaymentIntentWebhook:
+  type: object
+  description: >-
+    Stripe payment_intent lifecycle event for the membership-share purchase
+    (04 §3.14 row 2). VENDOR: Stripe is recorded verbatim and is a PENDING
+    Mongolia requirements change (CLAUDE.md — no Stripe presence in-market; the
+    share is collected via a NETC card or a Banksuljee/ACH+ transfer under the
+    migration). INFERRED payload shape.
+  additionalProperties: true
+  required: [type, payment_intent_id]
+  properties:
+    type:
+      type: string
+      description: >-
+        Stripe event type (e.g. `payment_intent.succeeded` /
+        `payment_intent.payment_failed`) — the two outcomes `04` §4.3 names.
+        Values recorded verbatim from `04`'s prose; wider set INFERRED.
+    payment_intent_id:
+      type: string
+      description: Stripe PaymentIntent id (INFERRED field name).
+    member_ref:
+      type: string
+      description: >-
+        `member_ref` metadata carried on the intent (04 §4.3) — links settlement
+        to the pending member for activation.
+    amount:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: >-
+        Settled amount; server-side it must equal the configured par value
+        (DEC-11), else `422 AMOUNT_MISMATCH` (04 §4.3). Integer minor units.
+
+# ---------------------------------------------------------------------------
+# Lithic — real-time authorization (US-5.3). 04 §3.14: "Real-time auth
+# decisioning (<= 200 ms response)". §4.4 line: Lithic ASA webhook -> the Card
+# Service evaluates status, member controls, and available balance, then returns
+# APPROVE / DECLINE within a 200 ms hard ceiling (§6 perf budget). This is the
+# ONLY webhook whose 2xx body is a decision, not a bare ack.
+# ---------------------------------------------------------------------------
+LithicAuthorizationWebhook:
+  type: object
+  description: >-
+    Lithic ASA (active-stance authorization) request requiring a synchronous
+    APPROVE/DECLINE decision (04 §3.14 row 3). VENDOR: Lithic is recorded
+    verbatim and is a PENDING Mongolia requirements change (CLAUDE.md — cards
+    clear through NETC in-market; and EP-5 Cards is entity-gated / likely
+    unlawful for an SCC). INFERRED payload shape.
+  additionalProperties: true
+  required: [card_token, amount]
+  properties:
+    authorization_id:
+      type: string
+      description: Vendor authorization identifier (INFERRED field name).
+    card_token:
+      type: string
+      description: Lithic card token (masked-PAN scope reduction, 04 §4.4).
+    amount:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Authorization amount in integer minor units.
+    merchant_category_code:
+      type: string
+      nullable: true
+      description: MCC used for member category-block controls (US-5.3). INFERRED field name.
+
+LithicAuthorizationDecision:
+  type: object
+  description: >-
+    Synchronous authorization decision returned to Lithic within the 200 ms
+    ceiling (04 §3.14 row 3; §4.4; §6 perf budget). If the platform does not
+    answer in time the configured stand-in rule applies vendor-side (04 §4.4).
+    INFERRED response shape — `04` pins the APPROVE/DECLINE semantics, not the
+    wire fields.
+  additionalProperties: false
+  required: [decision]
+  properties:
+    decision:
+      type: string
+      enum: [APPROVE, DECLINE]
+      description: Decision derived from card status, member controls, and available balance (04 §4.4).
+    decline_reason:
+      type: string
+      nullable: true
+      description: Reason when DECLINE (e.g. frozen, limit, MCC block, insufficient available balance). INFERRED.
+
+# ---------------------------------------------------------------------------
+# Lithic — asynchronous events. 04 §3.14: "Settlements (-> Round-Up), card
+# lifecycle, fulfilment updates". §4.4: settlements post Transactions and emit
+# events consumed by the Round-Up Service; fulfilment webhooks update
+# `fulfilment.stage`. (Note: EP-10 Round-Ups is entity-gated — CLAUDE.md.)
+# ---------------------------------------------------------------------------
+LithicEventWebhook:
+  type: object
+  description: >-
+    Lithic asynchronous event — settlement, card lifecycle, or fulfilment update
+    (04 §3.14 row 4). VENDOR: Lithic recorded verbatim; PENDING Mongolia
+    requirements change (CLAUDE.md). INFERRED payload shape.
+  additionalProperties: true
+  required: [event_type]
+  properties:
+    event_type:
+      type: string
+      description: >-
+        Event kind — settlement / card-lifecycle / fulfilment (04 §3.14, §4.4).
+        INFERRED enumeration; `04` names the categories, not the vendor strings.
+    card_token:
+      type: string
+      nullable: true
+      description: Lithic card token (INFERRED field name).
+    transaction_token:
+      type: string
+      nullable: true
+      description: Settlement transaction token; drives Transaction posting and Round-Up capture (04 §4.4). INFERRED.
+    fulfilment_stage:
+      type: string
+      nullable: true
+      description: '`fulfilment.stage` for physical-card orders (04 §4.4). INFERRED field name.'
+
+# ---------------------------------------------------------------------------
+# Sponsor bank / BaaS — external rail status. 04 §3.14: "ACH/wire/RTP status,
+# returns (with codes), inbound credits". §4 external-payments flow: BaaS
+# webhooks (`sent`, `settled`, `returned`) drive Transaction status; returns
+# post reversing ledger entries with the return code in `failure_reason`;
+# duplicate-webhook tolerance via `external_ref` idempotency.
+# ---------------------------------------------------------------------------
+BaasStatusWebhook:
+  type: object
+  description: >-
+    Sponsor-bank / BaaS rail-status event (04 §3.14 row 5). PENDING Mongolia
+    requirements change: ACH / wire / RTP are US/EU rails — Mongolia clears
+    through Banksuljee (RTGS) above the Governor-set threshold and ACH+ at or
+    below it, cards through NETC (CLAUDE.md). Rail values are recorded verbatim
+    from `04`, not renamed or invented. INFERRED payload shape.
+  additionalProperties: true
+  required: [event_type, external_ref]
+  properties:
+    event_type:
+      type: string
+      description: >-
+        Rail event — `sent` / `settled` / `returned` / inbound-credit (04 §3.14,
+        §4 external flow). Values recorded verbatim from `04`'s prose.
+    external_ref:
+      type: string
+      description: >-
+        Rail reference used as the idempotency key for duplicate-webhook
+        tolerance (04 §4 external flow — "duplicate-webhook tolerance via
+        external_ref idempotency").
+    return_code:
+      type: string
+      nullable: true
+      description: >-
+        Return/return-reason code on a `returned` event; the platform records it
+        in the Transaction `failure_reason` (04 §4 external flow).
+    amount:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: Event amount in integer minor units (e.g. for an inbound credit). INFERRED presence.
+
+# ---------------------------------------------------------------------------
+# Plaid — external-account item status. 04 §3.14: "Item status (relink
+# required), transaction refresh for underwriting". (Underwriting = EP-6
+# Lending, which is deferred — CLAUDE.md.)
+# ---------------------------------------------------------------------------
+PlaidWebhook:
+  type: object
+  description: >-
+    Plaid item-status / transaction-refresh event (04 §3.14 row 6). VENDOR:
+    Plaid recorded verbatim; PENDING Mongolia requirements change (CLAUDE.md —
+    no Plaid coverage in-market). INFERRED payload shape.
+  additionalProperties: true
+  required: [webhook_type, item_id]
+  properties:
+    webhook_type:
+      type: string
+      description: Plaid webhook type/code (e.g. item relink required, transactions refresh). INFERRED enumeration.
+    item_id:
+      type: string
+      description: >-
+        Plaid item identifier. Corresponds to the `plaid_item_ref` field `04`
+        leaks into the schema (CLAUDE.md). Drives the E-14 `RELINK_REQUIRED`
+        status (04 §3.4).
+
+# ---------------------------------------------------------------------------
+# E-signature provider — envelope lifecycle (US-6.6). 04 §3.14: "Envelope
+# completed/declined -> pledge lock, loan disbursement triggers". §4.6: the
+# completion webhook delivers the executed PDF; the platform stores it with its
+# SHA-256 in SignedDocument, then fires the domain consequence. (EP-6 Lending is
+# deferred — CLAUDE.md.)
+# ---------------------------------------------------------------------------
+EsignEnvelopeWebhook:
+  type: object
+  description: >-
+    E-signature envelope-lifecycle event (04 §3.14 row 7). VENDOR: the
+    e-signature provider is unnamed in `04` and is a PENDING Mongolia
+    requirements change (CLAUDE.md). INFERRED payload shape.
+  additionalProperties: true
+  required: [event, envelope_id]
+  properties:
+    event:
+      type: string
+      description: Envelope outcome — completed / declined (04 §3.14). INFERRED enumeration.
+    envelope_id:
+      type: string
+      description: Provider envelope identifier (INFERRED field name).
+    envelope_hash:
+      type: string
+      nullable: true
+      description: >-
+        SHA-256 of the executed document, checked against the stored
+        SignedDocument hash before firing the domain consequence (04 §3.14
+        "envelope hash check"; §4.6 WORM vault). INFERRED field name.
