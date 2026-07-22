@@ -1,0 +1,827 @@
+# EP-3 Savings & Deposit Accounts — path operations.
+# One operation per endpoint row in 04_technical_architecture.md §3.3.
+# Merged into `paths` by openapi/validate.py. All $refs are local.
+#
+# Common error codes (401/403/404/409/422/429) are defined once in root.yaml
+# (§3.0 "Common codes apply everywhere") and $ref'd where a row lists them.
+# Row-specific codes (e.g. 410) are inline responses over the shared Error
+# envelope. Auth: default `memberOAuth2` from root applies; "Member (ACTIVE)"
+# and "step-up" rows are annotated in each operation description (04 §3.0).
+
+/api/v1/accounts:
+  get:
+    tags: [EP-3]
+    operationId: listAccounts
+    summary: List the member's accounts (04 §3.3).
+    responses:
+      '200':
+        description: The caller's accounts.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accounts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AccountSummary'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/accounts/{id}:
+  get:
+    tags: [EP-3]
+    operationId: getAccount
+    summary: 'Account detail; savings accounts include `accrued_interest_mtd` (04 §3.3). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Account detail.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Account'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/accounts/{id}/transactions:
+  get:
+    tags: [EP-3]
+    operationId: listAccountTransactions
+    summary: 'Paginated transaction history for an account (04 §3.3). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: q
+        in: query
+        required: false
+        description: Free-text search (04 §3.3 query `q`).
+        schema:
+          type: string
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: A page of transactions (cursor pagination, 04 §3.0).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Transaction'
+                next_cursor:
+                  type: string
+                  nullable: true
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/transactions/{id}:
+  get:
+    tags: [EP-3]
+    operationId: getTransaction
+    summary: 'Full transaction detail (04 §3.3). Auth: Member (party); `404` if not a party.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Transaction detail.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/transactions/{id}/receipt:
+  get:
+    tags: [EP-3]
+    operationId: getTransactionReceipt
+    summary: 'Pre-signed receipt URL (WORM source) for a transaction (04 §3.3). Auth: Member (party).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Receipt reference.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                receipt_url:
+                  type: string
+                  description: Pre-signed URL sourced from WORM storage (04 §3.3).
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/accounts/{id}/interest-history:
+  get:
+    tags: [EP-3]
+    operationId: getAccountInterestHistory
+    summary: 'Interest posting history for a savings account (04 §3.3). Auth: Member (owner, savings).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Interest history.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterestHistory'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 NOT_INTEREST_BEARING — the account does not accrue interest (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/accounts/{id}/settings:
+  get:
+    tags: [EP-3]
+    operationId: getAccountSettings
+    summary: 'Read account settings (04 §3.3). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Current settings.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountSettings'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+  put:
+    tags: [EP-3]
+    operationId: updateAccountSettings
+    summary: 'Update account settings (04 §3.3). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AccountSettings'
+    responses:
+      '200':
+        description: Updated settings.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountSettings'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/savings-goals:
+  post:
+    tags: [EP-3]
+    operationId: createSavingsGoal
+    summary: 'Create a savings goal (04 §3.3). Auth: Member (ACTIVE).'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, target_amount]
+            properties:
+              name:
+                type: string
+                maxLength: 60
+              emoji_or_image_ref:
+                type: string
+                nullable: true
+              target_amount:
+                $ref: '#/components/schemas/Money'
+              target_date:
+                type: string
+                format: date
+                nullable: true
+              auto_transfer:
+                $ref: '#/components/schemas/AutoTransfer'
+    responses:
+      '201':
+        description: Created savings goal (E-9).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavingsGoal'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 GOAL_LIMIT_REACHED — the member has reached the maximum number of goals (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+  get:
+    tags: [EP-3]
+    operationId: listSavingsGoals
+    summary: 'List the member''s savings goals with `current_amount`/`progress_pct` (04 §3.3). Auth: Member (owner).'
+    responses:
+      '200':
+        description: Savings goals.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SavingsGoal'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/savings-goals/{id}:
+  patch:
+    tags: [EP-3]
+    operationId: updateSavingsGoal
+    summary: 'Update mutable goal fields (04 §3.3). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      description: Any E-9 mutable field (04 §3.3).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                maxLength: 60
+              emoji_or_image_ref:
+                type: string
+                nullable: true
+              target_amount:
+                $ref: '#/components/schemas/Money'
+              target_date:
+                type: string
+                format: date
+                nullable: true
+              auto_transfer:
+                $ref: '#/components/schemas/AutoTransfer'
+              status:
+                $ref: '#/components/schemas/SavingsGoalStatus'
+    responses:
+      '200':
+        description: Updated goal.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavingsGoal'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+  delete:
+    tags: [EP-3]
+    operationId: deleteSavingsGoal
+    summary: 'Delete a savings goal; requires prior withdrawal (04 §3.3). Auth: Member (owner).'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Goal deleted.
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 GOAL_HAS_BALANCE — the goal still holds funds; withdraw first (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/savings-goals/{id}/transfers:
+  post:
+    tags: [EP-3]
+    operationId: transferSavingsGoal
+    summary: 'Fund or withdraw a savings goal (04 §3.3). Auth: Member (owner); money-movement — Idempotency-Key required.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/schemas/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [direction, amount]
+            properties:
+              direction:
+                type: string
+                enum: [FUND, WITHDRAW]
+                description: 04 §3.3 `direction` (`FUND | WITHDRAW`); WITHDRAW returns a gentle-confirmation copy flag.
+              amount:
+                $ref: '#/components/schemas/Money'
+    responses:
+      '200':
+        description: Transfer executed.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                  format: uuid
+                goal_balance:
+                  $ref: '#/components/schemas/Money'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        description: 422 INSUFFICIENT_FUNDS or VALIDATION_FAILED (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/group-pots:
+  post:
+    tags: [EP-3]
+    operationId: createGroupPot
+    summary: 'Create a group pot and invite members (04 §3.3). Auth: Member (ACTIVE).'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, purpose, approval_threshold_m]
+            properties:
+              name:
+                type: string
+                maxLength: 80
+              purpose:
+                type: string
+                maxLength: 280
+              approval_threshold_m:
+                type: integer
+              invitations:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    identifier_type:
+                      $ref: '#/components/schemas/RecipientIdentifierType'
+                    identifier:
+                      type: string
+    responses:
+      '201':
+        description: Created group pot with membership (E-10).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupPot'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: 422 THRESHOLD_EXCEEDS_MEMBERS or 422 INVITEE_NOT_ACTIVE (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/group-pots/{id}/invitations:
+  post:
+    tags: [EP-3]
+    operationId: createGroupPotInvitations
+    summary: 'Invite additional members to a group pot (04 §3.3). Auth: Creator.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              invitations:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    identifier_type:
+                      $ref: '#/components/schemas/RecipientIdentifierType'
+                    identifier:
+                      type: string
+    responses:
+      '200':
+        description: Invitation status and pot membership.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                members:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/GroupPotMember'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/group-pots/invitations/{id}/respond:
+  post:
+    tags: [EP-3]
+    operationId: respondGroupPotInvitation
+    summary: 'Accept or decline a group pot invitation (04 §3.3). Auth: invitee.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [response]
+            properties:
+              response:
+                type: string
+                enum: [ACCEPT, DECLINE]
+    responses:
+      '200':
+        description: Updated invitation status / pot membership.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupPotMember'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '410':
+        description: 410 INVITATION_EXPIRED (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/group-pots/{id}:
+  get:
+    tags: [EP-3]
+    operationId: getGroupPot
+    summary: 'Group pot detail (04 §3.3). Auth: Pot member; `403` for non-members.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Group pot detail.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupPot'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/group-pots/{id}/ledger:
+  get:
+    tags: [EP-3]
+    operationId: getGroupPotLedger
+    summary: 'Shared sub-ledger for a group pot — real-time, visible to all pot members (04 §3.3). Auth: Pot member.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Pot sub-ledger.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupPotLedger'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+
+/api/v1/group-pots/{id}/contributions:
+  post:
+    tags: [EP-3]
+    operationId: contributeGroupPot
+    summary: 'Contribute funds into a group pot; inbound needs no approval (04 §3.3). Auth: Pot member; money-movement — Idempotency-Key required.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/schemas/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [amount, source_account_id]
+            properties:
+              amount:
+                $ref: '#/components/schemas/Money'
+              source_account_id:
+                type: string
+                format: uuid
+    responses:
+      '200':
+        description: Contribution executed.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                  format: uuid
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        description: 422 INSUFFICIENT_FUNDS or VALIDATION_FAILED (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/group-pots/{id}/outbound-requests:
+  post:
+    tags: [EP-3]
+    operationId: createGroupPotOutboundRequest
+    summary: 'Request an outbound pot transfer requiring m-of-n approval; funds held (04 §3.3). Auth: Pot member; money-movement — Idempotency-Key required.'
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/schemas/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [amount, recipient, purpose]
+            properties:
+              amount:
+                $ref: '#/components/schemas/Money'
+              recipient:
+                type: object
+                additionalProperties: true
+                description: Internal account / DEC-3 identifier / external (04 §3.3). INFERRED element shape.
+              purpose:
+                type: string
+                maxLength: 280
+    responses:
+      '201':
+        description: Approval request created (E-12); funds held, approvers notified.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupPotApprovalRequest'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        description: 422 INSUFFICIENT_POT_FUNDS or VALIDATION_FAILED (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/group-pots/outbound-requests/{id}/decision:
+  post:
+    tags: [EP-3]
+    operationId: decideGroupPotOutboundRequest
+    summary: >-
+      Approve or reject a pending outbound pot transfer; on reaching threshold the
+      transaction executes (04 §3.3). Auth: designated approver; step-up.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/schemas/IdempotencyKey'
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    requestBody:
+      required: true
+      description: >-
+        INFERRED Idempotency-Key placement: 04 §3.3 lists Idempotency-Key on the
+        request-creation rows, not on this decision row, but the threshold
+        approval triggers a money movement — the project non-negotiable
+        (CLAUDE.md) requires the header on any money-movement POST, so it is
+        applied here.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [decision]
+            properties:
+              decision:
+                $ref: '#/components/schemas/ApprovalDecision'
+    responses:
+      '200':
+        description: >-
+          Decision recorded; on threshold the transfer executes (`transaction_id`)
+          and all members are notified; unreachable threshold ⇒ CANCELLED_UNREACHABLE.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approvals_received:
+                  type: integer
+                status:
+                  $ref: '#/components/schemas/GroupPotApprovalRequestStatus'
+                transaction_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 ALREADY_DECIDED (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '410':
+        description: 410 REQUEST_EXPIRED (04 §3.3).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
