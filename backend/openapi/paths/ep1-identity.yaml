@@ -1,0 +1,425 @@
+# EP-1 — Identity, Onboarding & KYC paths (04 §3.1).
+# One operation per §3.1 row. Security: the pre-auth bootstrap uses `security: []`;
+# `Applicant` and `Member` rows inherit the document default (memberOAuth2) — the
+# bootstrap `resume_token` carries the applicant session (INFERRED transport;
+# 04 §3.0 pins only that a token is required). Step-up rows add `stepUpAssertion`
+# in addition to the session (root securityScheme; 04 §5.1 / US-1.4). Common error
+# codes apply everywhere per 04 §3.0; each operation refs the root error responses
+# for the codes named in its row plus the universal 401/403/429 where applicable.
+
+/api/v1/onboarding/applications:
+  post:
+    operationId: createOnboardingApplication
+    tags: [EP-1]
+    summary: Start an onboarding application (pre-auth bootstrap).
+    description: >-
+      Public bootstrap. 04 §3.1: a bootstrap token is issued on a verified contact
+      channel, so this operation overrides the document default with `security: []`.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OnboardingApplicationCreateRequest'
+    responses:
+      '201':
+        description: >-
+          Application created. INFERRED status code 201 (resource creation); 04
+          names the response body but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingApplicationCreateResponse'
+      '409':
+        description: 409 APPLICATION_EXISTS — an application already exists for this contact channel (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 CHANNEL_UNVERIFIED — the contact channel was not verified (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/onboarding/applications/current:
+  get:
+    operationId: getCurrentOnboardingApplication
+    tags: [EP-1]
+    summary: Get the applicant's in-progress application.
+    responses:
+      '200':
+        description: Current application state (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingApplicationCurrent'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        description: 404 NO_APPLICATION — the applicant has no in-progress application (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+  patch:
+    operationId: updateCurrentOnboardingApplication
+    tags: [EP-1]
+    summary: Save onboarding step data (DEC-6 identity fields).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OnboardingApplicationPatchRequest'
+    responses:
+      '200':
+        description: Step saved; validation results returned (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingApplicationPatchResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '409':
+        description: 409 REGISTRATION_NUMBER_MISMATCH — provisional registration number conflicts with the verified value (04 §3.1, DEC-6(d)).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/onboarding/eligibility-check:
+  post:
+    operationId: checkOnboardingEligibility
+    tags: [EP-1]
+    summary: Run the data-driven common-bond eligibility check.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EligibilityCheckRequest'
+    responses:
+      '200':
+        description: Eligibility outcome (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EligibilityCheckResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '409':
+        description: 409 ALREADY_CHECKED_PASSED — eligibility already passed for this applicant (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/onboarding/kyc/sessions:
+  post:
+    operationId: createKycSession
+    tags: [EP-1]
+    summary: Start a KYC verification session.
+    description: Server creates the vendor KYC inquiry; no request body (04 §3.1).
+    responses:
+      '201':
+        description: >-
+          KYC session created. INFERRED status code 201; 04 names the response
+          body but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KycSessionResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '409':
+        description: 409 KYC_ALREADY_APPROVED — KYC is already approved for this applicant (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+      '502':
+        description: >-
+          502 VENDOR_UNAVAILABLE — the KYC vendor is unreachable (04 §3.1). The
+          vendor is market-dependent (CLAUDE.md flags the Persona assumption).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+/api/v1/onboarding/kyc/status:
+  get:
+    operationId: getKycStatus
+    tags: [EP-1]
+    summary: Poll KYC status and retry guidance.
+    responses:
+      '200':
+        description: Current KYC status (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KycStatusResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/auth/mfa/enrollments:
+  post:
+    operationId: createMfaEnrollment
+    tags: [EP-1]
+    summary: Enroll an MFA factor / bind a device.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MfaEnrollmentRequest'
+    responses:
+      '201':
+        description: >-
+          Enrollment created. INFERRED status code 201; 04 names the response body
+          but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaEnrollmentResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '409':
+        description: 409 FACTOR_EXISTS — the factor is already enrolled (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/auth/step-up:
+  post:
+    operationId: createStepUpToken
+    tags: [EP-1]
+    summary: Mint a single-use step-up assertion token.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StepUpRequest'
+    responses:
+      '200':
+        description: Step-up token minted (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepUpResponse'
+      '401':
+        description: >-
+          401 STEP_UP_FAILED — the step-up challenge response was invalid (04
+          §3.1). Also covers the root 401 UNAUTHENTICATED (missing session).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '423':
+        description: 423 FACTOR_LOCKED — the MFA factor is locked (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/auth/devices:
+  get:
+    operationId: listDevices
+    tags: [EP-1]
+    summary: List the member's trusted devices.
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Trusted devices (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/auth/devices/{id}:
+  delete:
+    operationId: revokeDevice
+    tags: [EP-1]
+    summary: Revoke a trusted device (step-up required).
+    description: 04 §3.1 marks delete as step-up; requires a fresh assertion in addition to the session.
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Device binding id (E-3 `id`).
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Device revoked (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRevokeResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        description: 409 LAST_DEVICE — cannot revoke the member's last trusted device (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me:
+  get:
+    operationId: getMyProfile
+    tags: [EP-1]
+    summary: Get the authenticated member's profile.
+    description: 04 §3.1 — available to a member of any membership status.
+    responses:
+      '200':
+        description: Member profile per E-1 (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberProfile'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me/profile:
+  patch:
+    operationId: updateMyProfile
+    tags: [EP-1]
+    summary: Update profile fields (step-up for KYC-relevant fields).
+    description: >-
+      04 §3.1 — KYC-relevant fields require step-up. Modelled with
+      `stepUpAssertion` in addition to the session; non-KYC fields may be updated
+      without it (enforced server-side — OpenAPI cannot express per-field
+      conditional security). INFERRED conditional.
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProfilePatchRequest'
+    responses:
+      '200':
+        description: Updated profile (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfilePatchResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        description: >-
+          422 LEGAL_NAME_NOT_EDITABLE — `legal_name` is derived and read-only (04
+          §3.1); also carries general 422 VALIDATION_FAILED.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me/consents:
+  get:
+    operationId: listMyConsents
+    tags: [EP-1]
+    summary: List the member's append-only consent history.
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Consent history (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me/consents/{consent_type}:
+  put:
+    operationId: upsertMyConsent
+    tags: [EP-1]
+    summary: Grant or withdraw a consent (appends a record).
+    parameters:
+      - name: consent_type
+        in: path
+        required: true
+        description: Consent document type (E-4 `consent_type`).
+        schema:
+          $ref: '#/components/schemas/ConsentType'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConsentUpsertRequest'
+    responses:
+      '200':
+        description: Consent recorded; append-only history returned (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '409':
+        description: 409 CONSENT_REQUIRED_FOR_SERVICE — withdrawing a consent required for service is not permitted (04 §3.1).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'

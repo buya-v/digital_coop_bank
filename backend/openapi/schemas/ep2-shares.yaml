@@ -1,0 +1,377 @@
+# EP-2 — Membership Shares & Equity component schemas (04 §3.2).
+# Built from the §3.2 endpoint rows plus entity E-5 MembershipShare and E-38
+# EligibilitySnapshot (04 §2.2, §2.8). Shared enums MembershipStatus / KycStatus
+# live in schemas/ep1-identity.yaml and are referenced here by
+# #/components/schemas/... in the assembled document.
+# Money fields (par_value, amount, total_equity, redemption amount) are int64 MNT
+# minor units; the membership-share par value is US-12.5 configuration (DEC-11),
+# never a hard-coded contract constant.
+
+# --- Share enums (04 §2.2 E-5) -----------------------------------------------
+
+ShareClass:
+  type: string
+  description: Share class (04 §2.2 E-5 `share_class`). Enum verbatim from 04.
+  enum:
+    - 'MEMBERSHIP'
+    - 'REINVESTED_PATRONAGE'
+
+ShareStatus:
+  type: string
+  description: Share registry status (04 §2.2 E-5 `status`). Enum verbatim from 04.
+  enum:
+    - 'ISSUED'
+    - 'REDEEMED'
+
+SharePurchaseSettlementStatus:
+  type: string
+  description: Share-purchase transaction settlement status (04 §3.2). Enum verbatim from 04.
+  enum:
+    - 'PENDING'
+    - 'SETTLED'
+    - 'FAILED'
+
+PaymentMethod:
+  type: string
+  description: Share-purchase payment method (04 §3.2). Enum verbatim from 04.
+  enum:
+    - 'CARD'
+    - 'BANK_TRANSFER'
+    - 'WALLET'
+
+# --- Membership share (E-5) --------------------------------------------------
+
+MembershipShare:
+  type: object
+  description: >-
+    Share registry entry (04 §2.2 E-5; §3.2 `GET /members/me/shares`). Represents
+    the mandatory membership share and any reinvested-patronage shares.
+  properties:
+    id:
+      type: string
+      format: uuid
+    certificate_number:
+      type: string
+      description: Unique share certificate number (E-5 `certificate_number`).
+    share_class:
+      $ref: '#/components/schemas/ShareClass'
+    par_value:
+      type: integer
+      format: int64
+      description: >-
+        MNT minor units. The mandatory membership-share par value is US-12.5
+        configuration (DEC-11), NOT a hard-coded contract constant. 04 §2.2 E-5
+        shows the US-market example value 2500 ($25.00), which the Mongolian
+        baseline supersedes; no default is pinned here.
+    status:
+      $ref: '#/components/schemas/ShareStatus'
+    issued_at:
+      type: string
+      format: date-time
+      description: When the share was issued (E-5 `issued_at`).
+    redeemed_at:
+      type: string
+      format: date-time
+      description: When the share was redeemed, if applicable (E-5 `redeemed_at`).
+
+# --- Share purchase (04 §3.2) ------------------------------------------------
+
+SharePurchaseRequest:
+  type: object
+  description: >-
+    Body for `POST /onboarding/share-purchase` (04 §3.2). Requires an
+    `Idempotency-Key` header (money-movement POST, 04 §3.0). Provide `payment_token`
+    OR `external_account_link_id` depending on `payment_method`.
+  required:
+    - payment_method
+    - amount
+    - currency
+  properties:
+    payment_method:
+      $ref: '#/components/schemas/PaymentMethod'
+    payment_token:
+      type: string
+      description: >-
+        Payment-processor token (04 §3.2 names "Stripe"). The processor is
+        market-dependent (CLAUDE.md flags the Stripe assumption); the field name
+        is kept from 04. Present for card/wallet methods.
+    external_account_link_id:
+      type: string
+      format: uuid
+      description: ExternalAccountLink id (E-14) for the bank-transfer method (04 §3.2).
+    amount:
+      type: integer
+      format: int64
+      description: >-
+        MNT minor units. Must equal the configured par value (else 422
+        AMOUNT_MISMATCH). 04 §3.2 shows the US-market example 2500; no default is
+        pinned (US-12.5 config, DEC-11).
+    currency:
+      $ref: '#/components/schemas/Currency'
+
+SharePurchaseResponse:
+  type: object
+  description: Response for `POST /onboarding/share-purchase` (04 §3.2).
+  properties:
+    transaction_id:
+      type: string
+      format: uuid
+      description: Subscription transaction id (reconciles to the equity ledger, E-5).
+    status:
+      $ref: '#/components/schemas/SharePurchaseSettlementStatus'
+    share:
+      type: object
+      description: Issued share summary (04 §3.2).
+      properties:
+        certificate_number:
+          type: string
+          description: Share certificate number (E-5 `certificate_number`).
+        par_value:
+          type: integer
+          format: int64
+          description: >-
+            MNT minor units; configured par value (US-12.5 / DEC-11), not a
+            contract constant. 04 §3.2 shows example 2500.
+    membership_status:
+      allOf:
+        - $ref: '#/components/schemas/MembershipStatus'
+      description: 04 §3.2 pins the literal value "ACTIVE" for this response on settlement.
+    member_id:
+      type: string
+      description: Member-facing id (E-1 `member_id`), assigned at activation.
+    confirmation_pack_refs:
+      type: array
+      description: >-
+        References to the share record and bylaws copy delivered on activation
+        (04 §3.2). type inferred; 04 names the key but does not specify the
+        element shape.
+      items:
+        type: string
+
+SharePurchaseStatusResponse:
+  type: object
+  description: Response for `GET /onboarding/share-purchase/{transaction_id}` (04 §3.2).
+  properties:
+    status:
+      $ref: '#/components/schemas/SharePurchaseSettlementStatus'
+    membership_status:
+      $ref: '#/components/schemas/MembershipStatus'
+
+# --- Membership summary (04 §3.2) --------------------------------------------
+
+MembershipRights:
+  type: object
+  description: Practical member rights (04 §3.2 `rights:{vote, borrow, guarantee}`).
+  properties:
+    vote:
+      type: boolean
+      description: Whether the member may vote (binary voting eligibility, E-5 / US-2.3).
+    borrow:
+      type: boolean
+      description: Whether the member may borrow (04 §3.2).
+    guarantee:
+      type: boolean
+      description: Whether the member may pledge guarantees (04 §3.2).
+
+MembershipSummary:
+  type: object
+  description: Response for `GET /members/me/membership` (04 §3.2).
+  properties:
+    membership_status:
+      $ref: '#/components/schemas/MembershipStatus'
+    membership_status_copy:
+      type: string
+      description: >-
+        Practical-meaning copy for the current status (04 §3.2). type inferred;
+        04 names "practical-meaning copy" but does not specify a field key/type.
+    rights:
+      $ref: '#/components/schemas/MembershipRights'
+    member_id:
+      type: string
+      description: Member-facing id (E-1 `member_id`).
+    joined_at:
+      type: string
+      format: date-time
+      description: Activation timestamp (E-1 `joined_at`).
+
+# --- Shares list (04 §3.2) ---------------------------------------------------
+
+SharesListResponse:
+  type: object
+  description: Response for `GET /members/me/shares` (04 §3.2).
+  properties:
+    shares:
+      type: array
+      items:
+        $ref: '#/components/schemas/MembershipShare'
+    total_equity:
+      type: integer
+      format: int64
+      description: MNT minor units — sum of the member's share par values (04 §3.2 `total_equity`).
+    next_cursor:
+      type: string
+      nullable: true
+      description: >-
+        INFERRED per the §3.0 cursor-pagination convention; the §3.2 row lists
+        `shares[]` without pagination keys. Null/absent on the last page.
+
+# --- Closure (04 §3.2) -------------------------------------------------------
+
+ClosureBlocker:
+  type: string
+  description: Reason a closure is blocked (04 §3.2 `blockers[]`). Enum verbatim from 04.
+  enum:
+    - 'ACTIVE_OR_DELINQUENT_LOAN'
+    - 'LOCKED_GUARANTEE_PLEDGE'
+    - 'GROUP_POT_MEMBERSHIP'
+    - 'NONZERO_BALANCES'
+
+ClosurePreconditions:
+  type: object
+  description: Response for `GET /members/me/closure-preconditions` (04 §3.2).
+  properties:
+    eligible:
+      type: boolean
+      description: Whether the member currently meets all closure preconditions (04 §3.2).
+    blockers:
+      type: array
+      items:
+        $ref: '#/components/schemas/ClosureBlocker'
+    sweep_options:
+      type: array
+      description: >-
+        Available balance-sweep destinations for redemption (04 §3.2
+        `sweep_options`). type inferred; 04 names the key but does not specify the
+        element shape.
+      items:
+        type: object
+        additionalProperties: true
+
+ClosureRequestCreate:
+  type: object
+  description: Body for `POST /members/me/closure-requests` (04 §3.2). Step-up required.
+  required:
+    - sweep_external_account_link_id
+    - confirmation
+  properties:
+    sweep_external_account_link_id:
+      type: string
+      format: uuid
+      description: ExternalAccountLink id (E-14) to sweep residual balances to (04 §3.2).
+    confirmation:
+      type: boolean
+      description: >-
+        Explicit member confirmation of closure. type inferred; 04 names
+        `confirmation` but does not specify its type.
+
+ClosureRequestResponse:
+  type: object
+  description: Response for `POST /members/me/closure-requests` (04 §3.2).
+  properties:
+    closure_request_id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      description: >-
+        Closure request status. type inferred; 04 names `status` but does not
+        list the enum values for this endpoint.
+    redemption:
+      type: object
+      description: Share-redemption terms (04 §3.2; configurable rule, Open Item 1).
+      properties:
+        amount:
+          type: integer
+          format: int64
+          description: >-
+            MNT minor units — redemption amount (04 §3.2 shows example 2500). The
+            redemption rule is configurable (US-12.5, Open Item 1); no default is
+            pinned.
+        terms_ref:
+          type: string
+          description: Reference to the applicable redemption terms (04 §3.2 `terms_ref`).
+    membership_status:
+      allOf:
+        - $ref: '#/components/schemas/MembershipStatus'
+      description: 04 §3.2 pins the literal value "CLOSED" for this response on completion.
+
+# --- Admin: share registry (04 §3.2) -----------------------------------------
+
+AdminShareRegistryResponse:
+  type: object
+  description: Response for `GET /admin/shares/registry` (04 §3.2).
+  properties:
+    entries:
+      type: array
+      description: >-
+        Issuance/redemption history entries (04 §3.2). type inferred element
+        shape; 04 names `entries[]` but does not specify it. Modelled as the E-5
+        MembershipShare representation.
+      items:
+        $ref: '#/components/schemas/MembershipShare'
+    equity_ledger_reconciliation:
+      type: object
+      additionalProperties: true
+      description: >-
+        Reconciliation of the registry to the equity ledger (04 §3.2). type
+        inferred; 04 names the key but does not specify the shape.
+    next_cursor:
+      type: string
+      nullable: true
+      description: >-
+        INFERRED per the §3.0 cursor-pagination convention; the §3.2 row lists
+        `entries[]` with "filters" but no pagination keys. Null/absent on the
+        last page.
+
+# --- Admin: eligibility snapshot (04 §3.2; E-38) -----------------------------
+
+EligibilitySnapshotResponse:
+  type: object
+  description: Response for `POST /admin/ballots/{ballot_id}/eligibility-snapshot` (04 §3.2; E-38).
+  properties:
+    snapshot_id:
+      type: string
+      format: uuid
+      description: EligibilitySnapshot id (E-38 `id`).
+    eligible_member_count:
+      type: integer
+      description: Count of vote-eligible members at capture (E-38 `eligible_member_count`).
+    registry_hash:
+      type: string
+      description: Tamper-evidence hash of the registry state (E-38 `registry_hash`, US-12.4).
+
+# --- Admin: member status transition (04 §3.2) -------------------------------
+
+MemberStatusTransitionRequest:
+  type: object
+  description: >-
+    Body for `POST /admin/members/{id}/status-transitions` (04 §3.2). Maker step of
+    maker-checker; effective only after checker approval.
+  required:
+    - target_status
+    - reason
+  properties:
+    target_status:
+      allOf:
+        - $ref: '#/components/schemas/MembershipStatus'
+      description: Target membership status (a DEC-4 value, 04 §3.2). Illegal transitions rejected.
+    reason:
+      type: string
+      description: Reason for the transition (04 §3.2 `reason`).
+    case_note:
+      type: string
+      description: Optional case note (04 §3.2 `case_note`).
+
+MemberStatusTransitionResponse:
+  type: object
+  description: Response for `POST /admin/members/{id}/status-transitions` (04 §3.2).
+  properties:
+    approval_id:
+      type: string
+      format: uuid
+      description: Maker-checker approval id (E-53 MakerCheckerApproval).
+    status:
+      type: string
+      description: 04 §3.2 pins the literal value "PENDING" (effective only after checker approval).
+      enum:
+        - 'PENDING'
