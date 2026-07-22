@@ -59,6 +59,30 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260721-currency-policy — currency re-derivation POLICY table (2026-07-22)
+
+Read-only run: gathered Mongolian income benchmarks, categorised all 312 USD amounts, produced a reviewable derivation table, and got the product owner to confirm the anchors. NO documents edited — a separate apply run does that.
+
+**What worked**
+- Splitting the currency migration into POLICY (this run) then APPLY (next) was the right call. The table surfaced ~6 real anchor decisions for the PO instead of 312 conversions; the PO approved in one pass.
+- Re-derivation, not conversion: limits anchored to median monthly wage W=₮2,278,400, landing ~6x below naive USD/MNT conversion — correct for lower local incomes, and the loan band independently bracketed the real NBFI avg outstanding loan (₮2.24M).
+
+**What the reviewers / scouts caught**
+- T2 found the killer that would have wrecked a blind pass: POLYSEMY + MAGNITUDE TRUNCATION. The regex \$[0-9]... can't tell the $25 share from $25M AUM; $1 is really $1.5M. Same digits, different meanings. LESSON FOR THE APPLY RUN: convert LINE-BY-LINE BY ROLE, never a global find-replace, and handle magnitude-truncated tokens by TRUE value.
+- T4 caught an arithmetic slip (5·W rounded to ₮11.5m not ₮11.4m) and, more importantly, VALIDATED the load-bearing unit inference three independent ways (the thousand-MNT wage reading — a wrong unit would have put every limit off by 1000x). The reviewer proving the anchor is the highest-value check in a re-derivation.
+- Honesty discipline held under research pressure: minimum wage [NOT OBTAINED] not fabricated; SCC ₮399k flagged cumulative-not-share-price; Mongolbank/FRC SPA blocks noted, not proxied around.
+
+**Confirmed anchors (product owner)**: share par ₮10,000 (PROVISIONAL, legal flag stays); step-up ₮550,000; P2P velocity ₮1,150,000; loan min ₮100,000; loan max ₮5,700,000; AML monitor ₮11,400,000. Round-ups DEFERRED with EP-10. KPIs held out. $88.20 blocked on rate model.
+
+**Planning advice for the APPLY run**
+- Line-by-line by role (polysemy). Held-out sets ($-KPIs, round-ups, $88.20) must KEEP their $ — so the usd DRIFT counter will drop from 312 but NOT to 0; re-baseline usd deliberately AFTER, and say so.
+- DEC-18 itself must change (USD -> MNT, whole tugrik, möngö obsolete). The gate's stale-MNT-3m and usd patterns interact — check verify-docs.sh behaviour on MNT amounts before applying.
+- Decide 06_ledger_addendum.md scope: it carries the SAME worked examples ($600k pool, $84.60) but is flagged do-not-implement. Convert for consistency or exclude — a scoping call.
+- Recompute worked examples from P=₮10,000 (dividend 8 shares + ₮5,000 residual), don't scale digits.
+
+**Verifier**: not run (no doc edits). Gate remains PASS from the prior run.
+**Backlog carried**: 10 items; the currency APPLY run is now well-specified by the confirmed table at .softhouse/runs/20260721-currency-policy.json.
+
 ### Run 20260721-dec35 — DEC-35 Mongolian P2P confirmation + lookup rate-limit (2026-07-21)
 
 Resolved the DEC-6/DEC-35 contradiction left open by run 20260720-161202. Product owner ratified "short form + rate-limit" via AskUserQuestion (present, so no delegation this time). 5-task chain, gate held at PASS throughout, all 4 branches merged.

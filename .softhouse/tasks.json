@@ -1,10 +1,10 @@
 {
-  "run_id": "20260721-currency-policy",
-  "feature": "Currency re-derivation \u2014 policy table (research + inventory + derivation), NO document edits",
-  "requirement": "The product owner chose to re-derive the 312 USD monetary values against Mongolian incomes rather than spot-convert. This is the READ-ONLY first half: gather Mongolian income/market benchmarks, inventory and categorise every amount, and produce a reviewable derivation table (per amount: category, anchor, rule, proposed MNT value, coupling/blocking flags). NO requirements document is edited in this run \u2014 a second run applies the confirmed table. The share price (DEC-11 par) is the keystone: worked examples like the $84.60 dividend reinvestment are arithmetically coupled to it and must be recomputed, not scaled. KPI amounts ($1,500 avg deposit, $25M/$150M AUM) are held OUT of this pass \u2014 they are the separate KPI-re-baselining backlog item and depend on sector size, not income.",
-  "status": "executing",
+  "run_id": null,
+  "feature": null,
+  "requirement": null,
+  "status": "idle",
   "backlog": [
-    "DEC-18 currency: USD -> MNT. 312 monetary values across 6 documents; 03_acceptance_criteria.md holds 216 of them. RE-DERIVATION chosen (not spot-convert). This run produces the policy table; a follow-up applies it.",
+    "DEC-18 currency APPLY: apply the PO-confirmed derivation table (.softhouse/runs/20260721-currency-policy.json) to the documents. Anchors: share par \u20ae10,000 provisional; step-up \u20ae550k; P2P velocity \u20ae1.15m; loan min \u20ae100k / max \u20ae5.7m; AML monitor \u20ae11.4m. LINE-BY-LINE by role (polysemy: $25 vs $25M). DEC-18 USD->MNT whole tugrik. Recompute worked examples from P. Round-ups/KPIs/$88.20 held. Re-baseline usd deliberately after. Decide 06_ledger_addendum scope.",
     "Payment rails: 56 ACH/FedNow/SEPA references -> Banksuljee (RTGS, above MNT 5,000,000) / ACH+ (at or below) / NETC for cards. Threshold set by Governor's order, so configuration not literal.",
     "Vendors: Stripe, Plaid, Lithic, Persona \u2014 leaked into schema field names and API error codes, so removal is a requirements change.",
     "KPI re-baselining: KPI-1.3 targets 100,000 members vs a total Mongolian SCC sector of 78,608; KPI-2.1 targets AUM ~1.5x the entire sector's assets. HELD OUT of the currency pass; do together with the KPI decision.",
@@ -15,83 +15,5 @@
     "'etsgiin ner' spacing vs 'etsgiin_ner' \u2014 decide canonical spelling before it propagates (01:256, and the DEC-6 row).",
     "Law on Financial Cooperatives committee-pass 2026-04-07 remains [UNVERIFIED]."
   ],
-  "tasks": [
-    {
-      "id": "T1",
-      "title": "Gather Mongolian income & market benchmarks",
-      "description": "RESEARCH ONLY \u2014 no document edits; deliverable is a committed handoff of benchmark anchors with provenance.\n\nGather the Mongolian figures needed to re-derive USD thresholds against real incomes. For EACH, give a value, a date, a source, and a confidence marker. The session's WebSearch budget is likely exhausted \u2014 use direct WebFetch of known primary URLs (World Bank API worked before: api.worldbank.org/v2/country/MNG/indicator/...; NSO PxWeb at data.1212.mn worked; Mongolbank pages). Do NOT route search through a fetch proxy. If a figure cannot be obtained, mark it [UNVERIFIED / NOT OBTAINED] \u2014 do NOT invent one. This project has already retracted a fabricated dataset; a stated gap is the correct answer.\n\nNeeded anchors (get what you can, flag the rest):\n1. Average and/or median MONTHLY wage/salary (MNT), most recent year.\n2. Statutory MINIMUM monthly wage (MNT).\n3. Typical MICROLOAN / small consumer-loan size range (MNT) \u2014 from NBFI/SCC/bank data if reachable.\n4. Typical member SHARE-CAPITAL contribution in the SCC sector (MNT). Note: prior research found the FRC sector at ~MNT 390bn assets / 78,608 members and member capital contributions ~MNT 28.9bn \u2014 derive a per-member figure and mark it as cumulative-capital-per-member, NOT necessarily one share's price.\n5. A everyday price point or two (a coffee, a typical daily spend) for sanity-checking small amounts.\n6. Current approximate USD/MNT rate, dated \u2014 for cross-checking ONLY, since the method is re-derivation not conversion.\n\nHandoff: ## Changes Made / ## Decisions / ## Sources / ## Unverified / ## Blockers / ## Follow-ups. Commit to branch softhouse/T1-benchmarks. End with `no code executed`.",
-      "agent_role": "analyst",
-      "executor": "agent",
-      "model": "sonnet",
-      "target": "research",
-      "files_hint": [],
-      "dependencies": [],
-      "status": "done",
-      "attempts": 1,
-      "note": "branch softhouse/T1-benchmarks @ e78c33b. Avg monthly wage 2025 MNT 2,726,900 / median 2,278,400 (NSO, med-conf on unit). Min wage NOT OBTAINED (correctly, not fabricated). Microloan proxy ~MNT 2.24m avg outstanding NBFI balance (labelled stock not origination). SCC member capital ~MNT 399k/member cumulative (flagged NOT a share price). USD/MNT ~3,580 cross-check only. Mongolbank/FRC SPA-blocked, not proxied."
-    },
-    {
-      "id": "T2",
-      "title": "Inventory & categorise all monetary amounts",
-      "description": "ANALYSIS ONLY \u2014 no edits; deliverable is a committed handoff: a complete inventory of every USD amount in idea-lab/final_requirements/*.md.\n\nEstablish the full set yourself: `grep -rnoE '\\$[0-9][0-9,]*(\\.[0-9]{2})?' idea-lab/final_requirements/*.md`. There are ~78 distinct values across ~312 occurrences \u2014 reconcile your counts and report them.\n\nFor each DISTINCT amount, record: the value; every file:line it occurs at; and its SEMANTIC CATEGORY. Categories (refine as needed): SHARE_PRICE (DEC-11 par, the keystone), AML_LIMIT (velocity/step-up e.g. DEC-33/DEC-36), LOAN_BOUND (DEC-45), WORKED_EXAMPLE (illustrative arithmetic \u2014 e.g. the $600,000 dividend pool, $84.60 = 3x$25 + $9.60 residual; these are COUPLED to primitives and must be recomputed, not scaled \u2014 identify which primitive each depends on), FEE (e.g. $0 P2P), KPI (avg deposit, AUM \u2014 flag as HELD OUT of this pass), ZERO ($0.00 -> MNT 0 trivially), OTHER (explain).\n\nCrucially, for WORKED_EXAMPLE amounts, state the arithmetic relationship (what equals what) so the later apply task can rebuild them from the new primitives rather than converting digits.\n\nAlso flag any amount whose category is genuinely ambiguous, and any that touch a still-open decision (share-price legality per DEC-11; the rate model for loan examples).\n\nHandoff sections as standard. Commit to branch softhouse/T2-inventory. End with `no code executed`.",
-      "agent_role": "analyst",
-      "executor": "agent",
-      "model": "opus",
-      "target": "requirements",
-      "files_hint": [],
-      "dependencies": [],
-      "status": "done",
-      "attempts": 1,
-      "note": "branch softhouse/T2-inventory @ f3e1615. 312 occ / 78 distinct (76 genuine \u2014 2 comma artifacts). CRITICAL: polysemy + magnitude truncation \u2014 $25 can be the share OR $25M AUM; $1 is $1.5M; bare ints stop at k/M. Blind find-replace would corrupt these; apply must go line-by-line by role. $25 par: 28/32 are DEC-11, 4 are coincidental P2P amounts. $88.20 loan installment BLOCKED on rate model DEC-48/49. Round-up nearest-USD mechanic does not survive MNT. KPI set held out. Honesty caveat: role-split within high-freq tokens ($100x20/$50x15/$25x32/$0x27) apportioned from context, ? markers on uncertain lines."
-    },
-    {
-      "id": "T3",
-      "title": "Build the derivation table",
-      "description": "ANALYSIS ONLY \u2014 no edits; deliverable is the reviewable derivation table, committed.\n\nRead T1's benchmarks (`git show softhouse/T1-benchmarks:.softhouse/handoff/20260721-currency-policy/T1.md`) and T2's inventory (`git show softhouse/T2-inventory:.softhouse/handoff/20260721-currency-policy/T2.md`).\n\nProduce a table with one row per DISTINCT amount (or per category where a category shares one rule): current USD value | category | anchor benchmark used | derivation rule (stated explicitly, e.g. 'AML daily limit = ~1x median monthly wage, rounded to a clean MNT figure') | proposed MNT value | confidence | coupling/blocking flag.\n\nRules:\n- Re-derive against Mongolian benchmarks, do NOT spot-convert at the USD/MNT rate. Where a benchmark is missing ([UNVERIFIED] from T1), propose the rule and leave the MNT value as PENDING-ANCHOR rather than inventing a number.\n- Set the PRIMITIVES first (share price, income anchor), then derive dependent limits, then show how each WORKED_EXAMPLE recomputes from the primitives \u2014 give the new arithmetic (e.g. new par value P, so entitlement E -> floor(E/P) shares + residual). The example must stay internally consistent.\n- Round to clean, culturally plausible MNT figures (Mongolians use whole-tugrik, postfix). Note the rounding rule you apply.\n- Explicitly list every amount you are NOT proposing a value for and why (KPI cluster held out; share price pending PO/legal; anything blocked).\n- This table is what the product owner will confirm before any document is edited. Make the anchor DECISIONS it embeds explicit and few, so the PO can approve/adjust them, not audit 78 rows.\n\nHonesty rule throughout: mark provenance; a PENDING-ANCHOR is correct, a fabricated MNT value is a defect.\n\nHandoff = the table + a short 'decisions the PO must confirm' list. Commit to branch softhouse/T3-derivation-table. End with `no code executed`.",
-      "agent_role": "analyst",
-      "executor": "agent",
-      "model": "opus",
-      "target": "requirements",
-      "files_hint": [],
-      "dependencies": [
-        "T1",
-        "T2"
-      ],
-      "status": "done",
-      "attempts": 1,
-      "note": "branch softhouse/T3-derivation-table @ bd2e6bc. Anchor W=median monthly wage MNT 2,278,400. Share par PENDING (rec \u20ae10,000). Income limits: step-up 0.25W=\u20ae550k, P2P velocity 0.50W=\u20ae1.15m, loan min 0.05W=\u20ae100k, loan max 2.5W=\u20ae5.7m, AML monitor 5W=\u20ae11.5m. Loan bounds bracket real NBFI avg outstanding \u20ae2.24m (corroboration). Worked examples as formulas over primitives. Round-up nearest \u20ae1,000 + \u20ae15,000 batch (flagged as sub-decision). $88.20 BLOCKED on rate model. KPI held out. 6 PO decisions. Load-bearing caveat: wage-unit inference (thousand MNT)."
-    },
-    {
-      "id": "T4",
-      "title": "Review the derivation table",
-      "description": "Independent adversarial review. Read T3's table (`git show softhouse/T3-derivation-table:.softhouse/handoff/20260721-currency-policy/T3.md`) and the two upstream handoffs.\n\nCheck: (1) every distinct amount from T2's inventory appears in the table or is explicitly listed as held-out/blocked \u2014 nothing silently dropped; (2) the method is genuinely re-derivation against a stated benchmark, not a spot-conversion wearing a rule; (3) WORKED_EXAMPLE arithmetic actually closes with the new primitives \u2014 recompute at least the $84.60 dividend example yourself against the proposed share price; (4) no MNT value is stated where its benchmark is [UNVERIFIED] \u2014 those must be PENDING-ANCHOR; (5) provenance real, no fabricated figures (this project has retracted a fabricated dataset before \u2014 weight this); (6) the 'decisions the PO must confirm' list is genuinely small and captures the real anchor choices (esp. share price); (7) the KPI cluster is correctly held out.\n\nReport findings severity/location/what/fix. Verdict APPROVED / MICRO-FIX / REJECTED. This run does NOT edit documents or the gate, so there is no verify-docs step. Commit to branch softhouse/T4-review-table. End with `no code executed`.",
-      "agent_role": "reviewer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "requirements",
-      "files_hint": [],
-      "dependencies": [
-        "T3"
-      ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
-    },
-    {
-      "id": "T5",
-      "title": "PO confirms the anchor decisions",
-      "description": "PRODUCT-OWNER DECISION. The orchestrator surfaces T3's 'decisions the PO must confirm' list (as reviewed by T4) to the user \u2014 via AskUserQuestion \u2014 focused on the few real anchor choices, above all the membership share price in MNT (the keystone) and confirmation of the derivation rules for the AML limits and loan bounds. Record the answers. This closes the policy run; a SEPARATE follow-up run applies the confirmed table to the documents. Do not edit any document here.",
-      "agent_role": "analyst",
-      "executor": "user",
-      "model": "sonnet",
-      "target": "governance",
-      "files_hint": [],
-      "dependencies": [
-        "T4"
-      ],
-      "status": "pending",
-      "attempts": 0,
-      "note": ""
-    }
-  ]
+  "tasks": []
 }
