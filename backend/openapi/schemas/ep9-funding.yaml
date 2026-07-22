@@ -1,0 +1,404 @@
+# EP-9 Community Funding Hub — component schemas.
+# Entities E-43..E-46 (04 §2.9) plus request/response shapes for §3.9.
+# This slice OWNS the funding entity schemas; EP-12 admin ($3.9 "Admin —" rows:
+# project review, grant-pool matches) $refs CommunityGrantPool / SurplusMatch
+# from here. Shared schemas (Money) are $ref'd, never redefined.
+
+# --- Enums (owned here; E-43..E-46) -------------------------------------------
+
+CommunityProjectStatus:
+  type: string
+  description: E-43 `status` (04 §2.9). Enum verbatim from 04.
+  enum:
+    - SUBMITTED
+    - IN_REVIEW
+    - PUBLISHED
+    - DECLINED
+    - FUNDED
+    - UNSUCCESSFUL_REFUNDED
+    - COMPLETED
+
+BackingStatus:
+  type: string
+  description: E-44 `status` (04 §2.9). Enum verbatim from 04.
+  enum:
+    - SETTLED
+    - REFUNDED
+
+BackingSource:
+  type: string
+  description: E-44 `source` (04 §2.9) — the two canonical contribution mechanisms (DEC-12/DEC-14). Enum verbatim from 04.
+  enum:
+    - SAVINGS
+    - ROUND_UP
+
+CommunityGrantPoolStatus:
+  type: string
+  description: E-45 `status` (04 §2.9). Matching halts automatically on pool/cap exhaustion. Enum verbatim from 04.
+  enum:
+    - OPEN
+    - EXHAUSTED
+    - CLOSED
+
+SurplusMatchStatus:
+  type: string
+  description: E-46 `status` (04 §2.9). Enum verbatim from 04.
+  enum:
+    - ACCRUING
+    - PENDING_BALLOT
+    - RELEASED
+    - HALTED_CAP
+    - HALTED_POOL
+
+# --- E-43 CommunityProject ----------------------------------------------------
+
+CommunityProject:
+  type: object
+  description: A listed initiative on the Pitch Board (04 §2.9 E-43, DEC-14, US-9.1). Valid Round-Up destination when PUBLISHED (DEC-12).
+  properties:
+    id:
+      type: string
+      format: uuid
+    submitter_member_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-43 `submitter_member_id?`.
+    submitter_org:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: E-43 `submitter_org?` JSON — registered local organization. INFERRED element shape; 04 pins JSON.
+    title:
+      type: string
+      maxLength: 120
+    goals:
+      type: string
+      description: E-43 `goals` Text.
+    budget:
+      type: object
+      additionalProperties: true
+      description: E-43 `budget` JSON. INFERRED element shape; 04 pins JSON.
+    timeline:
+      type: object
+      additionalProperties: true
+      description: E-43 `timeline` JSON. INFERRED element shape; 04 pins JSON.
+    impact_description:
+      type: string
+      description: E-43 `impact_description` Text.
+    documents:
+      type: array
+      description: E-43 `documents` JSON — object refs. INFERRED item shape; 04 pins JSON.
+      items:
+        type: object
+        additionalProperties: true
+    funding_goal:
+      $ref: '#/components/schemas/Money'
+    deadline:
+      type: string
+      format: date-time
+    all_or_nothing:
+      type: boolean
+      description: E-43 `all_or_nothing` — configurable refund rule (US-9.2).
+    amount_backed:
+      $ref: '#/components/schemas/Money'
+    amount_matched:
+      $ref: '#/components/schemas/Money'
+    amount_disbursed:
+      $ref: '#/components/schemas/Money'
+    status:
+      $ref: '#/components/schemas/CommunityProjectStatus'
+    review:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: E-43 `review` JSON — approve/decline with reasons (US-12 review queue). INFERRED element shape; 04 pins JSON.
+    updates:
+      type: array
+      description: E-43 `updates` — project-poster updates pushed to backers. INFERRED item shape; 04 pins a 1—N relation, not a schema.
+      items:
+        type: object
+        additionalProperties: true
+    impact_report:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: E-43 `impact_report` JSON — raised/matched/disbursed/spent-by-category + outcomes; modeled figures labeled "estimated" (DEC-15). INFERRED element shape.
+    created_at:
+      type: string
+      format: date-time
+    published_at:
+      type: string
+      format: date-time
+      nullable: true
+
+CommunityProjectCreate:
+  type: object
+  description: Body for `POST /community-projects` (04 §3.9). Created as `status:"SUBMITTED"` (admin review before publication). `422 DOCS_REQUIRED` if documents missing.
+  required:
+    - title
+    - goals
+    - budget
+    - timeline
+    - impact_description
+    - funding_goal
+    - deadline
+    - documents
+  properties:
+    title:
+      type: string
+      maxLength: 120
+    goals:
+      type: string
+    budget:
+      type: object
+      additionalProperties: true
+      description: 04 §3.9 `budget`. INFERRED element shape; 04 pins JSON (E-43).
+    timeline:
+      type: object
+      additionalProperties: true
+      description: 04 §3.9 `timeline`. INFERRED element shape; 04 pins JSON (E-43).
+    impact_description:
+      type: string
+    funding_goal:
+      $ref: '#/components/schemas/Money'
+    deadline:
+      type: string
+      format: date-time
+    documents:
+      type: array
+      description: 04 §3.9 `documents[]` — object refs. INFERRED item shape.
+      items:
+        type: object
+        additionalProperties: true
+
+CommunityProjectsResponse:
+  type: object
+  description: Response for `GET /community-projects?status=PUBLISHED` (04 §3.9) — Pitch Board list.
+  properties:
+    projects:
+      type: array
+      items:
+        $ref: '#/components/schemas/CommunityProject'
+
+# --- E-44 Backing -------------------------------------------------------------
+
+Backing:
+  type: object
+  description: >-
+    A member's direct contribution to a Community Project from the Primary
+    Savings Account (04 §2.9 E-44, DEC-14, US-9.2). Refunds automatic on a missed
+    all-or-nothing goal.
+  properties:
+    id:
+      type: string
+      format: uuid
+    project_id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    amount:
+      $ref: '#/components/schemas/Money'
+    recurring:
+      type: object
+      nullable: true
+      description: E-44 `recurring?` JSON `{frequency, next_run_at}`.
+      properties:
+        frequency:
+          type: string
+          description: 'type inferred; 04 names the key but does not pin an enum of frequencies'
+        next_run_at:
+          type: string
+          format: date-time
+    source:
+      $ref: '#/components/schemas/BackingSource'
+    transaction_id:
+      type: string
+      format: uuid
+      description: E-44 `transaction_id` FK -> Transaction (the money-movement posting).
+    refund_transaction_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-44 `refund_transaction_id?` FK -> Transaction (goal-missed refunds).
+    status:
+      $ref: '#/components/schemas/BackingStatus'
+    created_at:
+      type: string
+      format: date-time
+
+BackingCreate:
+  type: object
+  description: Body for `POST /community-projects/{id}/backings` (04 §3.9). Money-movement — Idempotency-Key required.
+  required:
+    - amount
+    - source_account_id
+  properties:
+    amount:
+      $ref: '#/components/schemas/Money'
+    recurring:
+      type: object
+      nullable: true
+      description: 04 §3.9 `recurring?{frequency}`.
+      properties:
+        frequency:
+          type: string
+          description: 'type inferred; 04 names the key but does not pin an enum of frequencies'
+    source_account_id:
+      type: string
+      format: uuid
+      description: 04 §3.9 `source_account_id` — Primary Savings.
+
+BackingsResponse:
+  type: object
+  description: Response for `GET /members/me/backings` (04 §3.9) — contribution history + per-project status/updates.
+  properties:
+    backings:
+      type: array
+      items:
+        $ref: '#/components/schemas/Backing'
+
+# --- Match status (member view; E-46) -----------------------------------------
+
+MatchStatusResponse:
+  type: object
+  description: >-
+    Response for `GET /community-projects/{id}/match-status` (04 §3.9) — full
+    traceability of matched funds.
+  properties:
+    match_ratio_bps:
+      type: integer
+      description: 04 §3.9 `match_ratio_bps` (<= 10000 = 1:1).
+    project_cap:
+      $ref: '#/components/schemas/Money'
+    accrued_amount:
+      $ref: '#/components/schemas/Money'
+    released_amount:
+      $ref: '#/components/schemas/Money'
+    release_ballot_ref:
+      type: string
+      nullable: true
+      description: 04 §3.9 `release_ballot_ref?` — release governed by a COMMUNITY_GRANT ballot, never staff discretion.
+    halted_reason:
+      type: string
+      nullable: true
+      description: '04 §3.9 `halted_reason?`. type inferred; 04 does not pin an enum (E-46 status carries HALTED_CAP/HALTED_POOL).'
+
+# --- Impact report (member view; US-9.4) --------------------------------------
+
+ProjectImpactResponse:
+  type: object
+  description: >-
+    Response for `GET /community-projects/{id}/impact` (04 §3.9) — allocation
+    report (raised/matched/disbursed/spent-by-category) + outcomes. Modeled
+    figures labeled `"estimated"` (DEC-15). INFERRED element shapes where 04
+    describes the report in prose rather than a fixed schema.
+  properties:
+    raised:
+      $ref: '#/components/schemas/Money'
+    matched:
+      $ref: '#/components/schemas/Money'
+    disbursed:
+      $ref: '#/components/schemas/Money'
+    spent_by_category:
+      type: array
+      description: 04 §3.9 spent-by-category breakdown. INFERRED item shape.
+      items:
+        type: object
+        properties:
+          category:
+            type: string
+          amount:
+            $ref: '#/components/schemas/Money'
+    outcomes:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: 04 §3.9 outcomes. INFERRED element shape.
+    estimated_label:
+      type: string
+      description: DEC-15 disclosure label carried with modeled figures.
+      enum:
+        - estimated
+    share_card_ref:
+      type: string
+      nullable: true
+      description: 04 §3.9 share card ref.
+
+# --- E-45 CommunityGrantPool (owned; EP-12 admin grant-pool ops $ref this) -----
+
+CommunityGrantPool:
+  type: object
+  description: >-
+    The surplus-funded Community Grant pool, per fiscal year (04 §2.9 E-45,
+    DEC-14, KPI-4.2). Owned here; EP-12 `GET/POST /admin/grant-pools/*` reference
+    this schema.
+  properties:
+    id:
+      type: string
+      format: uuid
+    fiscal_year:
+      type: integer
+      description: E-45 `fiscal_year` (unique).
+    funded_from_declaration_id:
+      type: string
+      format: uuid
+      description: E-45 FK -> DividendDeclaration (the 10% allocation, US-12.6).
+    pool_account_id:
+      type: string
+      format: uuid
+      description: E-45 FK -> Account (SYSTEM).
+    budget:
+      $ref: '#/components/schemas/Money'
+    committed:
+      $ref: '#/components/schemas/Money'
+    disbursed:
+      $ref: '#/components/schemas/Money'
+    status:
+      $ref: '#/components/schemas/CommunityGrantPoolStatus'
+
+# --- E-46 SurplusMatch (owned; EP-12 admin match ops $ref this) ----------------
+
+SurplusMatch:
+  type: object
+  description: >-
+    Match accrual/release for one project from the pool (<= 1:1, 04 §2.9 E-46,
+    DEC-14, US-9.3). Release is governed by a COMMUNITY_GRANT ballot, never staff
+    discretion. Owned here; EP-12 `POST /admin/grant-pools/{fy}/matches`
+    references this schema.
+  properties:
+    id:
+      type: string
+      format: uuid
+    pool_id:
+      type: string
+      format: uuid
+    project_id:
+      type: string
+      format: uuid
+    match_ratio_bps:
+      type: integer
+      description: E-46 `match_ratio_bps` (<= 10000 = 1:1).
+    project_cap:
+      $ref: '#/components/schemas/Money'
+    accrued_amount:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: E-46 `accrued_amount` — against eligible Backings.
+    release_ballot_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-46 `release_ballot_id?` FK -> Ballot (COMMUNITY_GRANT ballot).
+    released_amount:
+      $ref: '#/components/schemas/Money'
+    release_transaction_ids:
+      type: array
+      description: E-46 `release_transaction_ids` — full traceability of every matched posting.
+      items:
+        type: string
+        format: uuid
+    status:
+      $ref: '#/components/schemas/SurplusMatchStatus'

@@ -1,0 +1,306 @@
+# EP-7 Dividends & Surplus Distribution — component schemas.
+# Entities E-31..E-33 (04 §2.7) plus request/response shapes for §3.7.
+# This slice OWNS the dividend entity schemas; EP-12 admin ($3.7 "Admin —"
+# rows) $refs DividendDeclaration / DividendAllocation from here.
+# Shared schemas (Money, DividendElection enum) are $ref'd, never redefined.
+# Typing rule: id/*_id -> uuid; *_at -> date-time; money -> $ref Money;
+# 04-listed enums verbatim; untyped -> typed guess + inferred note.
+
+# --- Enums (owned here; not in the shared set) --------------------------------
+
+DividendDeclarationStatus:
+  type: string
+  description: E-32 `status` (04 §2.7). Dual approval (MakerCheckerApproval) required before `EXECUTING`. Enum verbatim from 04.
+  enum:
+    - DRAFT
+    - CALCULATED
+    - PENDING_APPROVAL
+    - APPROVED
+    - EXECUTING
+    - COMPLETED
+    - RECONCILED
+    - CANCELLED
+
+DividendAllocationStatus:
+  type: string
+  description: E-33 `status` (04 §2.7). Enum verbatim from 04.
+  enum:
+    - CALCULATED
+    - PAID
+    - REINVESTED
+    - FAILED_RETRYING
+    - ESCALATED
+
+PatronagePeriod:
+  type: string
+  description: E-31 `period` (04 §2.7). 04 lists only `MONTH`; no other value is pinned.
+  enum:
+    - MONTH
+
+# --- E-31 PatronageFactorRecord ----------------------------------------------
+
+PatronageFactorRecord:
+  type: object
+  description: >-
+    Per-member, per-period accumulation of the weighted patronage factors
+    (04 §2.7 E-31, DEC-10, US-7.1). Feeds the Dividend Estimator (US-7.3).
+  properties:
+    id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    fiscal_year:
+      type: integer
+      description: E-31 `fiscal_year`.
+    period:
+      $ref: '#/components/schemas/PatronagePeriod'
+    avg_savings_balance:
+      $ref: '#/components/schemas/Money'
+    transaction_volume:
+      $ref: '#/components/schemas/Money'
+    loan_repayment_performance_score:
+      type: string
+      description: >-
+        E-31 `loan_repayment_performance_score` Decimal(5,4). Carried as a
+        decimal string to preserve exactness (no floating-point); 04 pins the
+        Decimal(5,4) type but not the wire representation — string is INFERRED.
+    governance_participation_score:
+      type: string
+      description: >-
+        E-31 `governance_participation_score` Decimal(5,4); delegated
+        participation counts for the delegator (DEC-16). Decimal-as-string
+        representation is INFERRED (04 pins Decimal(5,4), not the wire form).
+    computed_at:
+      type: string
+      format: date-time
+      description: E-31 `computed_at`; recomputable deterministically from ledger/governance history.
+
+PatronageFactorsResponse:
+  type: object
+  description: Response for `GET /members/me/patronage-factors` (04 §3.7) — PatronageFactorRecords per E-31.
+  properties:
+    records:
+      type: array
+      items:
+        $ref: '#/components/schemas/PatronageFactorRecord'
+
+# --- Dividend Estimator (GET /dividends/estimate, US-7.3) ---------------------
+
+DividendEstimate:
+  type: object
+  description: >-
+    Response for `GET /dividends/estimate` (04 §3.7). The projected figure is
+    labeled `"estimated"` per DEC-15 (never a promise); `as_of` refreshed at
+    least daily.
+  properties:
+    estimated_annual_dividend:
+      $ref: '#/components/schemas/Money'
+    label:
+      type: string
+      description: DEC-15 disclosure label carried with the modeled figure.
+      enum:
+        - estimated
+    factor_breakdown:
+      type: object
+      description: >-
+        Per-factor contribution to the estimate (04 §3.7 `factor_breakdown`).
+        Keys verbatim from 04; per-key value types are not pinned by 04.
+      properties:
+        savings:
+          description: 'type inferred; 04 does not specify'
+        transactions:
+          description: 'type inferred; 04 does not specify'
+        repayment:
+          description: 'type inferred; 04 does not specify'
+        participation:
+          description: 'type inferred; 04 does not specify'
+    behavior_suggestions:
+      type: array
+      description: 04 §3.7 `behavior_suggestions[]{action, estimated_effect}`.
+      items:
+        type: object
+        properties:
+          action:
+            type: string
+          estimated_effect:
+            description: 'type inferred; 04 names the key but does not pin its type'
+    surplus_forecast_ref:
+      type: string
+      description: 04 §3.7 `surplus_forecast_ref`.
+    as_of:
+      type: string
+      format: date-time
+      description: 04 §3.7 `as_of` — refreshed at least daily.
+
+# --- Standing dividend election (PUT /members/me/dividend-election, US-7.2) ---
+
+DividendElectionRequest:
+  type: object
+  description: >-
+    Body for `PUT /members/me/dividend-election` (04 §3.7). Effective if set
+    before run execution (else `409 RUN_EXECUTING`).
+  required:
+    - payout_destination
+  properties:
+    payout_destination:
+      allOf:
+        - $ref: '#/components/schemas/DividendElection'
+      description: 04 §3.7 `payout_destination` (`SAVINGS | SHARE_REINVESTMENT`) — the shared DividendElection enum (E-1).
+
+DividendElectionResponse:
+  type: object
+  description: The member's standing dividend election after update (04 §3.7).
+  properties:
+    payout_destination:
+      $ref: '#/components/schemas/DividendElection'
+    effective:
+      type: boolean
+      description: True if the election was recorded before run execution (04 §3.7).
+      nullable: true
+
+# --- E-33 DividendAllocation (owned; EP-12 also $refs this) --------------------
+
+DividendAllocation:
+  type: object
+  description: >-
+    Per-member entitlement within a declaration (04 §2.7 E-33, US-7.1/US-7.2).
+    The member-facing `GET /dividends/allocations` projection
+    (`{fiscal_year, entitlement_amount, explainability, payout_destination,
+    status, paid_at}`) is a subset of this entity.
+  properties:
+    id:
+      type: string
+      format: uuid
+    dividend_declaration_id:
+      type: string
+      format: uuid
+      description: E-33 FK -> E-32 DividendDeclaration.
+    member_id:
+      type: string
+      format: uuid
+    fiscal_year:
+      type: integer
+      description: 04 §3.7 allocations row surfaces `fiscal_year` (derived from the declaration).
+    entitlement_amount:
+      $ref: '#/components/schemas/Money'
+    explainability:
+      type: object
+      additionalProperties: true
+      description: E-33 `explainability` JSON — full per-factor breakdown shown to the member. INFERRED element shape; 04 pins JSON, not a fixed schema.
+    payout_destination:
+      $ref: '#/components/schemas/DividendElection'
+    payout_transaction_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-33 `payout_transaction_id?` FK -> Transaction.
+    reinvested_share_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-33 `reinvested_share_id?` FK -> MembershipShare.
+    status:
+      $ref: '#/components/schemas/DividendAllocationStatus'
+    paid_at:
+      type: string
+      format: date-time
+      nullable: true
+    statement_ref:
+      type: string
+      nullable: true
+      description: E-33 `statement_ref?` — annual statement artifact (US-7.4).
+    tax_document_ref:
+      type: string
+      nullable: true
+      description: E-33 `tax_document_ref?` — jurisdictional tax artifact (US-7.4).
+
+DividendAllocationsResponse:
+  type: object
+  description: >-
+    Response for `GET /dividends/allocations` (04 §3.7). Items carry the
+    member-facing fields plus notification deep-link parity.
+  properties:
+    allocations:
+      type: array
+      items:
+        $ref: '#/components/schemas/DividendAllocation'
+
+# --- Dividend statements (GET /dividends/statements/{fiscal_year}, US-7.4) -----
+
+DividendStatementResponse:
+  type: object
+  description: Response for `GET /dividends/statements/{fiscal_year}` (04 §3.7). `404 NOT_YET_GENERATED` if not produced.
+  properties:
+    statement_url:
+      type: string
+      description: 04 §3.7 `statement_url`.
+    tax_documents:
+      type: array
+      description: 04 §3.7 `tax_documents[]{type, url}` — jurisdictional artifacts (US-7.4).
+      items:
+        type: object
+        properties:
+          type:
+            type: string
+            description: 'type inferred; 04 names the key but does not pin an enum'
+          url:
+            type: string
+
+# --- E-32 DividendDeclaration (owned; EP-12 admin runs $ref this) --------------
+
+DividendDeclaration:
+  type: object
+  description: >-
+    One annual Patronage Dividend run (04 §2.7 E-32, DEC-10, US-7.1/US-12.6).
+    Owned here; the `POST /admin/dividends/runs*` operations (EP-12) reference
+    this schema. Payout within 5 business days of ratification (KPI-4.3).
+  properties:
+    id:
+      type: string
+      format: uuid
+    fiscal_year:
+      type: integer
+      description: E-32 `fiscal_year` (unique per year).
+    ratified_surplus:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: E-32 `ratified_surplus` — AGM-ratified input.
+    agm_record_ref:
+      type: string
+      description: E-32 `agm_record_ref` — mandatory linkage to the ratifying AGM record.
+    distributable_pool:
+      $ref: '#/components/schemas/Money'
+    community_grant_allocation:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+      description: E-32 `community_grant_allocation` — the 10% Community Grant pool feed (KPI-4.2).
+    factor_weights:
+      type: object
+      additionalProperties: true
+      description: E-32 `factor_weights` JSON — configuration subject to FINANCIAL_POLICY ballots, never hard-coded. INFERRED element shape; 04 pins JSON.
+    factor_weights_config_ref:
+      type: string
+      format: uuid
+      description: E-32 `factor_weights_config_ref` FK -> ConfigurationParameter.
+    status:
+      $ref: '#/components/schemas/DividendDeclarationStatus'
+    calculation_run_ref:
+      type: string
+      description: E-32 `calculation_run_ref` — deterministic run ID for re-runs.
+    reconciliation_report_ref:
+      type: string
+      nullable: true
+      description: E-32 `reconciliation_report_ref?` (entitlements vs. postings vs. pool).
+    declared_at:
+      type: string
+      format: date-time
+    approved_at:
+      type: string
+      format: date-time
+      nullable: true
+    executed_at:
+      type: string
+      format: date-time
+      nullable: true
