@@ -62,9 +62,9 @@
         "backend/app/models/lending.py"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T3-orm-lending @ 611d80c. 12 lending entities E-19..30. Gate PASS. LoanStatus verbatim per DEC-20 (no DECLINED_CLOSED). 16 real enums. RATE MODEL BLOCKED confirmed: apr_bps fields are bare nullable Integer placeholders no value; circle_rate_discount_tiers OMITTED; zero rate literals. Cross-slice refs bare UUID (promote at merge)."
     },
     {
       "id": "T4",
@@ -95,9 +95,9 @@
         "backend/app/models/compliance.py"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T5-orm-platform @ 930584a. E-49..59 platform (notifications/admin/compliance). Gate PASS. StaffRole verbatim (7). ConfigurationParameter.value open JSONB (no seed baked). AuditLogEntry hash columns (WORM, no Timestamps mixin, own occurred_at). governing_ballot_id bare UUID -> promote at merge."
     },
     {
       "id": "T6",
@@ -112,7 +112,7 @@
         "T2",
         "T3"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
