@@ -33,9 +33,9 @@
         "backend/openapi/schemas/ep9-funding.yaml"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": "",
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T1-openapi-gov-div-fund @ 608f704. 29 ops (EP-7 5, EP-8 17, EP-9 7). Member-rows only (admin rows are EP-12; defined entity schemas for EP-12 to $ref). Secret ballot: VoteParticipation/VoteRecord separate, no member-to-choice join. IdempotencyKey only on backings. Enums only what 04 names (ProposalRejectionReason=QUORUM_NOT_MET only, none invented).",
       "description": "Paths+schemas for EP-8 governance (\u00a73.8), EP-7 dividends (\u00a73.7), EP-9 funding (\u00a73.9). $ref shared schemas, own the governance/dividend/funding entity schemas. branch softhouse/T1-openapi-gov-div-fund."
     },
     {
@@ -109,7 +109,7 @@
         "T1",
         "T4"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": "",
       "description": "Independent review of T1+T4: assemble+validate, coverage vs \u00a73.7/3.8/3.9/3.14 rows, no shared-schema redefinition, honesty. branch softhouse/T5-review-gov-webhooks."
