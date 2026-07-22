@@ -2,7 +2,7 @@
   "run_id": "20260722-openapi-rest",
   "feature": "OpenAPI 3.1 \u2014 remaining epics (EP-5..EP-13 + webhooks), completing the contract",
   "requirement": "Complete the OpenAPI architecture-of-record from 04 \u00a73.5-\u00a73.14 (~92 ops) on the merged foundation+core. $ref the 95 existing shared schemas (Money/Currency/Error/enums), never redefine. Entity-gated EP-5/6/10 tagged x-entity-gated, included but not-buildable. Honesty rule: type inferable, mark rest inferred, invent nothing. Money-movement POSTs carry IdempotencyKey. Vendors/rails verbatim + pending-Mongolia notes. Gate = validate.py.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "ORM schema + first Alembic migration from 04's 59 entities \u2014 NEXT after OpenAPI. Ledger tables from the CORRECTED design, NOT 06's five defects (inverted hold formula).",
     "OpenAPI follow-up slice: EP-5 cards (entity-gated), EP-6 lending (entity-gated), EP-7 dividends, EP-8 governance, EP-9 funding, EP-10 round-ups (entity-gated), EP-11 notifications, EP-13 compliance, \u00a73.14 webhooks, \u00a73.12 admin/back-office. Entity-gated epics must be tagged x-entity-gated in the spec, included for record completeness but marked not-buildable.",
@@ -33,7 +33,7 @@
         "backend/openapi/schemas/ep9-funding.yaml"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": "",
       "description": "Paths+schemas for EP-8 governance (\u00a73.8), EP-7 dividends (\u00a73.7), EP-9 funding (\u00a73.9). $ref shared schemas, own the governance/dividend/funding entity schemas. branch softhouse/T1-openapi-gov-div-fund."
@@ -54,7 +54,7 @@
         "backend/openapi/schemas/ep13-compliance.yaml"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": "",
       "description": "Paths+schemas for EP-12 admin (\u00a73.12, staffSSO + maker-checker), EP-13 compliance (\u00a73.13), EP-11 notifications (\u00a73.11). Prefix admin views of governance entities to avoid EP-8 collision. branch softhouse/T2-openapi-admin-compliance."
@@ -75,7 +75,7 @@
         "backend/openapi/schemas/ep10-roundups.yaml"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": "",
       "description": "Paths+schemas for ENTITY-GATED EP-5 cards (\u00a73.5), EP-6 lending (\u00a73.6), EP-10 round-ups (\u00a73.10). Every op tagged x-entity-gated + reason. No rate/computed-installment (blocked). branch softhouse/T3-openapi-entity-gated."
@@ -92,7 +92,7 @@
         "backend/openapi/schemas/webhooks.yaml"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": "",
       "description": "Paths+schemas for inbound webhooks (\u00a73.14) \u2014 vendor signature auth, not member OAuth2. Vendor names verbatim + pending-Mongolia note. branch softhouse/T4-openapi-webhooks."
