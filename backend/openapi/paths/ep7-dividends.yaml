@@ -1,0 +1,144 @@
+# EP-7 Dividends & Surplus Distribution — path operations (04 §3.7).
+# One operation per member-facing §3.7 row. The six "Admin —" rows
+# (`/admin/dividends/runs*`) are EP-12 territory and $ref the entity schemas
+# owned in schemas/ep7-dividends.yaml; they are intentionally NOT defined here.
+# None of these member operations moves money, so no Idempotency-Key is required
+# (the dividend PAYOUT execution — a money movement — lives on the EP-12 admin
+# `/execute` row, which carries Idempotency-Key per 04 §3.0).
+# All $refs are local.
+
+/api/v1/dividends/estimate:
+  get:
+    tags: [EP-7]
+    operationId: getDividendEstimate
+    summary: >-
+      Real-time patronage Dividend Estimator (04 §3.7). Auth: Member (ACTIVE).
+      The projected figure is labeled "estimated" (DEC-15); refreshed >= daily.
+    responses:
+      '200':
+        description: Dividend estimate with factor breakdown and behavior suggestions.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DividendEstimate'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/members/me/patronage-factors:
+  get:
+    tags: [EP-7]
+    operationId: getPatronageFactors
+    summary: >-
+      Transparency into the member's per-period patronage factor inputs
+      (04 §3.7, E-31). Auth: Member.
+    parameters:
+      - name: fiscal_year
+        in: query
+        required: false
+        description: 04 §3.7 query `fiscal_year`.
+        schema:
+          type: integer
+    responses:
+      '200':
+        description: PatronageFactorRecords per E-31.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatronageFactorsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/members/me/dividend-election:
+  put:
+    tags: [EP-7]
+    operationId: setDividendElection
+    summary: >-
+      Set the standing dividend payout election (04 §3.7, US-7.2). Auth: Member
+      (ACTIVE). Effective if set before run execution. Not a money movement — no
+      Idempotency-Key.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DividendElectionRequest'
+    responses:
+      '200':
+        description: Standing election recorded.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DividendElectionResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 RUN_EXECUTING — the annual run is already executing; the election can no longer change (04 §3.7).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+
+/api/v1/dividends/allocations:
+  get:
+    tags: [EP-7]
+    operationId: listDividendAllocations
+    summary: >-
+      List the member's dividend allocations with explainability and payout
+      status (04 §3.7, US-7.1/US-7.2). Auth: Member.
+    parameters:
+      - name: fiscal_year
+        in: query
+        required: false
+        description: 04 §3.7 query `fiscal_year`.
+        schema:
+          type: integer
+    responses:
+      '200':
+        description: Dividend allocations with per-factor explainability + notification deep-link parity.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DividendAllocationsResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+
+/api/v1/dividends/statements/{fiscal_year}:
+  get:
+    tags: [EP-7]
+    operationId: getDividendStatement
+    summary: >-
+      Retrieve the annual dividend statement and jurisdictional tax documents
+      (04 §3.7, US-7.4). Auth: Member.
+    parameters:
+      - name: fiscal_year
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      '200':
+        description: Statement URL and tax documents.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DividendStatementResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        description: 404 NOT_YET_GENERATED — the statement for this fiscal year has not been produced yet (04 §3.7).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'

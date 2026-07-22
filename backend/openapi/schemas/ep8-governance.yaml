@@ -1,0 +1,748 @@
+# EP-8 Democratic Governance & Voting — component schemas.
+# Entities E-34..E-42 (04 §2.8) plus request/response shapes for §3.8.
+# This slice OWNS the governance entity schemas.
+#
+# SECRET BALLOT (04 §5.1 / E-39/E-40): VoteParticipation (who voted) and
+# VoteRecord (what was chosen) are physically and relationally decoupled — they
+# share only `ballot_id`. Nothing here joins a member to a vote choice; the
+# vote-submission response returns a content-free receipt only. Shared schemas
+# (Money, RecipientIdentifierType, MembershipStatus, EligibilitySnapshotResponse)
+# are $ref'd, never redefined.
+
+# --- Enums (owned here; DEC-1/DEC-2/DEC-9 and E-36/E-37/E-41) ------------------
+
+BallotType:
+  type: string
+  description: E-37 `ballot_type` (DEC-2). Enum verbatim from 04.
+  enum:
+    - PROPOSAL
+    - BOARD_ELECTION
+
+BallotStatus:
+  type: string
+  description: E-37 `status` (04 §2.8). Enum verbatim from 04.
+  enum:
+    - SCHEDULED
+    - OPEN
+    - CLOSED
+    - CERTIFIED
+
+BallotOutcome:
+  type: string
+  description: >-
+    Certified ballot outcome (E-37 `results.outcome`; 04 §3.8 archive). `QUORUM_NOT_MET`
+    accompanies a `REJECTED` outcome. Values verbatim from 04.
+  enum:
+    - PASSED
+    - REJECTED
+    - QUORUM_NOT_MET
+
+VoteChoice:
+  type: string
+  description: E-40 `choice` for PROPOSAL ballots (DEC-1). Enum verbatim from 04.
+  enum:
+    - FOR
+    - AGAINST
+    - ABSTAIN
+
+ProposalCategory:
+  type: string
+  description: E-34 `category` (DEC-2). Board elections are `BallotType = BOARD_ELECTION`, not a category. Enum verbatim from 04.
+  enum:
+    - COMMUNITY_GRANT
+    - FINANCIAL_POLICY
+    - GOVERNANCE_BYLAW
+
+ProposalStatus:
+  type: string
+  description: E-34 `status` (DEC-9). `WITHDRAWN` available to the author before ballot open. Enum verbatim from 04.
+  enum:
+    - DRAFT
+    - SUBMITTED
+    - OPEN_FOR_VOTING
+    - PASSED
+    - REJECTED
+    - WITHDRAWN
+
+ProposalRejectionReason:
+  type: string
+  description: >-
+    E-34 `rejection_reason?` (04 §2.8). 04 states the enum includes `QUORUM_NOT_MET`
+    but does NOT enumerate its other members; only the one named value is listed here
+    (HONESTY RULE — no invented enum values).
+  enum:
+    - QUORUM_NOT_MET
+
+ProposalCommentStatus:
+  type: string
+  description: E-36 `status` (04 §2.8). Moderation actions audit-logged. Enum verbatim from 04.
+  enum:
+    - VISIBLE
+    - HIDDEN_BY_MODERATOR
+    - REMOVED
+    - AUTHOR_DELETED
+
+ProxyDelegationStatus:
+  type: string
+  description: E-41 `status` (04 §2.8). `AUTO_VOIDED` when the delegate becomes SUSPENDED/CLOSED. Enum verbatim from 04.
+  enum:
+    - ACTIVE
+    - REVOKED
+    - AUTO_VOIDED
+
+BallotFilter:
+  type: string
+  description: Query `filter` for `GET /ballots` (04 §3.8 `?filter=open|voted|closed`). Values verbatim from 04.
+  enum:
+    - open
+    - voted
+    - closed
+
+# --- E-42 ElectionCandidate ---------------------------------------------------
+
+ElectionCandidate:
+  type: object
+  description: Candidate slate entry for a `BOARD_ELECTION` ballot (04 §2.8 E-42, US-8.3).
+  properties:
+    id:
+      type: string
+      format: uuid
+    ballot_id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    statement:
+      type: string
+      description: E-42 `statement` Text.
+    profile_ref:
+      type: string
+      nullable: true
+      description: E-42 `profile_ref?` — photo/bio object ref.
+    votes_received:
+      type: integer
+      nullable: true
+      description: E-42 `votes_received?` — populated only at certification.
+    elected:
+      type: boolean
+      nullable: true
+      description: E-42 `elected`.
+    term:
+      type: object
+      nullable: true
+      description: E-42 `term` JSON `{starts_on, ends_on}` — term tracking for elected directors.
+      properties:
+        starts_on:
+          type: string
+          description: 'type inferred; 04 names the key inside `term` JSON but does not pin its format'
+        ends_on:
+          type: string
+          description: 'type inferred; 04 names the key inside `term` JSON but does not pin its format'
+
+# --- E-37 Ballot --------------------------------------------------------------
+
+Ballot:
+  type: object
+  description: A voting event (04 §2.8 E-37; glossary "Ballot"). Scheduled, certified and published by US-12.4.
+  properties:
+    id:
+      type: string
+      format: uuid
+    ballot_type:
+      $ref: '#/components/schemas/BallotType'
+    proposal_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-37 `proposal_id?` — for PROPOSAL ballots.
+    title:
+      type: string
+    context_pack:
+      type: object
+      additionalProperties: true
+      description: E-37 `context_pack` JSON — rationale, discussion link, category (US-8.1). INFERRED element shape; 04 pins JSON.
+    opens_at:
+      type: string
+      format: date-time
+    closes_at:
+      type: string
+      format: date-time
+    quorum_rule:
+      type: object
+      additionalProperties: true
+      description: E-37 `quorum_rule` JSON — configured quorum (% of eligible) and result-visibility rules. INFERRED element shape; 04 pins JSON.
+    seats:
+      type: integer
+      nullable: true
+      description: E-37 `seats?` — BOARD_ELECTION only.
+    eligibility_snapshot_id:
+      type: string
+      format: uuid
+      description: E-37 FK -> EligibilitySnapshot (E-38), captured at ballot open (US-2.3).
+    status:
+      $ref: '#/components/schemas/BallotStatus'
+    results:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: >-
+        E-37 `results` JSON, set at certification — tallies per VoteChoice (or per
+        candidate), turnout, Governance Participation Rate (DEC-16), outcome, and
+        certified-by maker-checker refs. INFERRED element shape; 04 pins JSON.
+    certified_at:
+      type: string
+      format: date-time
+      nullable: true
+
+# --- Ballot list / detail views (04 §3.8) -------------------------------------
+
+BallotListItem:
+  type: object
+  description: 04 §3.8 `GET /ballots` row item.
+  properties:
+    id:
+      type: string
+      format: uuid
+    ballot_type:
+      $ref: '#/components/schemas/BallotType'
+    title:
+      type: string
+    category:
+      allOf:
+        - $ref: '#/components/schemas/ProposalCategory'
+      description: 04 §3.8 `category?` — present for PROPOSAL ballots.
+      nullable: true
+    closes_at:
+      type: string
+      format: date-time
+    participation_rate_live:
+      type: number
+      description: '04 §3.8 `participation_rate_live` — live turnout. type inferred; 04 does not pin the numeric form.'
+    has_voted:
+      type: boolean
+    delegation_active:
+      type: boolean
+      nullable: true
+      description: 04 §3.8 `delegation_active?` — a delegate holds this ballot's scope for the caller.
+
+BallotsResponse:
+  type: object
+  description: Response for `GET /ballots?filter=open|voted|closed` (04 §3.8).
+  properties:
+    ballots:
+      type: array
+      items:
+        $ref: '#/components/schemas/BallotListItem'
+
+BallotDetail:
+  type: object
+  description: >-
+    Response for `GET /ballots/{id}` (04 §3.8) — full context: rationale,
+    discussion link, quorum rule, seats/candidates for elections, eligibility
+    per snapshot.
+  properties:
+    ballot:
+      $ref: '#/components/schemas/Ballot'
+    rationale:
+      type: string
+      nullable: true
+      description: 04 §3.8 rationale.
+    discussion_link:
+      type: string
+      nullable: true
+      description: 04 §3.8 discussion link.
+    quorum_rule:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: 04 §3.8 `quorum_rule` (mirrors E-37). INFERRED element shape.
+    seats:
+      type: integer
+      nullable: true
+      description: 04 §3.8 `seats?` — BOARD_ELECTION only.
+    candidates:
+      type: array
+      nullable: true
+      description: 04 §3.8 `candidates[]?` — profiles & statements for elections.
+      items:
+        $ref: '#/components/schemas/ElectionCandidate'
+    eligible:
+      type: boolean
+      nullable: true
+      description: 04 §3.8 eligibility per snapshot — whether the caller is on the EligibilitySnapshot.
+
+# --- Vote submission & receipt (secret ballot; E-39/E-40) ---------------------
+
+VoteSubmission:
+  type: object
+  description: >-
+    Body for `POST /ballots/{id}/votes` (04 §3.8). Provide `choice` for a
+    PROPOSAL ballot OR `candidate_selections[]` (<= `seats`) for a
+    BOARD_ELECTION ballot. Exactly one applies per ballot_type; 04 does not
+    express it as a strict schema union, so both are optional here and the
+    constraint is documented.
+  properties:
+    choice:
+      allOf:
+        - $ref: '#/components/schemas/VoteChoice'
+      description: 04 §3.8 `choice` (DEC-1) — for PROPOSAL ballots.
+      nullable: true
+    candidate_selections:
+      type: array
+      nullable: true
+      description: 04 §3.8 `candidate_selections[]` (<= `seats`) — ElectionCandidate ids for BOARD_ELECTION ballots.
+      items:
+        type: string
+        format: uuid
+
+VoteReceipt:
+  type: object
+  description: >-
+    Response for `POST /ballots/{id}/votes` (04 §3.8). Content-free: it proves
+    participation and returns a verifiable receipt hash but NEVER echoes the
+    choice (secret ballot, E-39/E-40). A direct vote supersedes any delegate-cast
+    vote on this ballot (DEC-8).
+  properties:
+    receipt_hash:
+      type: string
+      description: 04 §3.8 `receipt_hash` — verifiable, content-free (E-39 `receipt_hash`).
+    participation_recorded:
+      type: boolean
+      description: 04 §3.8 `participation_recorded:true`.
+
+ReceiptVerification:
+  type: object
+  description: >-
+    Response for `GET /ballots/{id}/receipt/{receipt_hash}` (04 §3.8). Confirms
+    the receipt is valid and counted — NEVER the choice.
+  properties:
+    valid:
+      type: boolean
+    counted:
+      type: boolean
+    superseded:
+      type: boolean
+      description: True if a direct vote superseded a delegate-cast vote for this ballot (DEC-8).
+
+# --- E-39 VoteParticipation (who voted — never how) ---------------------------
+
+VoteParticipation:
+  type: object
+  description: >-
+    Who voted — never how (04 §2.8 E-39). One row per member per ballot;
+    enforces one-member-one-vote. Deliberately shares only `ballot_id` with
+    VoteRecord — no key or storage link to a choice.
+  properties:
+    id:
+      type: string
+      format: uuid
+    ballot_id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    via_delegation:
+      type: boolean
+      description: E-39 `via_delegation`.
+    delegate_member_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-39 `delegate_member_id?` — set when a delegate cast it (counts toward the delegator's Governance Participation Rate, DEC-16).
+    superseded_by_direct_vote:
+      type: boolean
+      description: E-39 — set when the delegator's direct vote voids the delegate-cast choice for this ballot (DEC-8). The delegate is never shown the delegator's choice.
+    receipt_hash:
+      type: string
+      description: E-39 `receipt_hash` — verifiable receipt returned to the voter; reveals no vote content.
+    voted_at:
+      type: string
+      format: date-time
+    auth_context:
+      type: object
+      additionalProperties: true
+      description: E-39 `auth_context` JSON — step-up evidence (US-1.4). INFERRED element shape; 04 pins JSON.
+
+# --- E-40 VoteRecord (the anonymous choice — no member link) ------------------
+
+VoteRecord:
+  type: object
+  description: >-
+    The anonymous choice (04 §2.8 E-40). NO member FK and no relational or
+    storage-level link to VoteParticipation (separate storage node/keyspace);
+    tally-only reads. Represented as a SEPARATE schema per 04 §5.1 — this slice
+    never defines a field or endpoint joining a member to their choice.
+  properties:
+    id:
+      type: string
+      format: uuid
+    ballot_id:
+      type: string
+      format: uuid
+    choice:
+      allOf:
+        - $ref: '#/components/schemas/VoteChoice'
+      description: E-40 `choice?` (DEC-1) — for PROPOSAL ballots.
+      nullable: true
+    candidate_selections:
+      type: array
+      nullable: true
+      description: E-40 `candidate_selections?` — <= `seats` ElectionCandidate ids, for BOARD_ELECTION ballots.
+      items:
+        type: string
+        format: uuid
+    validity_proof:
+      type: string
+      description: E-40 `validity_proof` — blind-token proof binding the record to a valid (unlinkable) participation.
+    voided:
+      type: boolean
+      description: E-40 `voided` — set (via proof, not identity) when a direct vote overrides a delegate-cast record.
+    cast_at:
+      type: string
+      format: date-time
+      description: E-40 `cast_at` — coarsened to protect timing correlation.
+
+# --- E-34 Proposal ------------------------------------------------------------
+
+Proposal:
+  type: object
+  description: Member-initiated proposal (04 §2.8 E-34, DEC-2/DEC-9, US-8.2).
+  properties:
+    id:
+      type: string
+      format: uuid
+    author_member_id:
+      type: string
+      format: uuid
+    title:
+      type: string
+      maxLength: 150
+    summary:
+      type: string
+      maxLength: 500
+    body:
+      type: string
+    category:
+      $ref: '#/components/schemas/ProposalCategory'
+    status:
+      $ref: '#/components/schemas/ProposalStatus'
+    rejection_reason:
+      allOf:
+        - $ref: '#/components/schemas/ProposalRejectionReason'
+      nullable: true
+      description: E-34 `rejection_reason?`.
+    cosignature_threshold:
+      type: integer
+      description: E-34 `cosignature_threshold` (config).
+    cosignature_count:
+      type: integer
+      description: E-34 `cosignature_count` (derived) — auto-transition DRAFT -> SUBMITTED at threshold.
+    ballot_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-34 `ballot_id?` — set at scheduling; OPEN_FOR_VOTING is set only by ballot scheduling.
+    linked_project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-34 `linked_project_id?` — for COMMUNITY_GRANT release proposals (US-9.3).
+    created_at:
+      type: string
+      format: date-time
+    submitted_at:
+      type: string
+      format: date-time
+      nullable: true
+    resolved_at:
+      type: string
+      format: date-time
+      nullable: true
+
+ProposalCreate:
+  type: object
+  description: Body for `POST /proposals` (04 §3.8). Created as `status:"DRAFT"` (DEC-9).
+  required:
+    - title
+    - summary
+    - body
+    - category
+  properties:
+    title:
+      type: string
+      maxLength: 150
+    summary:
+      type: string
+      maxLength: 500
+    body:
+      type: string
+    category:
+      $ref: '#/components/schemas/ProposalCategory'
+
+ProposalPatch:
+  type: object
+  description: Body for `PATCH /proposals/{id}` (04 §3.8) — draft edits by the author.
+  properties:
+    title:
+      type: string
+      maxLength: 150
+    summary:
+      type: string
+      maxLength: 500
+    body:
+      type: string
+
+ProposalsResponse:
+  type: object
+  description: Response for `GET /proposals` (04 §3.8) — includes cosignature progress toward threshold.
+  properties:
+    proposals:
+      type: array
+      items:
+        $ref: '#/components/schemas/Proposal'
+
+# --- E-35 ProposalCosignature -------------------------------------------------
+
+ProposalCosignature:
+  type: object
+  description: 04 §2.8 E-35. Unique per (proposal, member).
+  properties:
+    id:
+      type: string
+      format: uuid
+    proposal_id:
+      type: string
+      format: uuid
+    member_id:
+      type: string
+      format: uuid
+    signed_at:
+      type: string
+      format: date-time
+
+CosignatureResponse:
+  type: object
+  description: Response for `POST /proposals/{id}/cosignatures` (04 §3.8). At threshold the proposal auto-SUBMITTED into the US-12.4 queue.
+  properties:
+    cosignature_count:
+      type: integer
+
+# --- E-36 ProposalComment -----------------------------------------------------
+
+ProposalComment:
+  type: object
+  description: Threaded discussion post on a proposal (04 §2.8 E-36, US-8.6). Threads lock read-only at OPEN_FOR_VOTING.
+  properties:
+    id:
+      type: string
+      format: uuid
+    proposal_id:
+      type: string
+      format: uuid
+    parent_comment_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: E-36 `parent_comment_id?` FK -> self.
+    author_member_id:
+      type: string
+      format: uuid
+    body:
+      type: string
+    status:
+      $ref: '#/components/schemas/ProposalCommentStatus'
+    moderation_reason:
+      type: string
+      nullable: true
+      description: E-36 `moderation_reason?` — moderation actions audit-logged.
+    report_count:
+      type: integer
+    created_at:
+      type: string
+      format: date-time
+
+CommentCreate:
+  type: object
+  description: Body for `POST /proposals/{id}/comments` (04 §3.8).
+  required:
+    - body
+  properties:
+    body:
+      type: string
+    parent_comment_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: 04 §3.8 `parent_comment_id?`.
+
+CommentsResponse:
+  type: object
+  description: Response for `GET /proposals/{id}/comments` (04 §3.8) — threaded comments.
+  properties:
+    comments:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProposalComment'
+
+CommentReportRequest:
+  type: object
+  description: Body for `POST /comments/{id}/reports` (04 §3.8).
+  required:
+    - reason
+  properties:
+    reason:
+      type: string
+
+CommentReportResponse:
+  type: object
+  description: Response for `POST /comments/{id}/reports` (04 §3.8) — enters the moderation queue (hide/remove with reason, audit-logged).
+  properties:
+    report_id:
+      type: string
+      format: uuid
+
+# --- E-41 ProxyDelegation -----------------------------------------------------
+
+DelegationScope:
+  type: object
+  description: >-
+    E-41 `scope` (04 §2.8/§3.8). Exactly one of `proposal_category` or
+    `ballot_type_scope` applies; UQ(delegator, scope) among ACTIVE delegations
+    (one delegate per scope).
+  properties:
+    proposal_category:
+      allOf:
+        - $ref: '#/components/schemas/ProposalCategory'
+      nullable: true
+      description: 04 §3.8 `scope.proposal_category?`.
+    ballot_type_scope:
+      type: string
+      nullable: true
+      description: 04 §3.8 `scope.ballot_type_scope` — fixed value `BOARD_ELECTION`.
+      enum:
+        - BOARD_ELECTION
+
+DelegateRef:
+  type: object
+  description: 04 §3.8 `delegate{identifier_type, identifier}` — resolves the delegate member.
+  required:
+    - identifier_type
+    - identifier
+  properties:
+    identifier_type:
+      $ref: '#/components/schemas/RecipientIdentifierType'
+    identifier:
+      type: string
+
+ProxyDelegation:
+  type: object
+  description: >-
+    Category-scoped, single-level, instantly revocable Proxy Delegation
+    (04 §2.8 E-41, DEC-8, US-8.4/US-8.5). A delegate cannot re-delegate
+    (server-enforced). Changes require step-up auth.
+  properties:
+    id:
+      type: string
+      format: uuid
+    delegator_member_id:
+      type: string
+      format: uuid
+    delegate_member_id:
+      type: string
+      format: uuid
+      description: E-41 FK -> Member (ACTIVE; consent recorded).
+    scope:
+      $ref: '#/components/schemas/DelegationScope'
+    status:
+      $ref: '#/components/schemas/ProxyDelegationStatus'
+    created_at:
+      type: string
+      format: date-time
+    revoked_at:
+      type: string
+      format: date-time
+      nullable: true
+
+ProxyDelegationCreate:
+  type: object
+  description: Body for `POST /proxy-delegations` (04 §3.8). Delegate consent flow; strictly single-level (DEC-8).
+  required:
+    - scope
+    - delegate
+  properties:
+    scope:
+      $ref: '#/components/schemas/DelegationScope'
+    delegate:
+      $ref: '#/components/schemas/DelegateRef'
+
+ProxyDelegationsResponse:
+  type: object
+  description: >-
+    Response for `GET /proxy-delegations` (04 §3.8) — governance dashboard:
+    current delegations per scope, both given and received.
+  properties:
+    given:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProxyDelegation'
+    received:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProxyDelegation'
+
+# --- Governance archive (US-8.7) ----------------------------------------------
+
+GovernanceArchiveEntry:
+  type: object
+  description: >-
+    A permanent archive record (04 §3.8, US-8.7): full DEC-9 proposal lifecycle
+    or certified election result, with turnout, Governance Participation Rate
+    (DEC-16), minutes refs and tamper-evidence hashes. Field set beyond those
+    named is INFERRED; 04 describes the archive in prose, not a fixed schema.
+  properties:
+    type:
+      type: string
+      description: 04 §3.8 archive filter `type` (proposal vs. election). type inferred.
+    year:
+      type: integer
+      description: 04 §3.8 archive filter `year`.
+    ballot_id:
+      type: string
+      format: uuid
+      nullable: true
+    proposal_id:
+      type: string
+      format: uuid
+      nullable: true
+    outcome:
+      allOf:
+        - $ref: '#/components/schemas/BallotOutcome'
+      nullable: true
+      description: 04 §3.8 outcome (PASSED/REJECTED incl. QUORUM_NOT_MET).
+    turnout:
+      type: number
+      nullable: true
+      description: '04 §3.8 turnout. type inferred; 04 does not pin the numeric form.'
+    governance_participation_rate:
+      type: number
+      nullable: true
+      description: '04 §3.8 Governance Participation Rate (DEC-16). type inferred.'
+    minutes_ref:
+      type: string
+      nullable: true
+      description: 04 §3.8 minutes refs.
+    tamper_evidence_hash:
+      type: string
+      nullable: true
+      description: 04 §3.8 tamper-evidence hashes.
+
+GovernanceArchiveResponse:
+  type: object
+  description: Response for `GET /governance/archive` (04 §3.8).
+  properties:
+    entries:
+      type: array
+      items:
+        $ref: '#/components/schemas/GovernanceArchiveEntry'
