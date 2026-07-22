@@ -86,9 +86,9 @@
       "dependencies": [
         "T2"
       ],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T4-openapi-ep3-ep4 @ b98fc6e. 32 paths/41 ops/48 schemas alone, PASS. All 15 \u00a73.3 + 13 \u00a73.4 rows covered. Idempotency-Key applied to every money-movement POST (incl. 2 rows 04 omits it \u2014 flagged inferred). External rails kept verbatim + pending-Banksuljee note; vendor leaks preserved + pending-migration note. ASSEMBLY (orchestrator-verified): T3+T4 together = 54 paths/64 ops/96 schemas but ONE duplicate schema: Currency (in both ep1-identity and ep3-accounts). Also: T4 stored IdempotencyKey under components.schemas and refs it from parameters arrays (validate.py does not merge components.parameters from slices) \u2014 needs a correctness check."
     },
     {
       "id": "T5",
@@ -103,7 +103,7 @@
         "T3",
         "T4"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
