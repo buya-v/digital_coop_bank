@@ -1,0 +1,571 @@
+# EP-1 — Identity, Onboarding & KYC component schemas (04 §3.1).
+# Built from the §3.1 endpoint rows plus entity definitions E-1 Member, E-2
+# KycSubmission, E-3 DeviceBinding, E-4 ConsentRecord (04 §2.2). Typing follows
+# T3 rules: id/*_id -> uuid; *_at -> date-time; money -> int64 (MNT minor units);
+# enums quoted verbatim from 04 where 04 LISTS the values. Fields 04 names but
+# does not type carry `description: 'type inferred; 04 does not specify'`.
+# Shared enums (MembershipStatus, KycStatus) are defined here once and referenced
+# by EP-2 schemas via #/components/schemas/... in the assembled document.
+
+# --- Shared enums (04 §2.2) --------------------------------------------------
+
+MembershipStatus:
+  type: string
+  description: Member lifecycle status. Enum values verbatim from 04 §2.2 E-1 (DEC-4).
+  enum:
+    - 'PENDING_KYC'
+    - 'PENDING_PAYMENT'
+    - 'ACTIVE'
+    - 'SUSPENDED'
+    - 'CLOSED'
+
+KycStatus:
+  type: string
+  description: KYC lifecycle status. Enum values verbatim from 04 §2.2 E-1 (DEC-19).
+  enum:
+    - 'NOT_STARTED'
+    - 'IN_PROGRESS'
+    - 'PENDING_REVIEW'
+    - 'APPROVED'
+    - 'REJECTED'
+
+Currency:
+  type: string
+  description: >-
+    ISO 4217 currency code accompanying a money amount (04 §3.0 "Money: integer
+    minor units + currency"). 04 §3.0 / DEC-18 states the literal "USD"; the
+    project baseline (CLAUDE.md non-negotiable, Mongolian market) mandates MNT
+    (ISO 4217 496). Represented as a free string code rather than a pinned enum to
+    avoid baking in the invalidated USD assumption. INFERRED representation; 04
+    does not model this as an enum.
+
+DividendElection:
+  type: string
+  description: Standing dividend payout election (04 §2.2 E-1 `dividend_election`, US-7.2). Enum verbatim from 04.
+  enum:
+    - 'SAVINGS'
+    - 'SHARE_REINVESTMENT'
+
+# --- Member profile (E-1) ----------------------------------------------------
+
+MemberProfile:
+  type: object
+  description: >-
+    Member representation returned by `GET /members/me` and after profile
+    mutations (04 §3.1; entity E-1, 04 §2.2). Encrypted-at-rest attributes are
+    modelled as their plaintext logical type. `legal_name` is derived read-only.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Internal member identifier (E-1 `id`).
+    member_id:
+      type: string
+      description: Member-facing non-guessable ID, e.g. `DCB-8K4W2M9X` (E-1 `member_id`, DEC-28).
+    ner:
+      type: string
+      description: Given name in Cyrillic — identity + sort key (E-1, DEC-6). Not a family name.
+    etsgiin_ner:
+      type: string
+      description: Patronymic in Cyrillic, ordered before `ner`; not a family name (E-1, DEC-6).
+    ovog:
+      type: string
+      description: Optional clan name in Cyrillic (E-1, DEC-6).
+    legal_name:
+      type: string
+      description: >-
+        Derived from `ovog`/`etsgiin_ner`/`ner`; read-only, never stored
+        editable (E-1, DEC-6). Attempting to set it yields 422 LEGAL_NAME_NOT_EDITABLE.
+    mrz_name_latin:
+      type: string
+      description: >-
+        Latin name captured verbatim from the document MRZ; KYC-populated, never
+        member-editable (E-1, DEC-6).
+    registration_number:
+      type: string
+      description: >-
+        National registration number: 2 Cyrillic letters + 8 digits (E-1, DEC-6).
+        Structural validation only; no check-digit formula.
+    address_line_1:
+      type: string
+      description: Structured postal address line 1 (E-1, DEC-6).
+    address_line_2:
+      type: string
+      description: Optional structured postal address line 2 (E-1, DEC-6).
+    city:
+      type: string
+      description: City (E-1, DEC-6).
+    region:
+      type: string
+      description: Region / aimag (E-1, DEC-6).
+    postal_code:
+      type: string
+      description: Postal code (E-1, DEC-6).
+    country:
+      type: string
+      description: Country (E-1, DEC-6).
+    email:
+      type: string
+      format: email
+      description: KYC-verified email; a P2P identifier (E-1, DEC-3).
+    phone_number:
+      type: string
+      description: KYC-verified phone in E.164 form; a P2P identifier (E-1, DEC-3).
+    date_of_birth:
+      type: string
+      format: date
+      description: Date of birth from KYC (E-1).
+    membership_status:
+      $ref: '#/components/schemas/MembershipStatus'
+    kyc_status:
+      $ref: '#/components/schemas/KycStatus'
+    joined_at:
+      type: string
+      format: date-time
+      description: Set at PENDING_PAYMENT -> ACTIVE transition (E-1 `joined_at`).
+    dividend_election:
+      $ref: '#/components/schemas/DividendElection'
+    onboarding_state:
+      type: object
+      additionalProperties: true
+      description: >-
+        Save/resume step state + KPI-1.1 instrumentation timestamps (E-1
+        `onboarding_state`, JSON). type inferred; 04 does not specify the shape.
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+
+# --- Onboarding application (04 §3.1) ----------------------------------------
+
+OnboardingApplicationCreateRequest:
+  type: object
+  description: Body for `POST /onboarding/applications` (04 §3.1). Pre-auth bootstrap.
+  required:
+    - email
+    - phone_number
+    - channel_verification_code
+  properties:
+    email:
+      type: string
+      format: email
+      description: Applicant email (verified contact channel).
+    phone_number:
+      type: string
+      description: Applicant phone, E.164 form (verified contact channel).
+    channel_verification_code:
+      type: string
+      description: >-
+        One-time code proving control of the contact channel. type inferred; 04
+        names the key but does not specify its format.
+
+OnboardingApplicationCreateResponse:
+  type: object
+  description: Response for `POST /onboarding/applications` (04 §3.1).
+  properties:
+    application_id:
+      type: string
+      format: uuid
+      description: New onboarding application id.
+    resume_token:
+      type: string
+      description: >-
+        Bootstrap token used to resume the application on later `Applicant`
+        calls. type inferred; 04 names the key but does not specify its format.
+    steps:
+      type: array
+      description: >-
+        Ordered onboarding steps for the applicant. type inferred; 04 names
+        `steps[]` but does not specify the element shape.
+      items:
+        type: object
+        additionalProperties: true
+    kyc_status:
+      allOf:
+        - $ref: '#/components/schemas/KycStatus'
+      description: KYC status at creation; 04 pins the literal value "NOT_STARTED" for this response.
+
+OnboardingApplicationCurrent:
+  type: object
+  description: Response for `GET /onboarding/applications/current` (04 §3.1).
+  properties:
+    application_id:
+      type: string
+      format: uuid
+    current_step:
+      type: string
+      description: >-
+        Identifier of the applicant's current step. type inferred; 04 names the
+        key but does not specify its type.
+    saved_data:
+      type: object
+      additionalProperties: true
+      description: Previously-saved step data. type inferred; 04 does not specify the shape.
+    progress_pct:
+      type: number
+      description: Completion percentage. type inferred; 04 names the key but does not specify its type.
+    kpi_timestamps:
+      type: object
+      additionalProperties:
+        type: string
+        format: date-time
+      description: >-
+        KPI-1.1 instrumentation timestamps (04 §3.1; E-1 `onboarding_state`).
+        type inferred; 04 names the key but does not specify the shape.
+
+OnboardingApplicationPatchRequest:
+  type: object
+  description: >-
+    Body for `PATCH /onboarding/applications/current` (04 §3.1). Step payloads
+    including DEC-6 identity fields. `registration_number` is provisional — the
+    KYC-verified value is authoritative (DEC-6(d)). `mrz_name_latin` is
+    KYC-populated, not client-supplied.
+  properties:
+    ner:
+      type: string
+      description: Given name, Cyrillic (DEC-6).
+    etsgiin_ner:
+      type: string
+      description: Patronymic, Cyrillic (DEC-6).
+    ovog:
+      type: string
+      description: Optional clan name, Cyrillic (DEC-6).
+    registration_number:
+      type: string
+      description: Provisional national registration number; a verified mismatch yields 409 REGISTRATION_NUMBER_MISMATCH (DEC-6(d)).
+    address_line_1:
+      type: string
+    address_line_2:
+      type: string
+    city:
+      type: string
+    region:
+      type: string
+    postal_code:
+      type: string
+    country:
+      type: string
+    date_of_birth:
+      type: string
+      format: date
+
+OnboardingApplicationPatchResponse:
+  type: object
+  description: Response for `PATCH /onboarding/applications/current` (04 §3.1).
+  properties:
+    current_step:
+      type: string
+      description: type inferred; 04 names the key but does not specify its type.
+    validation_results:
+      type: array
+      description: >-
+        Per-field validation outcomes. type inferred; 04 names
+        `validation_results` but does not specify the element shape.
+      items:
+        type: object
+        additionalProperties: true
+
+# --- Eligibility check (04 §3.1) ---------------------------------------------
+
+EligibilityCheckRequest:
+  type: object
+  description: Body for `POST /onboarding/eligibility-check` (04 §3.1).
+  properties:
+    eligibility_answers:
+      type: object
+      additionalProperties: true
+      description: >-
+        Data-driven answers per config `eligibility.common_bond_rules`. type
+        inferred; 04 names the key but does not specify the shape (config-driven).
+
+EligibilityCheckResponse:
+  type: object
+  description: Response for `POST /onboarding/eligibility-check` (04 §3.1).
+  properties:
+    eligible:
+      type: boolean
+      description: Whether the applicant meets the common-bond eligibility rules (04 §3.1).
+    failed_criteria:
+      type: array
+      description: Criteria the applicant failed. type inferred; 04 does not specify element shape.
+      items:
+        type: string
+    remediation:
+      type: array
+      description: Remediation guidance. type inferred; 04 does not specify element shape.
+      items:
+        type: string
+
+# --- KYC session / status (04 §3.1) ------------------------------------------
+
+KycSessionResponse:
+  type: object
+  description: Response for `POST /onboarding/kyc/sessions` (04 §3.1; E-2 KycSubmission).
+  properties:
+    persona_inquiry_id:
+      type: string
+      description: >-
+        Vendor KYC inquiry reference (E-2 `persona_inquiry_id`, DEC-5). The field
+        name is verbatim from 04; the concrete KYC vendor is market-dependent
+        (CLAUDE.md flags Persona as a US-market assumption).
+    session_token:
+      type: string
+      description: Client session token for the vendor KYC flow. type inferred; 04 does not specify its format.
+    kyc_status:
+      allOf:
+        - $ref: '#/components/schemas/KycStatus'
+      description: 04 pins the literal value "IN_PROGRESS" for this response.
+
+KycStatusResponse:
+  type: object
+  description: Response for `GET /onboarding/kyc/status` (04 §3.1).
+  properties:
+    kyc_status:
+      $ref: '#/components/schemas/KycStatus'
+    retry_guidance:
+      type: string
+      description: Optional capture guidance (blur/glare/lighting). type inferred; 04 gives examples only.
+    pending_review:
+      type: boolean
+      description: Whether the submission is awaiting manual review (04 §3.1).
+
+# --- MFA / step-up / devices (04 §3.1; E-3 DeviceBinding) --------------------
+
+MfaFactorType:
+  type: string
+  description: MFA factor type (04 §3.1 `POST /auth/mfa/enrollments`). Enum verbatim from 04.
+  enum:
+    - 'TOTP'
+    - 'SMS'
+    - 'BIOMETRIC'
+
+DevicePlatform:
+  type: string
+  description: Device platform (04 §2.2 E-3 `platform`). Enum verbatim from 04.
+  enum:
+    - 'IOS'
+    - 'ANDROID'
+    - 'WEB'
+
+MfaEnrollmentRequest:
+  type: object
+  description: Body for `POST /auth/mfa/enrollments` (04 §3.1).
+  required:
+    - factor_type
+    - device_fingerprint
+    - platform
+  properties:
+    factor_type:
+      $ref: '#/components/schemas/MfaFactorType'
+    device_fingerprint:
+      type: string
+      description: Device fingerprint (E-3 `device_fingerprint`).
+    platform:
+      $ref: '#/components/schemas/DevicePlatform'
+
+MfaEnrollmentResponse:
+  type: object
+  description: Response for `POST /auth/mfa/enrollments` (04 §3.1).
+  properties:
+    enrollment_id:
+      type: string
+      format: uuid
+      description: New enrollment id.
+    binding_challenge:
+      type: string
+      description: Challenge the client must satisfy to bind the factor. type inferred; 04 does not specify its format.
+
+StepUpRequest:
+  type: object
+  description: Body for `POST /auth/step-up` (04 §3.1, US-1.4).
+  required:
+    - factor_response
+    - action_context
+  properties:
+    factor_response:
+      type: string
+      description: Response to the step-up MFA/biometric challenge. type inferred; 04 does not specify its format.
+    action_context:
+      type: object
+      additionalProperties: true
+      description: >-
+        The sensitive action the step-up token will authorize. type inferred; 04
+        names the key but does not specify the shape.
+
+StepUpResponse:
+  type: object
+  description: Response for `POST /auth/step-up` (04 §3.1). Mints the single-use step-up token.
+  properties:
+    step_up_token:
+      type: string
+      description: >-
+        Short-lived, single-use step-up assertion (04 §3.1, §5.1). Presented on
+        sensitive operations (see root securityScheme `stepUpAssertion`).
+    expires_at:
+      type: string
+      format: date-time
+      description: Token expiry (04 §3.1 `expires_at`).
+
+Device:
+  type: object
+  description: Trusted device summary (04 §3.1 `GET /auth/devices`; E-3 DeviceBinding).
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Device binding id (E-3 `id`).
+    platform:
+      $ref: '#/components/schemas/DevicePlatform'
+    bound_at:
+      type: string
+      format: date-time
+      description: When the device was bound (E-3 `bound_at`).
+    last_seen_at:
+      type: string
+      format: date-time
+      description: Last activity (E-3 `last_seen_at`).
+
+DeviceListResponse:
+  type: object
+  description: Response for `GET /auth/devices` (04 §3.1).
+  properties:
+    devices:
+      type: array
+      items:
+        $ref: '#/components/schemas/Device'
+    next_cursor:
+      type: string
+      nullable: true
+      description: >-
+        INFERRED per the §3.0 cursor-pagination convention ("all list
+        endpoints"); the §3.1 row lists `devices[]` without pagination keys.
+        Null/absent on the last page.
+
+DeviceRevokeResponse:
+  type: object
+  description: Response for `DELETE /auth/devices/{id}` (04 §3.1).
+  properties:
+    status:
+      type: string
+      description: 04 pins the literal value "REVOKED" for this response (E-3 `status` REVOKED).
+      enum:
+        - 'REVOKED'
+
+# --- Profile mutation (04 §3.1) ----------------------------------------------
+
+ProfilePatchRequest:
+  type: object
+  description: >-
+    Body for `PATCH /members/me/profile` (04 §3.1). DEC-6 fields plus contact
+    channels. KYC-relevant changes require step-up.
+  properties:
+    ner:
+      type: string
+    etsgiin_ner:
+      type: string
+    ovog:
+      type: string
+    registration_number:
+      type: string
+    address_line_1:
+      type: string
+    address_line_2:
+      type: string
+    city:
+      type: string
+    region:
+      type: string
+    postal_code:
+      type: string
+    country:
+      type: string
+    email:
+      type: string
+      format: email
+    phone_number:
+      type: string
+
+ProfilePatchResponse:
+  type: object
+  description: Response for `PATCH /members/me/profile` (04 §3.1).
+  properties:
+    profile:
+      $ref: '#/components/schemas/MemberProfile'
+    reverification_required:
+      type: boolean
+      description: >-
+        True when name/address/phone/email changes trigger re-verification or
+        admin review (04 §3.1).
+
+# --- Consents (04 §3.1; E-4 ConsentRecord) -----------------------------------
+
+ConsentType:
+  type: string
+  description: Consent document type (04 §2.2 E-4 `consent_type`). Enum verbatim from 04.
+  enum:
+    - 'TERMS_AND_BYLAWS'
+    - 'PRIVACY_POLICY'
+    - 'E_SIGN_DISCLOSURE'
+    - 'MARKETING'
+    - 'DATA_SHARING_OPEN_BANKING'
+    - 'IMPACT_SPOTLIGHT'
+
+ConsentAction:
+  type: string
+  description: Consent action (04 §2.2 E-4 `action`; §3.1). Enum verbatim from 04.
+  enum:
+    - 'GRANTED'
+    - 'WITHDRAWN'
+
+ConsentUpsertRequest:
+  type: object
+  description: Body for `PUT /members/me/consents/{consent_type}` (04 §3.1).
+  required:
+    - action
+    - version
+  properties:
+    action:
+      $ref: '#/components/schemas/ConsentAction'
+    version:
+      type: string
+      description: Document version consented to (E-4 `version`).
+
+ConsentRecord:
+  type: object
+  description: Append-only consent record (04 §2.2 E-4; §3.1).
+  properties:
+    id:
+      type: string
+      format: uuid
+    consent_type:
+      $ref: '#/components/schemas/ConsentType'
+    action:
+      $ref: '#/components/schemas/ConsentAction'
+    version:
+      type: string
+      description: Document version consented to (E-4 `version`).
+    recorded_at:
+      type: string
+      format: date-time
+      description: When the consent action was recorded (E-4 `recorded_at`).
+    channel:
+      type: string
+      description: Channel through which consent was captured (E-4 `channel`).
+
+ConsentListResponse:
+  type: object
+  description: Response for `GET /members/me/consents` and `PUT .../{consent_type}` (04 §3.1).
+  properties:
+    consent_records:
+      type: array
+      description: Append-only consent history (04 §3.1).
+      items:
+        $ref: '#/components/schemas/ConsentRecord'
+    next_cursor:
+      type: string
+      nullable: true
+      description: >-
+        INFERRED per the §3.0 cursor-pagination convention; the §3.1 row lists
+        `consent_records[]` without pagination keys. Null/absent on the last page.

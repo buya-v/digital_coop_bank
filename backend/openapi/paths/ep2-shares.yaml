@@ -1,0 +1,317 @@
+# EP-2 — Membership Shares & Equity paths (04 §3.2).
+# One operation per §3.2 row. Member/applicant rows inherit the document default
+# (memberOAuth2); step-up rows add `stepUpAssertion`; `admin/...` rows use the
+# staff audience (`staffSSO`, root securityScheme; 04 §3.0). Money-movement POSTs
+# carry an `Idempotency-Key` header (04 §3.0). Common error codes apply everywhere
+# (04 §3.0); each operation refs the root error responses for the codes in its row
+# plus the universal 401/403/429 where applicable.
+
+/api/v1/onboarding/share-purchase:
+  post:
+    operationId: purchaseMembershipShare
+    tags: [EP-2]
+    summary: Purchase the mandatory membership share (activates membership).
+    description: >-
+      04 §3.2 — applicant with `kyc_status=APPROVED` / `MembershipStatus=PENDING_PAYMENT`.
+      Money-movement POST: `Idempotency-Key` required (04 §3.0).
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Idempotency key (UUID); replays return the original result (04 §3.0).
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SharePurchaseRequest'
+    responses:
+      '200':
+        description: >-
+          Share purchased; membership activated on settlement (04 §3.2). INFERRED
+          status code 200; 04 names the body but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SharePurchaseResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '402':
+        description: 402 PAYMENT_FAILED — the share payment failed (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: >-
+          409 WRONG_MEMBERSHIP_STATE — the member is not in PENDING_PAYMENT (04
+          §3.2). Also carries 409 IDEMPOTENCY_CONFLICT on a replayed key with a
+          different payload (04 §3.0).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 AMOUNT_MISMATCH — `amount` does not equal the configured par value (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/onboarding/share-purchase/{transaction_id}:
+  get:
+    operationId: getSharePurchaseStatus
+    tags: [EP-2]
+    summary: Poll share-purchase settlement status.
+    parameters:
+      - name: transaction_id
+        in: path
+        required: true
+        description: Subscription transaction id (E-5).
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Share-purchase status (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SharePurchaseStatusResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me/membership:
+  get:
+    operationId: getMyMembership
+    tags: [EP-2]
+    summary: Get membership status, rights and practical-meaning copy.
+    description: 04 §3.2 — available to a member of any membership status.
+    responses:
+      '200':
+        description: Membership summary (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipSummary'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me/shares:
+  get:
+    operationId: listMyShares
+    tags: [EP-2]
+    summary: List the member's shares and total equity.
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Member shares and total equity (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SharesListResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me/closure-preconditions:
+  get:
+    operationId: getClosurePreconditions
+    tags: [EP-2]
+    summary: Check membership-closure preconditions.
+    description: 04 §3.2 — requires Member (ACTIVE).
+    responses:
+      '200':
+        description: Closure preconditions and any blockers (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosurePreconditions'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/members/me/closure-requests:
+  post:
+    operationId: createClosureRequest
+    tags: [EP-2]
+    summary: Request membership closure and share redemption (step-up).
+    description: >-
+      04 §3.2 — Member (ACTIVE); step-up required. Triggers share redemption (a
+      money movement), so an `Idempotency-Key` header is required per 04 §3.0.
+      INFERRED: the §3.2 row does not list `Idempotency-Key`, but §3.0 mandates it
+      on every money-movement POST and closure redeems the share to a transaction.
+    security:
+      - memberOAuth2: []
+        stepUpAssertion: []
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: >-
+          Idempotency key (UUID), 04 §3.0. INFERRED for this row — see the
+          operation description.
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ClosureRequestCreate'
+    responses:
+      '200':
+        description: Closure request accepted; redemption terms returned (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosureRequestResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 PRECONDITIONS_NOT_MET — closure preconditions are unmet (response carries the blockers) (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/admin/shares/registry:
+  get:
+    operationId: getShareRegistry
+    tags: [EP-2]
+    summary: Read the share registry (staff).
+    description: 04 §3.2 — AUDITOR / OPS_ADMIN / GOVERNANCE_ADMIN; staff token audience.
+    security:
+      - staffSSO: []
+    parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Registry entries and equity-ledger reconciliation (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminShareRegistryResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/admin/ballots/{ballot_id}/eligibility-snapshot:
+  post:
+    operationId: createEligibilitySnapshot
+    tags: [EP-2]
+    summary: Capture the vote-eligible member snapshot for a ballot (staff).
+    description: 04 §3.2 — GOVERNANCE_ADMIN; also invoked automatically at ballot open. Staff token audience.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: ballot_id
+        in: path
+        required: true
+        description: Ballot id (E-38 `ballot_id`).
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '201':
+        description: >-
+          Snapshot captured (04 §3.2). INFERRED status code 201 (resource
+          creation); 04 names the body but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EligibilitySnapshotResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: >-
+          409 SNAPSHOT_EXISTS — a snapshot already exists for this ballot; or 409
+          BALLOT_NOT_OPENING — the ballot is not in an opening state (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+
+/api/v1/admin/members/{id}/status-transitions:
+  post:
+    operationId: createMemberStatusTransition
+    tags: [EP-2]
+    summary: Propose a member status transition (maker-checker, staff).
+    description: 04 §3.2 — OPS_ADMIN maker; effective only after checker approval. Staff token audience.
+    security:
+      - staffSSO: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Member id (E-1 `id`).
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MemberStatusTransitionRequest'
+    responses:
+      '200':
+        description: >-
+          Transition proposed; pending checker approval (04 §3.2). INFERRED status
+          code 200; 04 names the body but not the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberStatusTransitionResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '409':
+        description: 409 PENDING_TRANSITION_EXISTS — a pending transition already exists for this member (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        description: 422 ILLEGAL_TRANSITION — the requested transition is not permitted by the DEC-4 state machine (04 §3.2).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
