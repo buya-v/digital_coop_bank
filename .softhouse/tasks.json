@@ -1,19 +1,114 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
+  "run_id": "20260722-openapi-core",
+  "feature": "OpenAPI 3.1 derivation — foundation + money-movement core (EP-1..EP-4)",
+  "requirement": "Derive a real, valid OpenAPI 3.1 contract from 04_technical_architecture.md §3, as the architecture-of-record (ADR 0001, spec-first). This slice covers the foundation (§3.0 conventions + §5.1 security) and the money-movement core: EP-1 Identity/Onboarding, EP-2 Shares, EP-3 Accounts/Savings, EP-4 Payments (~46 endpoints). The remaining epics (governance, compliance, notifications, dividends, funding, webhooks, and the entity-gated cards/lending/round-ups) are a follow-up slice. 04 gives endpoint rows as method/path/auth/request-KEYS/response-KEYS/errors with NO types — so the honesty rule is central: type what is genuinely inferable (id->uuid, *_at->date-time, money->integer int64 MNT minor units, status->enum ONLY where 04 lists the values) and mark everything else 'type inferred, 04 does not specify' rather than fabricating. The gate is backend/openapi/validate.py (assembles root+paths+schemas, validates as 3.1, checks every $ref resolves).",
+  "status": "planning",
   "backlog": [
-    "DEC-18 currency APPLY: apply the PO-confirmed derivation table (.softhouse/runs/20260721-currency-policy.json) to the documents. Anchors: share par \u20ae10,000 provisional; step-up \u20ae550k; P2P velocity \u20ae1.15m; loan min \u20ae100k / max \u20ae5.7m; AML monitor \u20ae11.4m. LINE-BY-LINE by role (polysemy: $25 vs $25M). DEC-18 USD->MNT whole tugrik. Recompute worked examples from P. Round-ups/KPIs/$88.20 held. Re-baseline usd deliberately after. Decide 06_ledger_addendum scope.",
-    "Payment rails: 56 ACH/FedNow/SEPA references -> Banksuljee (RTGS, above MNT 5,000,000) / ACH+ (at or below) / NETC for cards. Threshold set by Governor's order, so configuration not literal.",
-    "Vendors: Stripe, Plaid, Lithic, Persona \u2014 leaked into schema field names and API error codes, so removal is a requirements change.",
-    "KPI re-baselining: KPI-1.3 targets 100,000 members vs a total Mongolian SCC sector of 78,608; KPI-2.1 targets AUM ~1.5x the entire sector's assets. HELD OUT of the currency pass; do together with the KPI decision.",
-    "Rate model: DEC-48's 12% APR base sits below the 17.45% bank-funded market rate; DEC-49's 6% floor is the subsidised state mortgage rate. Both sides inverted. Interacts with loan-bound amounts but is a % decision, separate.",
-    "00_market_research.md is entirely US/EU-framed \u2014 needs rewriting against the Mongolian market, not editing.",
-    "verify-docs.sh blind spot: prose expressions of the Western name model (04:829, 04:1087) evade the token check. Add a DRIFT counter for the prose form.",
-    "verify-docs.sh n_snake_name has no context exclusion unlike the money-type check. Decide if intended.",
-    "'etsgiin ner' spacing vs 'etsgiin_ner' \u2014 decide canonical spelling before it propagates (01:256, and the DEC-6 row).",
-    "Law on Financial Cooperatives committee-pass 2026-04-07 remains [UNVERIFIED]."
+    "OpenAPI follow-up slice: EP-5 cards (entity-gated), EP-6 lending (entity-gated), EP-7 dividends, EP-8 governance, EP-9 funding, EP-10 round-ups (entity-gated), EP-11 notifications, EP-13 compliance, §3.14 webhooks, §3.12 admin/back-office. Entity-gated epics must be tagged x-entity-gated in the spec, included for record completeness but marked not-buildable.",
+    "ORM schema + first Alembic migration from 04's 59 entities — the NEXT architecture task after OpenAPI. Ledger tables must come from the CORRECTED ledger design, NOT encode 06_ledger_addendum's five known defects (esp. the inverted hold formula).",
+    "DEC-18 currency APPLY: apply the PO-confirmed derivation table (.softhouse/runs/20260721-currency-policy.json). Anchors: share par ₮10,000 provisional; step-up ₮550k; P2P velocity ₮1.15m; loan min ₮100k / max ₮5.7m; AML monitor ₮11.4m. LINE-BY-LINE by role (polysemy $25 vs $25M). Round-ups/KPIs/$88.20 held. Re-baseline usd after. Decide 06 scope.",
+    "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
+    "Vendors: Stripe/Plaid/Lithic/Persona leaked into schema field names and error codes — removal is a requirements change.",
+    "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
+    "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
+    "00_market_research.md entirely US/EU-framed — rewrite against Mongolia.",
+    "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
+    "'etsgiin ner' vs 'etsgiin_ner' spacing — decide canonical spelling."
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "OpenAPI foundation — root.yaml (info, security, common responses, tags)",
+      "description": "Build backend/openapi/root.yaml: the shared foundation every path file hangs on. NO paths in this file (paths live in openapi/paths/*.yaml). Derive from 04_technical_architecture.md §3.0 Conventions (743-755) and §5.1 Security.\n\nMust include:\n- openapi: 3.1.0; info (title, version 0.0.1, a description saying this is derived from 04 §3 and is the architecture-of-record); servers: [] (data-residency: operator-chosen, do not hardcode a URL).\n- components.securitySchemes: OAuth2 Authorization-Code + PKCE and OIDC per §5.1; a scheme/marker for the step-up assertion §5.1 requires on sensitive actions (document how step-up is represented — a scope, a header, or an x- extension — and say it is inferred if 04 does not pin the mechanism).\n- security: the default (member OAuth2) at the document level.\n- components.responses: the common error envelope from §3.0 (correlation_id + code + message shape — quote 04's exact envelope), plus reusable responses for the standard error codes that recur across the endpoint rows: 401, 403, 404, 409, 422, 429. Give each a description; reference a generic Error schema.\n- components.schemas.Error: the error envelope schema (from §3.0).\n- components.parameters: the cursor pagination parameters from §3.0 (04 says list endpoints use cursor pagination) — e.g. cursor, limit.\n- tags: one per epic EP-1..EP-13 plus 'ops' and 'webhooks' (14+2), each with a one-line description, so later path files just reference them.\n\nHONESTY RULE: where §3.0/§5.1 do not pin a detail (e.g. exact step-up mechanism, exact pagination param names), pick a reasonable representation and mark it in the description as inferred. Do not present an invented detail as if 04 stated it.\n\nSELF-CHECK before finishing: run `python3 backend/openapi/validate.py` — it must reach VERDICT: PASS with your root.yaml (0 paths is fine at this stage).\n\nCommit root.yaml + your handoff (.softhouse/handoff/20260722-openapi-core/T1.md) to branch softhouse/T1-openapi-foundation. End with `no code executed`... actually you DID produce a spec artifact — end with `openapi validated: <paths>/<ops>/<schemas>` and `no application logic written`.",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": ["backend/openapi/root.yaml"],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T2",
+      "title": "Review the OpenAPI foundation",
+      "description": "Independent adversarial review of branch softhouse/T1-openapi-foundation. Read `git show softhouse/T1-openapi-foundation:backend/openapi/root.yaml` and the handoff.\n\nCheck: (1) valid OpenAPI 3.1 — run backend/openapi/validate.py against the branch content yourself and report; (2) the security schemes actually match 04 §5.1 (OAuth2 AC+PKCE, OIDC, step-up) and inferred bits are marked inferred, not fabricated; (3) the error envelope matches 04 §3.0's exact shape (quote it), and the reusable 401/403/404/409/422/429 responses are present and reference a real Error schema; (4) pagination params match §3.0; (5) tags cover every epic used by later slices; (6) nothing invented is presented as if 04 stated it. Verdict APPROVED / MICRO-FIX / REJECTED. Commit to branch softhouse/T2-review-foundation.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [],
+      "dependencies": ["T1"],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T3",
+      "title": "OpenAPI paths — EP-1 Identity/Onboarding + EP-2 Shares",
+      "description": "Derive OpenAPI paths + component schemas for EP-1 (04 §3.1, ~12 endpoints) and EP-2 (04 §3.2, ~6 endpoints). Read the approved foundation first: `git show softhouse/T1-openapi-foundation:backend/openapi/root.yaml` (assume it is merged to your base). Read 04 §3.1, §3.2, and the relevant entity definitions in 04 §2 for response schemas.\n\nWrite:\n- backend/openapi/paths/ep1-identity.yaml and paths/ep2-shares.yaml — each a map { \"/api/v1/...\": { post: {operationId, tags:[EP-1], summary, security, requestBody->$ref or inline schema, responses: 200/201 + $ref'd common errors that the 04 row lists}, ... } }.\n- backend/openapi/schemas/ep1-identity.yaml and schemas/ep2-shares.yaml — the request/response component schemas your operations reference, built from 04's request-KEYS / response-KEYS and §2 entity attributes.\n\nTYPING RULES (this is where honesty lives): id/*_id -> string format uuid; *_at -> string format date-time; money/amount/balance/par_value -> integer, format int64, description 'MNT minor units'; status/type/*_status with 04-listed enum values -> enum with exactly those values; a field 04 names but does not type -> a typed guess with description 'type inferred; 04 does not specify'. NEVER invent an enum value 04 does not list. Every operation's error responses must match the error codes in that 04 row (via $ref to the common responses).\n\nDo NOT hardcode config-seed VALUES (share par, limits) as API constants — they are US-12.5 config, not contract constants.\n\nSELF-CHECK: `python3 backend/openapi/validate.py` must PASS with your files present (foundation + your paths + your schemas). Report paths/ops/schemas counts.\n\nCommit your 4 files + handoff to branch softhouse/T3-openapi-ep1-ep2.",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [
+        "backend/openapi/paths/ep1-identity.yaml",
+        "backend/openapi/paths/ep2-shares.yaml",
+        "backend/openapi/schemas/ep1-identity.yaml",
+        "backend/openapi/schemas/ep2-shares.yaml"
+      ],
+      "dependencies": ["T2"],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T4",
+      "title": "OpenAPI paths — EP-3 Accounts/Savings + EP-4 Payments",
+      "description": "Same shape as T3, for EP-3 (04 §3.3, ~15 endpoints) and EP-4 (04 §3.4, ~13 endpoints). Read the approved foundation and 04 §3.3, §3.4, plus §2 entity defs (Account, LedgerEntry-adjacent read models, ExternalAccountLink, Payee, ScheduledPayment, PaymentRequest).\n\nWrite paths/ep3-accounts.yaml, paths/ep4-payments.yaml, schemas/ep3-accounts.yaml, schemas/ep4-payments.yaml. Same TYPING RULES and honesty markers as T3. Money fields -> integer int64 'MNT minor units'. Every money-movement POST must carry the Idempotency-Key header (a project non-negotiable, and 04 §5.1 mandates it) — represent it as a required header parameter. External-rail endpoints (ACH etc.) may be documented but add a description note that the RAIL mapping is a pending requirements change (Banksuljee/ACH+/NETC) — do not invent Mongolian rail endpoints, just flag it.\n\nSELF-CHECK: validate.py PASS with foundation + T3's files (if present) + yours. If T3's files are not on your base, validate against foundation + yours. Report counts.\n\nCommit 4 files + handoff to branch softhouse/T4-openapi-ep3-ep4.",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [
+        "backend/openapi/paths/ep3-accounts.yaml",
+        "backend/openapi/paths/ep4-payments.yaml",
+        "backend/openapi/schemas/ep3-accounts.yaml",
+        "backend/openapi/schemas/ep4-payments.yaml"
+      ],
+      "dependencies": ["T2"],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T5",
+      "title": "Review the EP-1..EP-4 paths",
+      "description": "Independent adversarial review of both path branches (T3, T4). Read the diffs and handoffs from `git show softhouse/T3-openapi-ep1-ep2:...` and `softhouse/T4-openapi-ep3-ep4:...`.\n\nCheck: (1) assemble ALL of it (foundation + both path sets) and run backend/openapi/validate.py yourself — must be VALID 3.1, no duplicate paths, all $refs resolve; report the counts; (2) every endpoint in 04 §3.1-§3.4 is present (reconcile against the 04 rows — a missing endpoint is a silent gap); (3) TYPING honesty — spot-check that inferred types are marked, no enum value invented beyond what 04 lists, money is integer int64 MNT minor units everywhere; (4) every money-movement POST has the Idempotency-Key header; (5) error responses on each operation match that 04 row's error codes; (6) no config-seed value (share par, limits) hardcoded as a contract constant; (7) external-rail endpoints carry the pending-rail note rather than invented Mongolian rails. Verdict APPROVED / MICRO-FIX / REJECTED with specifics. Commit to branch softhouse/T5-review-paths.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "openapi",
+      "files_hint": [],
+      "dependencies": ["T3", "T4"],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T6",
+      "title": "Assemble & validate the bundled OpenAPI on merged main",
+      "description": "Orchestrator task. After the approved branches merge, run `python3 backend/openapi/validate.py` on merged main. Required: VERDICT PASS — valid OpenAPI 3.1, no duplicate paths, all $refs resolve, and the bundled backend/openapi/openapi.yaml written. Report paths/operations/schemas counts and reconcile the operation count against the ~46 endpoints of 04 §3.1-§3.4. Do NOT hand-fix contract defects here — those go back through review. Also confirm the backend test suite and verify-docs.sh are both still green (this run touched neither app code nor requirements docs).",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "haiku",
+      "target": "verification",
+      "files_hint": ["backend/openapi/validate.py"],
+      "dependencies": ["T5"],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    }
+  ]
 }
