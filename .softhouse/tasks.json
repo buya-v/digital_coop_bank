@@ -28,9 +28,9 @@
         "backend/openapi/root.yaml"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T1-openapi-foundation @ ffbbdf9. root.yaml validates as OpenAPI 3.1 (orchestrator-verified). 4 securitySchemes (memberOAuth2 AC+PKCE, memberOIDC, staffSSO, stepUpAssertion header), 6 reusable error responses, exact \u00a73.0 Error envelope {error:{code,message,details[],correlation_id}}, Cursor+Limit params, 15 tags. 14 inferred markers. NOTE: worker also committed the GENERATED openapi.yaml bundle \u2014 untrack+gitignore it before T3/T4 fork to avoid parallel merge conflict on the build artifact; regenerate at T6."
     },
     {
       "id": "T2",
@@ -44,7 +44,7 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
       "note": ""
     },
