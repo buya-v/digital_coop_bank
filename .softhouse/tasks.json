@@ -47,9 +47,9 @@
         "backend/app/models/roundups.py"
       ],
       "dependencies": [],
-      "status": "in_progress",
-      "attempts": 0,
-      "note": ""
+      "status": "done",
+      "attempts": 1,
+      "note": "branch softhouse/T2-orm-payments-cards @ 6f3e4cd. E-14..17(+PaymentRequestShare child), E-18(gated docstring), E-31..33, E-47,48. Gate PASS (16 tables, 19 money). E-31 scores (Decimal 5,4) stored as scaled int x10000 (SCORE_SCALE) \u2014 flagged for review. CROSS-SLICE FKs to ConfigurationParameter/CommunityProject modelled as BARE UUID (not ForeignKey) for self-contained gate \u2014 DOCUMENTED, must be wired to real FKs at merge (T8). rail enum + vendor leaks kept verbatim w/ Mongolia notes."
     },
     {
       "id": "T3",
