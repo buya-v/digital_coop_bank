@@ -8,9 +8,16 @@ questions in CLAUDE.md are resolved for each epic.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+from collections.abc import Iterator
+from typing import Optional
 
+from fastapi import Depends, FastAPI, Response, status
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_session
 from app.config import get_settings
+from app.db.session import engine_configured
 from app.money import CURRENCY_CODE
 
 settings = get_settings()
@@ -26,17 +33,60 @@ app = FastAPI(
 
 
 @app.get("/health", tags=["ops"], summary="Liveness probe")
-def health() -> dict:
+def health() -> dict[str, str]:
     """Liveness: the process is up. No dependencies checked."""
     return {"status": "ok", "service": settings.app_name, "version": settings.version}
 
 
-@app.get("/ready", tags=["ops"], summary="Readiness probe")
-def ready() -> dict:
-    """Readiness: the process is ready to serve.
+def ready_session() -> Iterator[Session | None]:
+    """Session dependency for `/ready` ONLY — not for feature routes.
 
-    Currently trivial. When persistence lands, this checks the DB connection —
-    and, per the ledger design, that the ledger is reachable before accepting
-    money-movement traffic.
+    Yields `None` when no DB is configured instead of raising
+    `DatabaseNotConfigured`, so the unconfigured branch of `/ready` never
+    touches DB machinery and the whole check is a single dependency that
+    tests can swap with `app.dependency_overrides[ready_session] = ...`.
+
+    Real feature routes must keep using `Depends(app.api.deps.get_session)`
+    directly, which stays strict (raises on a missing DB) — that strictness
+    is deliberate there; `/ready`'s job is precisely to report "unconfigured"
+    as a normal state instead of an error.
     """
-    return {"status": "ready", "currency": CURRENCY_CODE}
+    if not engine_configured():
+        yield None
+        return
+    yield from get_session()
+
+
+@app.get("/ready", tags=["ops"], summary="Readiness probe")
+def ready(
+    response: Response,
+    # `Optional[...]` not `X | None`: this parameter's annotation is evaluated
+    # at runtime by FastAPI/pydantic to build the route's dependant. The PEP
+    # 604 `|` union needs `type.__or__`, added in 3.10 — the documented local
+    # dev machine here runs 3.9 (see backend/README.md "Local limits"), where
+    # evaluating that string raises. `Optional[Session]` works on 3.9 and
+    # 3.11+ (CI) alike.
+    session: Optional[Session] = Depends(ready_session),  # noqa: UP045
+) -> dict[str, str]:
+    """Readiness: DB liveness check.
+
+    - No DB configured (scaffold/dev without Postgres): HTTP 200,
+      `{"status": "degraded", "db": "unconfigured"}` — a valid state, not an
+      outage.
+    - DB configured and reachable: HTTP 200, `{"status": "ready", "db": "ok"}`
+      after a `SELECT 1` round trip.
+    - DB configured but unreachable (or any other error running the check):
+      HTTP 503, `{"status": "unready", "db": "error"}`. The underlying
+      exception is caught and never included in the response body.
+    """
+    if session is None:
+        return {"status": "degraded", "db": "unconfigured", "currency": CURRENCY_CODE}
+    try:
+        session.execute(text("SELECT 1"))
+    except Exception:  # noqa: BLE001 — deliberately broad: a liveness probe
+        # must turn ANY failure (driver error, closed pool, a leaked
+        # DatabaseNotConfigured, ...) into 503 without ever leaking the
+        # exception's text into the response body.
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "unready", "db": "error", "currency": CURRENCY_CODE}
+    return {"status": "ready", "db": "ok", "currency": CURRENCY_CODE}
