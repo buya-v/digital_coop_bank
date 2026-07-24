@@ -1,8 +1,8 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
+  "run_id": "20260724-currency-apply",
+  "feature": "Currency APPLY \u2014 USD\u2192MNT re-denomination (DEC-18)",
+  "requirement": "Apply the PO-confirmed USD\u2192MNT re-derivation table to final_requirements 01-05, line-by-line by role. Hold KPIs/personas/round-ups/$88.20/program caps; defer 06 (controller rewrite) and 00 (Mongolia rewrite). Re-baseline USD drift downward.",
+  "status": "planning",
   "backlog": [
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
     "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
@@ -18,5 +18,273 @@
     "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling.",
     "/ready malformed DATABASE_URL edge (LOW, T2 review): a non-empty-but-garbage URL passes engine_configured() then create_engine() raises ArgumentError during dependency resolution -> 500 instead of 503. Operator-misconfig edge; harden when auth/real-deploy lands."
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "T3a",
+      "title": "Apply USD\u2192MNT to 03_acceptance_criteria.md",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/03_acceptance_criteria.md (77 (EP-1..EP-4, L1-603) USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas. SCOPE: ONLY sections EP-1 through EP-4 (lines ~1-603, up to the '## EP-5' header). Do not touch EP-5+. Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
+    },
+    {
+      "id": "T3b",
+      "title": "Apply USD\u2192MNT to 03_acceptance_criteria.md",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [
+        "T3a"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/03_acceptance_criteria.md (66 (EP-5..EP-7, L604-1079) USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas. SCOPE: ONLY sections EP-5 through EP-7 (lines ~604-1079). Includes lending loan bounds (CONFIRMED) and the $88.20 installment (HELD-blocked). Do not touch other epics. Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
+    },
+    {
+      "id": "T3c",
+      "title": "Apply USD\u2192MNT to 03_acceptance_criteria.md",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [
+        "T3b"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/03_acceptance_criteria.md (72 (EP-8..EP-13, L1080-end) USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas. SCOPE: ONLY sections EP-8 through EP-13 + checklist (lines ~1080-end). Includes EP-9 community funding (program caps HELD) and EP-10 round-ups (ALL HELD). Do not touch earlier epics. Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
+    },
+    {
+      "id": "T1",
+      "title": "Apply USD\u2192MNT to 01_business_analysis.md",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/01_business_analysis.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/01_business_analysis.md (20 (mostly KPI/persona HELD) USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas. Most of 01's USD refs are the KPI cluster and persona incomes \u2014 HELD. Real changes: DEC-11 share par role (\u219210,000\u20ae provisional) and any income-anchored limit definitions. Note 01 \u00a76 is NORMATIVE for DEC-1..20. Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
+    },
+    {
+      "id": "T2",
+      "title": "Apply USD\u2192MNT to 02_user_stories.md",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/02_user_stories.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/02_user_stories.md (11 USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas.  Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
+    },
+    {
+      "id": "T6",
+      "title": "Apply USD\u2192MNT to 04_technical_architecture.md",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/04_technical_architecture.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/04_technical_architecture.md (16 USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas.  Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
+    },
+    {
+      "id": "T7",
+      "title": "Apply USD\u2192MNT to 05_prd_and_roadmap.md",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/05_prd_and_roadmap.md (35 (DEC-21..75; program caps HELD) USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas. 05 holds DEC-21..75. Program-config caps (DEC-65 match ceiling, DEC-63 pitch bounds) are HELD. Apply confirmed limits where the DEC tables cite them. Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
+    },
+    {
+      "id": "R3a",
+      "title": "Independent review \u2014 03_acceptance_criteria.md re-denomination",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [
+        "T3a"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT adversarial review of T3a's USD\u2192MNT apply on 03_acceptance_criteria.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T3a.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
+    },
+    {
+      "id": "R3b",
+      "title": "Independent review \u2014 03_acceptance_criteria.md re-denomination",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [
+        "T3b"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT adversarial review of T3b's USD\u2192MNT apply on 03_acceptance_criteria.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T3b.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
+    },
+    {
+      "id": "R3c",
+      "title": "Independent review \u2014 03_acceptance_criteria.md re-denomination",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [
+        "T3c"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT adversarial review of T3c's USD\u2192MNT apply on 03_acceptance_criteria.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T3c.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
+    },
+    {
+      "id": "R1",
+      "title": "Independent review \u2014 01_business_analysis.md re-denomination",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/01_business_analysis.md"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT adversarial review of T1's USD\u2192MNT apply on 01_business_analysis.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T1.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
+    },
+    {
+      "id": "R2",
+      "title": "Independent review \u2014 02_user_stories.md re-denomination",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/02_user_stories.md"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT adversarial review of T2's USD\u2192MNT apply on 02_user_stories.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T2.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
+    },
+    {
+      "id": "R6",
+      "title": "Independent review \u2014 04_technical_architecture.md re-denomination",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/04_technical_architecture.md"
+      ],
+      "dependencies": [
+        "T6"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT adversarial review of T6's USD\u2192MNT apply on 04_technical_architecture.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T6.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
+    },
+    {
+      "id": "R7",
+      "title": "Independent review \u2014 05_prd_and_roadmap.md re-denomination",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [
+        "T7"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT adversarial review of T7's USD\u2192MNT apply on 05_prd_and_roadmap.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T7.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
+    },
+    {
+      "id": "V",
+      "title": "Verify + re-baseline USD drift",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        ".softhouse/verify-docs.sh",
+        ".softhouse/baseline.txt"
+      ],
+      "dependencies": [
+        "R3a",
+        "R3b",
+        "R3c",
+        "R1",
+        "R2",
+        "R6",
+        "R7"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "After all applies merge: run verify-docs.sh; HARD must be 0. USD DRIFT will have dropped from 312 to the residual held count \u2014 re-baseline it DOWNWARD deliberately (verify-docs.sh --baseline) and record the new count + the list of remaining HELD USD refs (KPIs/personas/round-ups/$88.20/program caps) in the postmortem so the residual is explained, not mistaken for missed work."
+    }
+  ]
 }
