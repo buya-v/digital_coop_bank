@@ -6,8 +6,6 @@
   "backlog": [
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
     "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
-    "OpenAPI follow-up slice: EP-5 cards (entity-gated), EP-6 lending (entity-gated), EP-7 dividends, EP-8 governance, EP-9 funding, EP-10 round-ups (entity-gated), EP-11 notifications, EP-13 compliance, \u00a73.14 webhooks, \u00a73.12 admin/back-office. Entity-gated epics must be tagged x-entity-gated in the spec, included for record completeness but marked not-buildable.",
-    "ORM schema + first Alembic migration from 04's 59 entities \u2014 the NEXT architecture task after OpenAPI. Ledger tables must come from the CORRECTED ledger design, NOT encode 06_ledger_addendum's five known defects (esp. the inverted hold formula).",
     "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
     "Vendors: Stripe/Plaid/Lithic/Persona leaked into schema field names and error codes \u2014 removal is a requirements change.",
     "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
