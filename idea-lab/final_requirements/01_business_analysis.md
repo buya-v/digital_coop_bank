@@ -95,7 +95,7 @@ The three sprints produced overlapping persona sets (four, three, and four perso
 
 ## 2. Business Objectives & KPIs (Reconciled)
 
-The three sprints proposed overlapping and partly contradictory targets. The set below is a single, mutually consistent framework. **All monetary values are USD. All targets are management estimates, not market facts.** Where sprints conflicted, the adjudication is noted inline and logged in Section 6.
+The three sprints proposed overlapping and partly contradictory targets. The set below is a single, mutually consistent framework. **All amounts MNT (₮, integer minor units, ISO 4217 numeric 496), displayed whole tögrög (DEC-18). A bounded set of values remains in USD pending downstream decisions, each explicitly marked. All targets are management estimates, not market facts.** Where sprints conflicted, the adjudication is noted inline and logged in Section 6.
 
 ### Objective 1 — Frictionless, Compliant Member Acquisition
 
@@ -371,7 +371,7 @@ Stable feature IDs **F-101 …** in one continuous series, grouped by capability
 | **DEC-15** | **Transparency vocabulary** | **"Transparent Capital Ledger"** = the member-facing fund-deployment view (F-150). **"Impact Scorecard"** = the per-member estimated impact report (F-151). All impact figures derived from models must be labeled "estimated". | "Real-Time Impact Ledger", "Capital Ledger Map", "Allocation Tracker", "ESG Dashboard", "Financial Wellness Compass". | One name per artifact; the estimate-labeling rule enforces the "no invented statistics as fact" policy in member-facing copy. |
 | **DEC-16** | **Governance participation KPI name** | Canonical metric name: **"Governance Participation Rate"** — eligible members who cast or delegate a vote in a ballot, ÷ eligible members. Delegated votes count toward the delegator's participation. | "Voter Turnout Rate", "member turnout". | One metric name with an explicit formula prevents inconsistent reporting; counting delegation preserves the incentive DEC-8 creates. |
 | **DEC-17** | **Onboarding time definition** | "Onboarding time" is measured from **first app-flow screen** to **MembershipStatus = ACTIVE** (KYC approved and initial share settled). Target: median ≤ 8 min, p90 ≤ 10 min (KPI-1.1). | "< 5 minutes" (Sprints 1–2), "< 8 minutes" (Sprint 3), unmeasured start/end points. | Resolves the sprint contradiction against the persona abandonment ceiling (> 10 min) with a defined measurement window; 5 minutes survives only as a stretch goal. |
-| **DEC-18** | **Currency & amount conventions** | All amounts in this program are **USD**; machine representations use minor units (integer cents) with ISO-4217 code `USD`. | Unstated/mixed currency assumptions. | Prevents drift in API/data-model documents. |
+| **DEC-18** | **Currency & amount conventions** | All monetary amounts are denominated in Mongolian tögrög (MNT; ISO 4217 alpha `MNT`, numeric `496`; 2 minor units). Stored as integer minor units; displayed as whole tögrög with postfix `₮` and thousands separators (e.g. `1,250,000₮`). Supersedes the original USD denomination (market is Mongolia — see project context). **Transitional exceptions:** a bounded, individually-marked set of values remains in USD pending downstream decisions — KPI/AUM targets (KPI re-baselining), round-up amounts (round-up denomination), the loan-installment example (rate model), and community-funding program caps (program budget). | Unstated/mixed currency assumptions. | Prevents drift in API/data-model documents. |
 | **DEC-19** | **KYC status enum** | `KycStatus = NOT_STARTED \| IN_PROGRESS \| PENDING_REVIEW \| APPROVED \| REJECTED`. PENDING_REVIEW routes to the CAP-12.2 manual queue. | Ad-hoc phrases ("compliance clearance", "verified"). | Downstream onboarding stories and the Persona integration need one status vocabulary. |
 | **DEC-20** | **Loan status enum** | `LoanStatus = DRAFT \| SUBMITTED \| UNDER_REVIEW \| APPROVED \| ACTIVE \| DELINQUENT \| PAID_OFF \| DEFAULTED \| WRITTEN_OFF` (ACTIVE begins at disbursement). | None consistent across sprints. | Single lifecycle for origination, servicing, and NPL reporting (KPI-2.5). |
 
@@ -403,7 +403,7 @@ Stable feature IDs **F-101 …** in one continuous series, grouped by capability
 | **Round-Up** | Card-transaction rounding contribution (DEC-12). | "spare change sweep", "Ethical Round-Ups" |
 | **Transparent Capital Ledger** / **Impact Scorecard** | Transparency artifacts (DEC-15); modeled figures labeled "estimated". | "Impact Ledger", "ESG Dashboard" |
 | **AGM** | Annual General Meeting — ratifies accounts and the dividend run. | "annual vote event" |
-| `USD`, integer minor units | Money representation (DEC-18). | floats, unstated currency |
+| MNT (496), integer minor units | Money representation (DEC-18). | floats, unstated currency |
 
 ### 6.3 Open Items (Not Resolvable at Requirements Level)
 
