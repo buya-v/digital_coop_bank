@@ -78,9 +78,9 @@
         "idea-lab/final_requirements/05_prd_and_roadmap.md"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "approved",
       "attempts": 0,
-      "note": "agent ae6af4ae1f85b725c (worktree, hardened)",
+      "note": "merged; R5 APPROVED; 05:14 flip; brief 05:1084 was typo for 04:1084 (routed to 04)",
       "description": "READ .softhouse/dec18-amendment-brief.md IN FULL first (canonical amended text + exact locations). SCOPE 05: line 14 'regulated, USD, fiat banking'->'regulated, MNT, fiat banking'; line 1084 'configured par value (2500 cents, DEC-11)'->'(1,000,000 minor units = 10,000\u20ae, DEC-11)'. Do NOT touch 'Stripe'/'Stripe Elements'/'debit Stripe clearing' (later run). Flip currency-TYPE declarations USD->MNT (ISO 4217 numeric 496) per the brief's verbatim wording; do NOT re-migrate already-converted amounts, do NOT touch vendor names (Stripe) or held USD amounts. Whole-t\u00f6gr\u00f6g notation; integer minor units in literals (no float). Run .softhouse/verify-docs.sh (HARD stays 0). Handoff lists every declaration flipped + literal fixed + confirms no vendor/held-amount touched."
     },
     {
@@ -151,7 +151,7 @@
       "dependencies": [
         "T5"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
       "note": "",
       "description": "INDEPENDENT review of T5. Read .softhouse/dec18-amendment-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-dec18-amendment/T5.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every currency-type USD->MNT/496 flip matches the brief's canonical wording; (2) the DEC-18 transitional-exceptions clause is present and correctly enumerates KPIs/round-ups/installment/program-caps (T1 only); (3) minor-units literals 2500->1000000 correct where in scope (04:776/781, 05:1084) \u2014 recompute 10,000\u20ae\u00d7100=1,000,000; (4) NO vendor name (Stripe) changed; (5) NO held USD amount converted; (6) NO already-migrated \u20ae amount altered; (7) notation/no-float; (8) scope: only the intended file(s)+handoff. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute, don't trust the handoff."
