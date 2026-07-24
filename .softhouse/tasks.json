@@ -67,9 +67,9 @@
       "dependencies": [
         "T3b"
       ],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "merged; R3c APPROVED; 9 changed 63 held",
       "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/03_acceptance_criteria.md (72 (EP-8..EP-13, L1080-end) USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas. SCOPE: ONLY sections EP-8 through EP-13 + checklist (lines ~1080-end). Includes EP-9 community funding (program caps HELD) and EP-10 round-ups (ALL HELD). Do not touch earlier epics. Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
     },
     {
@@ -185,9 +185,9 @@
       "dependencies": [
         "T3c"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent a58f17c401571f6cd",
       "description": "INDEPENDENT adversarial review of T3c's USD\u2192MNT apply on 03_acceptance_criteria.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T3c.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
     },
     {
