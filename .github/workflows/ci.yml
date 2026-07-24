@@ -27,6 +27,8 @@ jobs:
         run: mypy app
       - name: ORM schema gate
         run: python -m app.db.check_models
+      - name: Migration matches models gate
+        run: python -m app.db.check_migration
       - name: Apply migration to Postgres
         env: { DATABASE_URL: "postgresql+psycopg://dcb:dcb@localhost:5432/dcb" }
         run: |
