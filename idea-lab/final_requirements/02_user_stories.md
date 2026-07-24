@@ -57,7 +57,7 @@ Everything from first app screen to a KYC-approved applicant, plus authenticatio
 
 ### US-1.3 — Membership Eligibility & Common-Bond Validation
 
-* **As a** P-2 (Digital-Native Member), **I want to** confirm during sign-up that I meet the cooperative's membership eligibility criteria, **so that** I don't invest time (or the $25 share payment) in an application that cannot be approved.
+* **As a** P-2 (Digital-Native Member), **I want to** confirm during sign-up that I meet the cooperative's membership eligibility criteria, **so that** I don't invest time (or the 10,000₮ share payment (provisional, pending DEC-11 / legal)) in an application that cannot be approved.
 * **Description:** Automated common-bond and eligibility check executed within onboarding, before the share-purchase step, with a clear explanation and remediation path when criteria are not met. Eligibility rules are data-driven so the cooperative can amend them via GOVERNANCE_BYLAW decisions without code change. Also serves P-1, P-3, P-4. Rule administration UI is out of scope (configuration via US-12.5 seeds).
 * **Maps to:** F-102; CAP-1.4
 * **Size:** S
@@ -83,11 +83,11 @@ Everything from first app screen to a KYC-approved applicant, plus authenticatio
 
 ## EP-2 — Membership Shares & Equity (CAP-2)
 
-The equity backbone: the mandatory $25 membership share (DEC-11), the DEC-4 membership status machine, the share registry, and voting-eligibility determination.
+The equity backbone: the mandatory 10,000₮ membership share (DEC-11), the DEC-4 membership status machine, the share registry, and voting-eligibility determination.
 
 ### US-2.1 — Initial Membership Share Purchase & Member Activation
 
-* **As a** P-2 (Digital-Native Member), **I want to** buy my one mandatory membership share ($25.00 par value) inside the onboarding flow by card or bank transfer, **so that** my membership activates immediately and my voting rights switch on.
+* **As a** P-2 (Digital-Native Member), **I want to** buy my one mandatory membership share (10,000₮ par value) inside the onboarding flow by card or bank transfer, **so that** my membership activates immediately and my voting rights switch on.
 * **Description:** On `KycStatus = APPROVED` the applicant transitions to `MembershipStatus = PENDING_PAYMENT` and is presented the share purchase (card, bank transfer, and wallet-funded card payments). On settlement, funds post to the Membership Share Account as non-withdrawable equity, the member transitions `PENDING_PAYMENT → ACTIVE`, receives their Member ID and a digital confirmation (share record, bylaws copy), and voting/borrowing/guaranteeing rights activate. Merges Sprint 1 US-2.1b, Sprint 2 Stories 1.2/1.3, Sprint 3 MIM-2; the Sprint 2 "membership token" concept is retired per DEC-4 — activation is simply the `PENDING_PAYMENT → ACTIVE` transition. Additional/voluntary share purchases are out of scope for launch.
 * **Maps to:** F-103; CAP-2.1, CAP-2.2
 * **Size:** M
@@ -112,7 +112,7 @@ The equity backbone: the mandatory $25 membership share (DEC-11), the DEC-4 memb
 ### US-2.4 — Voluntary Membership Closure & Share Redemption
 
 * **As a** P-1 (Values-Driven Saver), **I want to** close my membership from the app and have my membership share redeemed at par, **so that** I can exit the cooperative cleanly without paperwork.
-* **Description:** Guided closure flow: preconditions checked (no `ACTIVE`/`DELINQUENT` loans, no locked guarantee pledges, Group Pot memberships resolved, balances swept to an external account), then transition to `MembershipStatus = CLOSED` and redemption of the share at $25.00 par subject to bylaws (DEC-11; redemption terms flagged as Open Item 1 in the business analysis — implement behind a configurable rule). Involuntary closure (expulsion) is executed by P-5 through US-12.1 using the same domain machinery. Data retention post-closure follows US-13.6.
+* **Description:** Guided closure flow: preconditions checked (no `ACTIVE`/`DELINQUENT` loans, no locked guarantee pledges, Group Pot memberships resolved, balances swept to an external account), then transition to `MembershipStatus = CLOSED` and redemption of the share at 10,000₮ par subject to bylaws (DEC-11; redemption terms flagged as Open Item 1 in the business analysis — implement behind a configurable rule). Involuntary closure (expulsion) is executed by P-5 through US-12.1 using the same domain machinery. Data retention post-closure follows US-13.6.
 * **Maps to:** F-106; CAP-2.2, CAP-2.3
 * **Size:** M
 * **Dependencies:** US-2.2, US-4.2
@@ -171,7 +171,7 @@ The four deposit constructs per DEC-13: Primary Savings Account, Transaction Acc
 ### US-4.1 — Instant Internal P2P Transfer
 
 * **As a** P-2 (Digital-Native Member), **I want to** send money instantly and free to another member addressed by registered phone number, email address, or Member ID, **so that** I can pay people without exchanging account numbers.
-* **Description:** Recipient lookup strictly via `RecipientIdentifierType = PHONE | EMAIL | MEMBER_ID` (usernames/handles are not supported, DEC-3); recipient display-name confirmation before send; instant ledger settlement with $0 fees; notifications to both parties; per-transaction and velocity limits configurable via US-12.5. Transfers feed AML monitoring (US-13.1). Requests for payment are US-4.4.
+* **Description:** Recipient lookup strictly via `RecipientIdentifierType = PHONE | EMAIL | MEMBER_ID` (usernames/handles are not supported, DEC-3); recipient display-name confirmation before send; instant ledger settlement with 0₮ fees; notifications to both parties; per-transaction and velocity limits configurable via US-12.5. Transfers feed AML monitoring (US-13.1). Requests for payment are US-4.4.
 * **Maps to:** F-112; CAP-4.1
 * **Size:** M
 * **Dependencies:** US-3.2, US-1.4
@@ -662,7 +662,7 @@ Every feature F-101…F-152 is covered by at least one story. No feature is inte
 ## Reconciliation Notes (Draft Stories Merged or Excluded)
 
 * **Merged duplicates:** onboarding/eKYC (3 drafts → US-1.1/US-1.2), share purchase/activation (3 drafts → US-2.1), voting (3 drafts → US-8.1), dividend estimation (3 drafts → US-7.3), round-ups (2 drafts → US-10.1/US-10.2), loan circles/pledges (2 drafts → US-6.3/US-6.4), crowdfunding/matching (2 drafts → US-9.1–US-9.3), capital ledger/impact dashboard (2 drafts → US-13.4).
-* **Superseded draft concepts, not carried forward:** Sprint 2's "membership token" (replaced by the DEC-4 `PENDING_PAYMENT → ACTIVE` transition); usernames as P2P identifiers (DEC-3); `YES/NO` vote choices (DEC-1); quarterly dividends (DEC-10, replaced by the annual cycle + Dividend Estimator); "Liquid Democracy" transitive delegation (DEC-8, replaced by single-level Proxy Delegation); Sprint 1's variable membership tiers ("Founding Member" etc.) and multi-share voting weight (contradict one-member-one-vote and DEC-11); Sprint 3's $5 share (DEC-11 fixes $25).
+* **Superseded draft concepts, not carried forward:** Sprint 2's "membership token" (replaced by the DEC-4 `PENDING_PAYMENT → ACTIVE` transition); usernames as P2P identifiers (DEC-3); `YES/NO` vote choices (DEC-1); quarterly dividends (DEC-10, replaced by the annual cycle + Dividend Estimator); "Liquid Democracy" transitive delegation (DEC-8, replaced by single-level Proxy Delegation); Sprint 1's variable membership tiers ("Founding Member" etc.) and multi-share voting weight (contradict one-member-one-vote and DEC-11); Sprint 3's $5 share (DEC-11 fixes 10,000₮).
 * **Intentionally excluded distinct draft story:** Sprint 3 CAT-3 "Ethical Yield Allocation" (routing a percentage of interest yield to a community project). It maps to no canonical feature or capability, and DEC-12/DEC-14 define Round-Ups and Backing as the canonical contribution mechanisms. If the product team wants it, it requires a business-analysis change first; it must not enter the backlog silently.
 * **Sprint 1's $1,000 microloan cap and specific rate figures** were draft-level details not ratified in the business analysis; loan caps and pricing are configuration under US-12.5, subject to `FINANCIAL_POLICY` governance.
 
