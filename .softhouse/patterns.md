@@ -59,6 +59,29 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-currency-apply — USD->MNT re-denomination (DEC-18) (2026-07-24)
+
+Applied the PO-confirmed re-derivation table to final_requirements 01-05, line-by-line by role. 7 applies + 7 independent opus reviews + verifier. USD drift 312 -> 131 (-181 applied); the residual 131 are the deliberately-HELD sets. Re-baselined usd=131. HARD gate 5/5. NO content lost despite a serious orchestration incident (below).
+
+**What worked**
+- A committed APPLY BRIEF (`.softhouse/currency-apply-brief.md`) as the single source of truth — confirmed anchors + full role table + explicit HELD list + notation — meant zero re-derivation and consistent values across 7 agents. Write the shared spec to main BEFORE spawning; worktrees fork from it.
+- Splitting the 216-ref file (03) into 3 epic-boundary slices, SERIALIZED as a chain (same file), each following the ×1000 illustrative scale the first slice established. The convention propagated cleanly (T3a set ×1000; T3b/T3c matched it).
+- Reviewers RECOMPUTED every worked example instead of trusting handoffs. They confirmed: coupled operands re-derived not digit-scaled; the reconciliation-defect residual preserved at scaled magnitude ($0.13 -> 130₮); the blocked $88.20 installment held WITH its coupled $40 operand (holding one without the other would have silently broken the shortfall scenario); the AML structuring amount re-derived to stay sub-threshold AND chosen to avoid colliding with the velocity limit.
+- Polysemy handled per-line by role: same token string, different value — $25 par->10,000₮ vs $25 P2P-send->25,000₮; $10,000 DEC-73->11,400,000₮ vs $10,000 DEC-65 program-cap HELD; $1,000 DEC-36->550,000₮ vs $1,000 DEC-45 de-ratified HELD. A blind find-replace would have corrupted all of these.
+
+**CRITICAL INCIDENT — worker mutated the shared checkout (own it)**
+- T3a's FIRST command ran `git checkout -b <branch>` in the SHARED checkout `/Users/buv/digital_coop_bank` instead of its worktree, switching the ORCHESTRATOR's HEAD off main. I then merged FOUR reviewed docs (T1/T2/T6/T7) without checking `git branch --show-current`, so they landed on the misnamed branch, and my `push origin main` calls were no-ops against a frozen main. Discovered only when T3a's handoff reported it.
+- Root causes: (1) a worktree worker ran git against the shared checkout; (2) I merged blind, never asserting HEAD==main.
+- Recovery (no content lost): the misnamed branch held exactly what main should be, so fast-forwarded main to it, pushed the REAL main, re-pointed the T3a branch to its true deliverable commit. T3a itself did the right thing — it refused ref surgery under a live orchestrator and committed to its worktree branch.
+- HARDENED, now standing rules: (a) every worker preamble must open with `pwd` + `git rev-parse --show-toplevel` self-check and "NEVER run git against the shared checkout"; (b) the ORCHESTRATOR asserts `git branch --show-current == main` before EVERY merge (applied for T3a/T3b/T3c and it held). A stale-fork three-dot diff (`main...branch`) is also required when reviewing a branch whose fork base drifted.
+
+**Scope decisions (recorded)**
+- DEFERRED whole docs: 06 (ledger addendum — do-not-implement, controller rewrite pending; re-denominating doomed content is waste) and 00 (no USD refs; needs its own Mongolia rewrite).
+- HELD (residual USD, tracked, NOT oversights): KPI cluster (magnitude-truncated $M values), persona incomes, all round-ups (deferred), $88.20+coupled $40 (rate-model blocked), program-config caps (DEC-65/63, program-budget pending), superseded/de-ratified drafts.
+- Every apply agent independently surfaced the DEC-18 currency-TYPE tension: docs now state amounts in ₮ while the DEC-18 declaration + doc-level "all amounts USD" conventions still say USD. That normative flip (01 §6 owns it) is a distinct amendment — backlogged, not done in an amount pass.
+
+**Verifier**: HARD 5/5 · USD 312->131 (re-baselined DOWN, deliberate migration step) · rails=56/vendor=83 unchanged. **Residual 131 by doc**: 03=74, 05=16, 01=13, 04=9, 02=5, 06=14(deferred).
+
 ### Run 20260724-persistence-layer — persistence & service wiring + ORM hardening (2026-07-24)
 
 Turned the completed contract+schema into a runnable persistence layer, WITHOUT overreaching into a feature endpoint. 4 tasks, all 4 independently reviewed and APPROVED. Final main: 60 tables, migration 139/139 in lockstep, 24 tests, all gates PASS.
