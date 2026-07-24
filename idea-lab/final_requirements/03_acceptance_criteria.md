@@ -676,14 +676,14 @@
 * **Given** Member A's virtual card is active
 * **When** they toggle "Freeze card"
 * **Then** the control propagates within seconds (target ≤ 500 ms [PROPOSED])
-* **And** a merchant authorization attempt of $15.00 is declined with reason "card frozen" without checking funds, and Member A receives a notification naming the amount and merchant
+* **And** a merchant authorization attempt of 15,000₮ is declined with reason "card frozen" without checking funds, and Member A receives a notification naming the amount and merchant
 * **And when** Member A unfreezes, subsequent authorizations are evaluated normally.
 
 **Scenario 2 — Negative: spending limit exceeded**
-* **Given** Member A set a $200.00 per-week spending limit and has spent $190.00 this week
-* **When** a $25.00 authorization arrives
+* **Given** Member A set a 200,000₮ per-week spending limit and has spent 190,000₮ this week
+* **When** a 25,000₮ authorization arrives
 * **Then** it is declined for "limit exceeded" and logged with the control that fired
-* **And** a $10.00 authorization would still be approved (boundary respected exactly).
+* **And** a 10,000₮ authorization would still be approved (boundary respected exactly).
 
 **Scenario 3 — Edge: merchant-category and channel toggles**
 * **Given** Member A disabled the "Gambling" merchant category and ATM withdrawals on their physical card
@@ -704,7 +704,7 @@
 * **[CONFIRMED]** Underwriting weighs open-banking data, optional bureau data, and cooperative history; declines produce reasons and an adverse-action notice; parameters are US-12.5 configuration; decisions fully logged for fair-lending review (US-6.2).
 * **[CONFIRMED]** Guarantee-pledge enforceability of share capital is Open Item 2 — hold mechanics behind a jurisdiction flag.
 * **[CONFIRMED]** `WRITTEN_OFF` is admin-only via US-12.3 under dual approval; loan caps and pricing are US-12.5 configuration subject to `FINANCIAL_POLICY` governance (backlog reconciliation note).
-* **[PROPOSED]** Launch loan amount bounds: minimum $100.00, maximum $1,000.00 (Sprint 1 draft; explicitly de-ratified in the backlog — seed as US-12.5 values). [ADJUDICATED → see DEC-45 in 05_prd_and_roadmap.md: final value min $100.00 / max $5,000.00 seed; the de-ratified $1,000.00 cap is not carried forward]
+* **[PROPOSED]** Launch loan amount bounds: minimum $100.00, maximum $1,000.00 (Sprint 1 draft; explicitly de-ratified in the backlog — seed as US-12.5 values). [ADJUDICATED → see DEC-45 in 05_prd_and_roadmap.md: final value min 100,000₮ / max 5,700,000₮ seed; the de-ratified $1,000.00 cap is not carried forward]
 * **[PROPOSED]** Launch term options: 3, 6, or 12 months. (Sprint 1 draft.)
 * **[PROPOSED]** Purpose field: required, 20–500 characters. (Sprint 1 draft.)
 * **[PROPOSED]** Base rate: Sprint 1 proposed 8.00% APR; Sprint 2 proposed 12.00% APR for unsecured loans. **Conflicting drafts.** [ADJUDICATED → see DEC-48 in 05_prd_and_roadmap.md: final value 12.00% APR unsecured base rate (US-12.5 seed), discountable to 6.00% via Loan Circle coverage tiers per DEC-49]
@@ -720,7 +720,7 @@
 
 **Scenario 1 — Happy path: apply and receive a conditional offer**
 * **Given** Member A is `ACTIVE` with a Transaction Account
-* **When** they select "Personal loan", enter amount $500.00 and term 6 months, watch the live repayment estimator update, enter purpose "Replacement laptop for freelance design work" (≥ 20 chars [PROPOSED]), and complete affordability declarations, then submit
+* **When** they select "Personal loan", enter amount 500,000₮ and term 6 months, watch the live repayment estimator update, enter purpose "Replacement laptop for freelance design work" (≥ 20 chars [PROPOSED]), and complete affordability declarations, then submit
 * **Then** `LoanStatus` transitions `DRAFT → SUBMITTED` and decisioning (US-6.2) is invoked
 * **And** the offer screen shows rate, repayment schedule, and total cost; where a Loan Circle is attached it shows the standard rate and the peer-guaranteed discounted rate side by side.
 
@@ -732,8 +732,8 @@
 
 **Scenario 3 — Negative: input validation**
 * **Given** Member A is completing the form
-* **When** they enter $6,000.00 (above the $5,000.00 launch cap, adjudicated per DEC-45 in 05_prd_and_roadmap.md) or a 9-character purpose
-* **Then** inline validation cites the specific bound ("maximum loan amount is $5,000.00" / "purpose must be at least 20 characters")
+* **When** they enter 6,840,000₮ (above the 5,700,000₮ launch cap, adjudicated per DEC-45 in 05_prd_and_roadmap.md) or a 9-character purpose
+* **Then** inline validation cites the specific bound ("maximum loan amount is 5,700,000₮" / "purpose must be at least 20 characters")
 * **And** the server independently enforces the same bounds with `422 Unprocessable Content` (client validation is not the control).
 
 **Scenario 4 — Edge: draft persistence**
@@ -777,7 +777,7 @@
 ### US-6.3 — Loan Circle Creation & Guarantor Invitations (M)
 
 **Scenario 1 — Happy path: circle forms at 3 acceptances**
-* **Given** Member A has a loan application for $1,000.00 over 12 months
+* **Given** Member A has a loan application for 1,000,000₮ over 12 months
 * **When** they create a Loan Circle and invite Members B, C, D, and E per DEC-3, each invitation disclosing amount, term, and requested pledge
 * **And** Members B, C, and D accept after viewing the risk disclosure
 * **Then** the circle status becomes "formed" (3–5 acceptances per DEC-7)
@@ -804,32 +804,32 @@
 ### US-6.4 — Guarantee Pledge Locking, Rate Reduction & Release (L)
 
 **Scenario 1 — Happy path: pledge, e-sign, lock**
-* **Given** Member B is a guarantor in Member A's formed circle with an available savings balance of $500.00
-* **When** Member B pledges $200.00, passes step-up authentication, and e-signs the pledge agreement (US-6.6) spelling out default consequences
-* **Then** a $200.00 guarantee-pledge lock is placed: available balance becomes $300.00 while total balance stays $500.00
+* **Given** Member B is a guarantor in Member A's formed circle with an available savings balance of 500,000₮
+* **When** Member B pledges 200,000₮, passes step-up authentication, and e-signs the pledge agreement (US-6.6) spelling out default consequences
+* **Then** a 200,000₮ guarantee-pledge lock is placed: available balance becomes 300,000₮ while total balance stays 500,000₮
 * **And** the locked amount is excluded from withdrawals, transfers, and Round-Up sweeps
 * **And** Member B's guarantor dashboard shows the outstanding pledge and total exposure.
 
 **Scenario 2 — Negative: pledge exceeds available balance**
-* **Given** Member C has $150.00 available (net of existing locks)
-* **When** they attempt to pledge $200.00
-* **Then** the pledge is rejected with "pledge cannot exceed your available balance of $150.00"
+* **Given** Member C has 150,000₮ available (net of existing locks)
+* **When** they attempt to pledge 200,000₮
+* **Then** the pledge is rejected with "pledge cannot exceed your available balance of 150,000₮"
 * **And** no lock is created.
 
 **Scenario 3 — Happy path: tiered rate reduction applied**
-* **Given** Member A's $1,000.00 loan has total pledges of $600.00 (60% coverage)
+* **Given** Member A's 1,000,000₮ loan has total pledges of 600,000₮ (60% coverage)
 * **When** underwriting prices the offer
-* **Then** the Tier-2 discount (−4.00 pp [PROPOSED tiers]) applies against the base rate, and the offer shows exactly how the circle's $600.00 reduced the rate
-* **And if** a guarantor revokes a $200.00 pledge before disbursement [PROPOSED revocability], acceptance is blocked and the offer reprices at 40% coverage (Tier 1, −2.00 pp) before Member A can sign.
+* **Then** the Tier-2 discount (−4.00 pp [PROPOSED tiers]) applies against the base rate, and the offer shows exactly how the circle's 600,000₮ reduced the rate
+* **And if** a guarantor revokes a 200,000₮ pledge before disbursement [PROPOSED revocability], acceptance is blocked and the offer reprices at 40% coverage (Tier 1, −2.00 pp) before Member A can sign.
 
 **Scenario 4 — Happy path: pro-rata release on repayment**
-* **Given** Member A's disbursed loan is backed by Member B's $200.00 pledge covering 20% of the $1,000.00 principal
-* **When** Member A repays $300.00 of principal
-* **Then** Member B's lock is reduced pro-rata by $60.00 (20% × $300.00) to $140.00
+* **Given** Member A's disbursed loan is backed by Member B's 200,000₮ pledge covering 20% of the 1,000,000₮ principal
+* **When** Member A repays 300,000₮ of principal
+* **Then** Member B's lock is reduced pro-rata by 60,000₮ (20% × 300,000₮) to 140,000₮
 * **And** the release posts automatically with a notification and a ledger entry linking loan, payment, and release.
 
 **Scenario 5 — Edge: default treatment behind the jurisdiction flag**
-* **Given** Member A's loan transitions to `DEFAULTED` with $500.00 principal outstanding and pledges locked
+* **Given** Member A's loan transitions to `DEFAULTED` with 500,000₮ principal outstanding and pledges locked
 * **When** the default protocol is applied by US-12.3 staff per US-6.4 rules
 * **Then** pledge application to the outstanding balance follows the jurisdiction-flagged mechanism (Open Item 2) — never an unreviewed automatic seizure
 * **And** each affected guarantor is notified of the exact amount applied, with the decision trail in the audit log.
@@ -837,20 +837,20 @@
 ### US-6.5 — Pooled Loan Circle (ROSCA) (XL)
 
 **Scenario 1 — Happy path: circle creation with fixed schedule and order**
-* **Given** Member A creates a Pooled Loan Circle with contribution $50.00/month, duration 4 months, participants Members A–D, and payout order randomized at creation
+* **Given** Member A creates a Pooled Loan Circle with contribution 50,000₮/month, duration 4 months, participants Members A–D, and payout order randomized at creation
 * **When** all four participants accept the terms (including the fixed order)
 * **Then** the circle activates with the contribution amount, duration, participant list, and payout order immutable from that point
-* **And** every participant sees the full schedule: who receives $200.00 in which month.
+* **And** every participant sees the full schedule: who receives 200,000₮ in which month.
 
 **Scenario 2 — Happy path: monthly collection and lump-sum payout**
 * **Given** the active circle reaches collection day of month 1 and all participants have sufficient balances
 * **When** the collection job runs
-* **Then** $50.00 is debited from each participant's designated account (4 × $50.00) and $200.00 is paid in one lump sum to the month-1 beneficiary, interest-free
+* **Then** 50,000₮ is debited from each participant's designated account (4 × 50,000₮) and 200,000₮ is paid in one lump sum to the month-1 beneficiary, interest-free
 * **And** the circle ledger visible to all participants records every debit and the payout, each with an idempotency-keyed posting.
 
 **Scenario 3 — Negative: missed contribution handling**
-* **Given** month 2's collection finds Member B with a $10.00 balance
-* **When** the $50.00 debit fails
+* **Given** month 2's collection finds Member B with a 10,000₮ balance
+* **When** the 50,000₮ debit fails
 * **Then** the payout to the month-2 beneficiary is withheld pending resolution, the circle is alerted (US-11.1), and a retry is scheduled per the configured policy [PROPOSED: one retry after 3 days]
 * **And** if the retry fails, the circle's configured backstop rule applies and the shortfall handling is recorded in the circle ledger — Member B's membership share is not automatically seized (superseded draft rule).
 
@@ -864,7 +864,7 @@
 * **Given** month 4's collection and payout complete for the last beneficiary
 * **When** the cycle ends
 * **Then** the circle status becomes completed, no further debits are scheduled
-* **And** the full ledger remains readable to all participants, and totals reconcile: each participant paid $200.00 in and received exactly one $200.00 payout.
+* **And** the full ledger remains readable to all participants, and totals reconcile: each participant paid 200,000₮ in and received exactly one 200,000₮ payout.
 
 ### US-6.6 — E-Signature & Loan Document Vault (M)
 
@@ -897,7 +897,7 @@
 **Scenario 1 — Happy path: disbursement on signing**
 * **Given** Member A's loan is `APPROVED` and the agreement is signed (US-6.6)
 * **When** disbursement executes with an idempotency key
-* **Then** $500.00 is credited to Member A's Transaction Account exactly once and `LoanStatus` transitions `APPROVED → ACTIVE`
+* **Then** 500,000₮ is credited to Member A's Transaction Account exactly once and `LoanStatus` transitions `APPROVED → ACTIVE`
 * **And** the amortization schedule, first due date, and autopay setup are visible immediately; guarantors are notified that pledges are now locked for the term (US-6.4).
 
 **Scenario 2 — Happy path: autopay with retry**
@@ -908,7 +908,7 @@
 * **And** repeated failure past the grace period hands off to US-6.8 (`DELINQUENT` transition per the [PROPOSED] milestone rule).
 
 **Scenario 3 — Happy path: payoff quote and early repayment**
-* **Given** Member A's loan has $300.00 principal outstanding
+* **Given** Member A's loan has 300,000₮ principal outstanding
 * **When** they request a full payoff quote
 * **Then** the quote shows principal, accrued interest to the quoted date, any configured fees (US-12.5), and a validity window
 * **And when** they pay the quoted amount within the window
@@ -921,8 +921,8 @@
 * **And** the member sees a month-by-month comparison against the standard schedule before accepting.
 
 **Scenario 5 — Negative: overpayment/idempotency on repayment**
-* **Given** Member A submits an extra payment of $100.00 and the client retries on timeout with the same idempotency key
-* **Then** exactly one $100.00 payment posts, principal reduces once, and the pro-rata pledge release fires once
+* **Given** Member A submits an extra payment of 100,000₮ and the client retries on timeout with the same idempotency key
+* **Then** exactly one 100,000₮ payment posts, principal reduces once, and the pro-rata pledge release fires once
 * **And** an attempted payment exceeding the payoff amount is capped at payoff with the surplus never collected.
 
 ### US-6.8 — Arrears Monitoring, Guarantor Alerts & Hardship Rescheduling (M)
@@ -963,19 +963,19 @@
 * **[CONFIRMED]** Reconciliation invariant: the sum of member entitlements equals the distributable pool (US-7.1). Calculation runs are deterministic and re-runnable.
 * **[CONFIRMED]** Member election between Primary Savings payout and share-capital reinvestment, settable any time before the run (US-7.2). All estimator projections labeled "estimated" (DEC-15); estimator refreshed at least daily (US-7.3).
 * **[PROPOSED]** Estimator scenario bands: Conservative = 80%, Expected = 100%, High = 120% of the forecast surplus. (Sprint 2 draft.)
-* **[PROPOSED]** Members with zero patronage activity in the year receive a $0.00 entitlement statement (not an error). (Draft-implied; PO to confirm statement handling.)
-* **Superseded — do not implement:** quarterly payout framing (Sprint 1/2 drafts) — DEC-10 fixes the annual cycle with a real-time estimator; dividend proportional to share count (one $25.00 share; patronage factors, not shareholding, drive the dividend).
+* **[PROPOSED]** Members with zero patronage activity in the year receive a 0₮ entitlement statement (not an error). (Draft-implied; PO to confirm statement handling.)
+* **Superseded — do not implement:** quarterly payout framing (Sprint 1/2 drafts) — DEC-10 fixes the annual cycle with a real-time estimator; dividend proportional to share count (one 10,000₮ share; patronage factors, not shareholding, drive the dividend).
 
 ### US-7.1 — Patronage Calculation Engine (L)
 
 **Scenario 1 — Happy path: calculation run reconciles exactly**
-* **Given** the AGM-ratified surplus yields a distributable pool of $600,000.00 and factor weights are configured via US-12.5 (linked to their certified `FINANCIAL_POLICY` ballot)
+* **Given** the AGM-ratified surplus yields a distributable pool of 600,000,000₮ and factor weights are configured via US-12.5 (linked to their certified `FINANCIAL_POLICY` ballot)
 * **When** the calculation run executes over the year's accumulated per-member factor data
 * **Then** every eligible member receives an entitlement computed from the weighted factors
-* **And** the reconciliation total satisfies Σ entitlements = $600,000.00 to the minor unit, with the rounding-remainder allocation rule documented and applied deterministically.
+* **And** the reconciliation total satisfies Σ entitlements = 600,000,000₮ to the minor unit, with the rounding-remainder allocation rule documented and applied deterministically.
 
 **Scenario 2 — Happy path: explainability statement**
-* **Given** Member A's entitlement is $84.60
+* **Given** Member A's entitlement is 84,600₮
 * **When** they open the entitlement statement (post-approval)
 * **Then** it breaks the amount down by factor (savings balances, transaction volume, loan repayment performance, governance participation) with the weight and the member's measured value for each
 * **And** the statement identifies the surplus figure, the ratifying AGM record, and the weight-configuration version used.
@@ -987,7 +987,7 @@
 * **And** the re-run is recorded as a distinct run instance referencing the same input snapshot.
 
 **Scenario 4 — Negative: reconciliation failure aborts**
-* **Given** a defect causes Σ entitlements = $599,999.87 against a $600,000.00 pool
+* **Given** a defect causes Σ entitlements = 599,999,870₮ against a 600,000,000₮ pool
 * **When** the reconciliation check runs
 * **Then** the run is marked failed, no entitlement becomes payable, and US-12.6 is alerted with the discrepancy detail
 * **And** payout (US-7.2) cannot be invoked against a failed run.
@@ -1003,7 +1003,7 @@
 **Scenario 1 — Happy path: payout per standing election within 5 business days**
 * **Given** the calculation run is approved via US-12.6 and Member A's standing election is "Primary Savings", Member B's is "reinvest as share capital"
 * **When** the batch payout executes
-* **Then** Member A's $84.60 posts to their Primary Savings Account and Member B's entitlement posts to their Membership Share Account as equity
+* **Then** Member A's 84,600₮ posts to their Primary Savings Account and Member B's entitlement posts to their Membership Share Account as equity
 * **And** both receive a notification with the amount and a link to the explainability breakdown
 * **And** 100% of approved entitlements are posted within 5 business days of AGM ratification (KPI-4.3), with each posting idempotency-keyed.
 
@@ -1031,29 +1031,29 @@
 * **Given** Member A has current-year factor data and a cooperative surplus forecast exists
 * **When** they open the Dividend Estimator
 * **Then** a projected annual Patronage Dividend is displayed, labeled "estimated" (DEC-15), refreshed at least daily with the refresh timestamp shown
-* **And** behavior-linked suggestions quantify effects, each also labeled "estimated" (e.g., "voting in the open ballot raises your estimate by ~$1.20").
+* **And** behavior-linked suggestions quantify effects, each also labeled "estimated" (e.g., "voting in the open ballot raises your estimate by ~1,200₮").
 
 **Scenario 2 — Negative: forecast inputs unavailable**
 * **Given** the surplus-forecast input feed is unreachable
 * **When** Member A opens the estimator
 * **Then** the last successfully computed projection is shown with its as-of timestamp and a clear staleness notice
-* **And** if no projection has ever been computed, the screen explains estimates are unavailable rather than showing $0.00 as if it were a result.
+* **And** if no projection has ever been computed, the screen explains estimates are unavailable rather than showing 0₮ as if it were a result.
 
 **Scenario 3 — Edge: zero or negative forecast surplus**
-* **Given** the forecast surplus is $0.00 (or negative)
+* **Given** the forecast surplus is 0₮ (or negative)
 * **When** the estimator computes
-* **Then** the projection displays $0.00 labeled "estimated" with an explanation that dividends depend on the cooperative generating a surplus
+* **Then** the projection displays 0₮ labeled "estimated" with an explanation that dividends depend on the cooperative generating a surplus
 * **And** no behavior suggestion promises a positive dividend effect.
 
 **Scenario 4 — Edge: brand-new member**
 * **Given** Member E activated yesterday with no factor history
 * **When** they open the estimator
-* **Then** an onboarding-friendly state explains how patronage factors build the dividend, with a near-$0.00 estimate rather than an error.
+* **Then** an onboarding-friendly state explains how patronage factors build the dividend, with a near-0₮ estimate rather than an error.
 
 ### US-7.4 — Dividend & Tax Statements (M)
 
 **Scenario 1 — Happy path: annual statement retrieval**
-* **Given** the payout run completed and Member A received $84.60 to savings
+* **Given** the payout run completed and Member A received 84,600₮ to savings
 * **When** statements generate post-payout
 * **Then** Member A can view and download an annual statement showing the dividend amount, factor breakdown, and payout destination, plus the jurisdictional tax artifact from the configured template
 * **And** a delivery notification is sent via US-11.1.
