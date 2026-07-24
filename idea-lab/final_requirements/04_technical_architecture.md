@@ -6,7 +6,7 @@
 
 **Conventions used throughout:**
 
-* All monetary amounts are **USD, integer minor units (cents)** per DEC-18. The abstract type `Money` below means `BIGINT` minor units with implicit currency `USD` (an explicit `currency` column, fixed to `USD`, is carried on ledger rows for forward compatibility).
+* All monetary amounts are **MNT, integer minor units (cents)** per DEC-18. The abstract type `Money` below means `BIGINT` minor units with implicit currency `MNT` (an explicit `currency` column, fixed to `MNT`, is carried on ledger rows for forward compatibility).
 * All timestamps are UTC, ISO-8601 (`TIMESTAMPTZ`).
 * All primary keys are UUIDv7 unless stated otherwise; `Member ID` (the member-facing identifier — non-guessable, non-sequential per DEC-28, e.g. `DCB-8K4W2M9X`) is a separate unique display attribute, never the PK.
 * Enum machine values are `UPPER_SNAKE_CASE`; glossary-governed enums (`MembershipStatus`, `KycStatus`, `VoteChoice`, `ProposalCategory`, `ProposalStatus`, `BallotType`, `RecipientIdentifierType`, `LoanStatus`) are used exactly as defined in `01_business_analysis.md` §6.
@@ -107,7 +107,7 @@ The three sprint drafts define conflicting data models; sprint_3's file is addit
 | Vote choices | `YES/NO/ABSTAIN` | `YES/NO/ABSTAIN` | `YES/NO/ABSTAIN` | **`VoteChoice = FOR \| AGAINST \| ABSTAIN` (DEC-1).** |
 | Proposal categories | `FUNDING_ALLOCATION/POLICY_CHANGE/MEMBER_BYLAW` | `GREEN_LENDING/TREASURY_RATIOS/COMMUNITY_GRANTS/GENERAL` | `INTEREST_RATE/CREDIT_POLICY/COMMUNITY_INITIATIVE/BYLAWS` | **`ProposalCategory = COMMUNITY_GRANT \| FINANCIAL_POLICY \| GOVERNANCE_BYLAW` (DEC-2); board elections are `BallotType = BOARD_ELECTION`, not a category.** |
 | Member name/address | first/last, no address | first/last, no address | Copy 1: structured name + address; Copy 2: single `legal_name`, no address | **DEC-6 three-part Mongolian model: `ner` (given name, the sort key), `etsgiin_ner` (patronymic, ordered first, NOT a family name), optional `ovog` (clan); Cyrillic canonical; plus verbatim `mrz_name_latin` and `registration_number` (the identity-matching key); structured postal address; `legal_name` derived from the three Cyrillic fields, read-only. All three drafts assumed a two-field Western name shape and are superseded on that point.** |
-| Money representation | `DECIMAL(18,4)` | `DECIMAL(18,4)` | `DECIMAL` | **Integer minor units, `USD` (DEC-18).** |
+| Money representation | `DECIMAL(18,4)` | `DECIMAL(18,4)` | `DECIMAL` | **Integer minor units, `MNT` (DEC-18).** |
 | Ledger | Single `Transaction` row with source/destination | Same | Same | **`Transaction` (business event) + balanced double-entry `LedgerEntry` postings; balances are derived, never independently mutable.** |
 | Lending constructs | `LoanApplication` only, $1,000 cap hard-coded | `SocialLoanCircle`, `CollateralPledge`, `Loan` | `LendingCircle` (ROSCA), `PeerGuarantee`, `Loan` (two conflicting copies) | **DEC-7 vocabulary: `LoanCircle` (+`LoanCircleInvitation`), `PeerGuarantee` (the guarantee pledge), `PooledLoanCircle` (ROSCA). Caps/rates are configuration (US-12.5), not schema constants. `LoanStatus` per DEC-20 replaces all three drafts' loan status sets.** |
 | Loan servicing | Absent | Absent | Absent | **Gap closed: `RepaymentSchedule`, `RepaymentInstallment`, `CollectionsCase` added (US-6.7/US-6.8).** |
@@ -206,7 +206,7 @@ Relationships: N:1 Member; 1—N LedgerEntry; 1—N SavingsGoal (savings only); 
 Immutable double-entry posting line. Every Transaction produces ≥2 entries that sum to zero.
 
 * `id` UUID PK; `transaction_id` FK→Transaction; `account_id` FK→Account.
-* `direction` Enum `DEBIT | CREDIT`; `amount` Money (positive); `currency` `USD`.
+* `direction` Enum `DEBIT | CREDIT`; `amount` Money (positive); `currency` `MNT`.
 * `entry_type` Enum mirrors Transaction type + `HOLD_PLACED | HOLD_RELEASED | INTEREST_ACCRUAL | INTEREST_POSTING`.
 * `savings_goal_id?` FK→SavingsGoal — sub-account attribution.
 * `posted_at` Timestamp; `sequence` BIGINT monotonic per account.
@@ -218,7 +218,7 @@ The business-level money movement grouping its LedgerEntries; the member-visible
 * `id` UUID PK; `idempotency_key` String UQ nullable — required for all money-movement API calls.
 * `type` Enum `P2P_INTERNAL | EXTERNAL_ACH_IN | EXTERNAL_ACH_OUT | WIRE_OUT | RTP_IN | RTP_OUT | CARD_PURCHASE | CARD_REFUND | SHARE_SUBSCRIPTION | SHARE_REDEMPTION | INTEREST_POSTING | ROUND_UP_TRANSFER | GOAL_TRANSFER | GROUP_POT_CONTRIBUTION | GROUP_POT_OUTBOUND | LOAN_DISBURSEMENT | LOAN_REPAYMENT | GUARANTEE_APPLICATION | POOLED_CIRCLE_CONTRIBUTION | POOLED_CIRCLE_PAYOUT | DIVIDEND_PAYOUT | PROJECT_BACKING | BACKING_REFUND | SURPLUS_MATCH_DISBURSEMENT | FEE | ADJUSTMENT`.
 * `status` Enum `PENDING | SETTLED | FAILED | CANCELLED | RETURNED`; `failure_reason?` String (e.g., ACH return code).
-* `amount` Money; `currency` `USD`; `memo?` String(140).
+* `amount` Money; `currency` `MNT`; `memo?` String(140).
 * `counterparty` JSON — recipient identifier type/display name (P2P), external account ref, merchant descriptor (card), etc.
 * `category?` String — automatic categorization (US-3.2); `receipt_ref?` String — WORM object-store URI of the shareable confirmation receipt.
 * `initiated_by` FK→Member or StaffUser; `external_ref?` String (sponsor bank / Stripe / Lithic ID).
@@ -747,7 +747,7 @@ erDiagram
 * **Base path:** `/api/v1`. Member-facing resources sit at the root; staff/back-office resources under `/api/v1/admin/...` (separate staff token audience). Inbound vendor webhooks under `/api/v1/webhooks/...` (signature-verified, no OAuth).
 * **AuthN:** OAuth 2.0 Authorization Code + PKCE (members) / staff SSO (back-office); `Authorization: Bearer <JWT>` on every call except webhooks and the pre-auth onboarding bootstrap. Roles per the RBAC matrix (§5.1). "Member (ACTIVE)" means the endpoint additionally requires `MembershipStatus = ACTIVE` (US-2.2). "Step-up" means a fresh MFA/biometric assertion is required (US-1.4).
 * **Idempotency:** every money-movement `POST` requires an `Idempotency-Key` header (UUID); replays return the original result (`409 IDEMPOTENCY_CONFLICT` on same key + different payload).
-* **Money:** integer minor units + `"currency": "USD"` (DEC-18). Timestamps ISO-8601 UTC.
+* **Money:** integer minor units + `"currency": "MNT"` (DEC-18). Timestamps ISO-8601 UTC.
 * **Errors:** uniform envelope `{ "error": { "code", "message", "details[]", "correlation_id" } }`. Common codes apply everywhere and are not repeated per row: `401 UNAUTHENTICATED`, `403 FORBIDDEN` / `403 MEMBER_NOT_ACTIVE`, `404 NOT_FOUND`, `409 STATE_CONFLICT`, `422 VALIDATION_FAILED`, `429 RATE_LIMITED`.
 * **Pagination:** cursor-based — `?cursor=&limit=` → `{items[], next_cursor}` on all list endpoints.
 * Read endpoints return the resource representations implied by the §2 entities; response-key columns below list the distinctive keys only.
@@ -773,12 +773,12 @@ erDiagram
 
 | Method & Path | Auth | Request body (keys) | Response (keys) | Key error cases |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST /api/v1/onboarding/share-purchase` | Applicant with `kyc_status=APPROVED` (`MembershipStatus=PENDING_PAYMENT`); Idempotency-Key | `payment_method` (`CARD\|BANK_TRANSFER\|WALLET`), `payment_token` (Stripe) or `external_account_link_id`, `amount:2500`, `currency:"USD"` | `transaction_id`, `status`, `share:{certificate_number, par_value:2500}`, `membership_status:"ACTIVE"` (on settlement), `member_id`, `confirmation_pack_refs` (share record, bylaws copy) | `402 PAYMENT_FAILED`; `409 WRONG_MEMBERSHIP_STATE`; `422 AMOUNT_MISMATCH` (must equal configured par) |
+| `POST /api/v1/onboarding/share-purchase` | Applicant with `kyc_status=APPROVED` (`MembershipStatus=PENDING_PAYMENT`); Idempotency-Key | `payment_method` (`CARD\|BANK_TRANSFER\|WALLET`), `payment_token` (Stripe) or `external_account_link_id`, `amount:1000000`, `currency:"MNT"` | `transaction_id`, `status`, `share:{certificate_number, par_value:1000000}`, `membership_status:"ACTIVE"` (on settlement), `member_id`, `confirmation_pack_refs` (share record, bylaws copy) | `402 PAYMENT_FAILED`; `409 WRONG_MEMBERSHIP_STATE`; `422 AMOUNT_MISMATCH` (must equal configured par) |
 | `GET /api/v1/onboarding/share-purchase/{transaction_id}` | Applicant | — | `status` (`PENDING\|SETTLED\|FAILED`), `membership_status` | — |
 | `GET /api/v1/members/me/membership` | Member (any status) | — | `membership_status` + practical-meaning copy, `rights:{vote, borrow, guarantee}`, `member_id`, `joined_at` | — |
 | `GET /api/v1/members/me/shares` | Member | — | `shares[]{certificate_number, share_class, par_value, status, issued_at}`, `total_equity` | — |
 | `GET /api/v1/members/me/closure-preconditions` | Member (ACTIVE) | — | `eligible` Boolean, `blockers[]` (`ACTIVE_OR_DELINQUENT_LOAN`, `LOCKED_GUARANTEE_PLEDGE`, `GROUP_POT_MEMBERSHIP`, `NONZERO_BALANCES`), `sweep_options` | — |
-| `POST /api/v1/members/me/closure-requests` | Member (ACTIVE); step-up | `sweep_external_account_link_id`, `confirmation` | `closure_request_id`, `status`, `redemption:{amount:2500, terms_ref}` (configurable rule, Open Item 1), resulting `membership_status:"CLOSED"` on completion | `409 PRECONDITIONS_NOT_MET` (with blockers) |
+| `POST /api/v1/members/me/closure-requests` | Member (ACTIVE); step-up | `sweep_external_account_link_id`, `confirmation` | `closure_request_id`, `status`, `redemption:{amount:1000000, terms_ref}` (configurable rule, Open Item 1), resulting `membership_status:"CLOSED"` on completion | `409 PRECONDITIONS_NOT_MET` (with blockers) |
 | Admin — `GET /api/v1/admin/shares/registry` | AUDITOR / OPS_ADMIN / GOVERNANCE_ADMIN | filters | `entries[]` (issuance/redemption history), `equity_ledger_reconciliation` | — |
 | Admin — `POST /api/v1/admin/ballots/{ballot_id}/eligibility-snapshot` | GOVERNANCE_ADMIN (also invoked automatically at ballot open) | — | `snapshot_id`, `eligible_member_count`, `registry_hash` | `409 SNAPSHOT_EXISTS`; `409 BALLOT_NOT_OPENING` |
 | Admin — `POST /api/v1/admin/members/{id}/status-transitions` | OPS_ADMIN (maker); maker-checker | `target_status` (DEC-4 value), `reason`, `case_note` | `approval_id`, `status:"PENDING"` (effective only after checker approval; illegal transitions rejected) | `422 ILLEGAL_TRANSITION`; `409 PENDING_TRANSITION_EXISTS` |
