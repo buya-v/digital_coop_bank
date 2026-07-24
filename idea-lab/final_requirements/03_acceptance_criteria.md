@@ -1492,7 +1492,7 @@
 
 **Scenario 1 — Happy path: payment event, multi-channel with deep link**
 * **Given** Member B's preferences enable push and in-app inbox for payment events
-* **When** Member A sends them $25.00 via US-4.1
+* **When** Member A sends them 25,000₮ via US-4.1
 * **Then** Member B receives a push notification and an inbox entry, each deep-linking to the transaction detail
 * **And** Member A receives the sender-side confirmation event; both deliveries are recorded with status per channel.
 
@@ -1615,7 +1615,7 @@
 
 **Scenario 2 — Happy path: counter-offer**
 * **Given** the same referral
-* **When** Operators A and B approve a counter-offer of $400.00 instead of the requested $500.00
+* **When** Operators A and B approve a counter-offer of 400,000₮ instead of the requested 500,000₮
 * **Then** the borrower receives the revised conditional offer with the changed terms highlighted, free to accept or decline
 * **And** the original request and counter-offer are both retained.
 
@@ -1633,8 +1633,8 @@
 
 **Scenario 5 — Edge: guarantee-pledge administration**
 * **Given** Member D's pledge backs a restructured loan
-* **When** Operators A and B approve a partial pledge release of $50.00 consistent with US-6.4 rules
-* **Then** the lock reduces by exactly $50.00, the guarantor is notified
+* **When** Operators A and B approve a partial pledge release of 50,000₮ consistent with US-6.4 rules
+* **Then** the lock reduces by exactly 50,000₮, the guarantor is notified
 * **And** a release attempt exceeding the rules-derived releasable amount is rejected with the computed maximum shown.
 
 ### US-12.4 — Governance Administration (Scheduling, Quorum, Certification) (M)
@@ -1702,7 +1702,7 @@
 * **And** the attempt is audit-logged.
 
 **Scenario 3 — Negative: reconciliation mismatch halts the run**
-* **Given** the live run's postings drift from entitlements by $12.40 beyond documented exceptions
+* **Given** the live run's postings drift from entitlements by 12,400₮ beyond documented exceptions
 * **When** the reconciliation check detects the variance
 * **Then** the run halts for investigation, no further postings execute, and P-5 is alerted with the affected member list
 * **And** resumption requires a fresh dual approval referencing the investigation outcome.
@@ -1725,7 +1725,7 @@
 * **[CONFIRMED]** Audit log is append-only with cryptographic tamper evidence (hash chaining per the story's cited example) and a standardized envelope: actor, action, subject, before/after, timestamp (US-13.3).
 * **[CONFIRMED]** Transparent Capital Ledger reconciles to 100% of managed funds, refreshed daily or better; DEC-15 naming and "estimated" labeling apply to it and to the Impact Scorecard (US-13.4/US-13.5).
 * **[CONFIRMED]** Consent records enforced across processing; retention/erasure by record class; financial-records retention obligations override deletion; SAR/DSAR fulfilment within statutory deadlines (US-13.6).
-* **[PROPOSED]** Seed monitoring scenario: aggregate outbound transfers ≥ $10,000.00 within 24 hours, or patterns of sub-threshold amounts consistent with structuring, raise an alert. (Illustrative seed — compliance officer must define the production rule set.)
+* **[PROPOSED]** Seed monitoring scenario: aggregate outbound transfers ≥ 11,400,000₮ within 24 hours (DEC-73, income-anchored 5·W), or patterns of sub-threshold amounts consistent with structuring, raise an alert. (Illustrative seed — compliance officer must define the production rule set.)
 * **[PROPOSED]** DSAR fulfilment deadline seed: 30 calendar days (statutory deadline depends on jurisdiction/charter; configuration, not code).
 * **[PROPOSED]** Audit-log retention: 7 years minimum for financial and governance events. (No draft value; statutory confirmation required.)
 
@@ -1733,7 +1733,7 @@
 
 **Scenario 1 — Happy path: pattern alert raised and routed**
 * **Given** the tuned rule set includes the structuring scenario [PROPOSED seed]
-* **When** Member A receives nine P2P credits of $980.00 from distinct senders within 24 hours
+* **When** Member A receives nine P2P credits of 1,250,000₮ from distinct senders within 24 hours (aggregate 11,250,000₮, just under the 11,400,000₮ monitoring threshold)
 * **Then** an alert is created with the triggering scenario, scored, and routed to the US-12.2 AML queue with the linked transactions attached
 * **And** none of the transfers is blocked or annotated in any member-visible way (tipping-off safeguard).
 
@@ -1836,7 +1836,7 @@
 **Scenario 3 — Edge: insufficient underlying data**
 * **Given** Member B activated this week, or an impact category lacks trustworthy US-13.4/US-9.4 data
 * **When** the scorecard renders
-* **Then** categories without sound data show an explanatory empty state rather than $0.00-derived or fabricated figures
+* **Then** categories without sound data show an explanatory empty state rather than 0₮-derived or fabricated figures
 * **And** monetary contribution totals may still display as facts (they are ledger facts, not models).
 
 ### US-13.6 — Data Privacy, Consent Enforcement & Subject-Access Requests (M)
