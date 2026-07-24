@@ -115,7 +115,7 @@
 * **Then** the check passes and the applicant proceeds toward KYC/share purchase
 * **And** the evaluated rule version ID is recorded on the application.
 
-**Scenario 2 — Negative: ineligible applicant blocked before the $25.00 payment**
+**Scenario 2 — Negative: ineligible applicant blocked before the 10,000₮ payment**
 * **Given** Member A's address is outside every configured common-bond criterion
 * **When** the eligibility step executes
 * **Then** the application is halted before the share-purchase step is ever presented
@@ -185,21 +185,21 @@
 
 > **Note:** Adjudications for all [PROPOSED] rules: see §Business Rule Adjudication in `05_prd_and_roadmap.md`.
 
-* **[CONFIRMED]** One mandatory membership share at $25.00 par value, purchased during onboarding; non-withdrawable equity while ACTIVE; redeemable at par on `CLOSED` subject to bylaws (DEC-11; redemption terms are Open Item 1 — implemented behind a configurable rule).
+* **[CONFIRMED]** One mandatory membership share at 10,000₮ (provisional, pending DEC-11 / legal) par value, purchased during onboarding; non-withdrawable equity while ACTIVE; redeemable at par on `CLOSED` subject to bylaws (DEC-11; redemption terms are Open Item 1 — implemented behind a configurable rule).
 * **[CONFIRMED]** Status machine per DEC-4: `PENDING_KYC → PENDING_PAYMENT → ACTIVE`; `ACTIVE ↔ SUSPENDED`; `ACTIVE/SUSPENDED → CLOSED`. Only ACTIVE members may vote, borrow, or guarantee. Admin transitions require maker-checker.
 * **[CONFIRMED]** Voting eligibility is binary: the one mandatory share while ACTIVE confers exactly one vote regardless of any future additional holdings (US-2.3).
 * **[CONFIRMED]** Share par value is US-12.5 configuration ("share par" listed as a configurable parameter), never hard-coded.
 * **[PROPOSED]** Member ID format: system-issued, unique, non-guessable and non-sequential (e.g., `DCB-8K4W2M9X`). (Sprint 1/2 drafts.) [ADJUDICATED → see DEC-28 in 05_prd_and_roadmap.md: final format `DCB-` + 8 non-sequential alphanumeric characters including a check character]
-* **Superseded — do not implement:** $10.00/share and multi-share purchase at onboarding (Sprint 1 draft), $5.00 share funded from first deposit (Sprint 3 draft) — both replaced by DEC-11 ($25.00, purchased in-flow); "membership token"/`PENDING_TOKEN` (replaced by the `PENDING_PAYMENT → ACTIVE` transition, DEC-4).
+* **Superseded — do not implement:** $10.00/share and multi-share purchase at onboarding (Sprint 1 draft), $5.00 share funded from first deposit (Sprint 3 draft) — both replaced by DEC-11 (10,000₮, purchased in-flow); "membership token"/`PENDING_TOKEN` (replaced by the `PENDING_PAYMENT → ACTIVE` transition, DEC-4).
 
 ### US-2.1 — Initial Membership Share Purchase & Member Activation (M)
 
-**Data validation & security:** the purchase amount is fixed at exactly $25.00 (2500 minor units) sourced from US-12.5 configuration; client-supplied amounts are ignored/rejected; the purchase endpoint requires an application in `MembershipStatus = PENDING_PAYMENT`.
+**Data validation & security:** the purchase amount is fixed at exactly 10,000₮ (1,000,000 minor units) sourced from US-12.5 configuration; client-supplied amounts are ignored/rejected; the purchase endpoint requires an application in `MembershipStatus = PENDING_PAYMENT`.
 
 **Scenario 1 — Happy path: card payment activates membership**
 * **Given** Member A's application has `KycStatus = APPROVED` and `MembershipStatus = PENDING_PAYMENT`
-* **When** they pay $25.00 by debit card and the payment settles
-* **Then** $25.00 posts to the Membership Share Account as non-withdrawable equity
+* **When** they pay 10,000₮ by debit card and the payment settles
+* **Then** 10,000₮ posts to the Membership Share Account as non-withdrawable equity
 * **And** `MembershipStatus` transitions `PENDING_PAYMENT → ACTIVE`
 * **And** the member receives their Member ID and a digital confirmation containing the share record and a copy of the bylaws
 * **And** voting, borrowing, and guaranteeing rights activate, and the `onboarding_completed` timestamp is emitted for KPI-1.1.
@@ -212,10 +212,10 @@
 * **And** the applicant sees "Payment declined — please try another method" and can retry with card, bank transfer, or wallet-funded card without restarting onboarding.
 
 **Scenario 3 — Edge: duplicate settlement webhook (idempotency)**
-* **Given** Member A's $25.00 payment settled and activated membership
+* **Given** Member A's 10,000₮ payment settled and activated membership
 * **When** the payment processor redelivers the same settlement webhook (same payment reference)
 * **Then** the system recognizes the idempotency key and posts nothing further
-* **And** exactly one share is recorded in the registry and the equity ledger shows exactly one $25.00 credit.
+* **And** exactly one share is recorded in the registry and the equity ledger shows exactly one 10,000₮ credit.
 
 **Scenario 4 — Negative (security): API bypass attempt before KYC approval**
 * **Given** a client authenticated to an application with `KycStatus = PENDING_REVIEW` (so `MembershipStatus = PENDING_KYC`)
@@ -261,7 +261,7 @@
 
 **Scenario 2 — Negative: registry/ledger reconciliation mismatch**
 * **Given** a reconciliation run compares share registry entries to the equity ledger
-* **When** the registry shows 940 issued shares but the ledger total equals 939 × $25.00
+* **When** the registry shows 940 issued shares but the ledger total equals 939 × 10,000₮ (illustrative, pending confirmed par)
 * **Then** the reconciliation job flags the discrepancy, alerts P-5, and blocks new snapshot production until resolved
 * **And** the discrepancy record identifies the specific member entries that fail to reconcile.
 
@@ -283,7 +283,7 @@
 * **Given** Member A is `ACTIVE` with no `ACTIVE`/`DELINQUENT` loans, no locked guarantee pledges, no unresolved Group Pot memberships, and a verified external account on file
 * **When** they complete the guided closure flow and confirm with step-up authentication
 * **Then** remaining deposit balances are swept to the external account
-* **And** the membership share is redeemed at $25.00 par (per the configurable bylaws rule, Open Item 1) to the same external account
+* **And** the membership share is redeemed at 10,000₮ par (per the configurable bylaws rule, Open Item 1) to the same external account
 * **And** `MembershipStatus` transitions to `CLOSED`, the share registry records the redemption, and post-closure data handling follows US-13.6.
 
 **Scenario 2 — Negative: closure blocked by an active loan**
@@ -294,7 +294,7 @@
 * **And** no status change or redemption occurs.
 
 **Scenario 3 — Negative: closure blocked by a locked guarantee pledge**
-* **Given** Member A has a $200.00 guarantee pledge locked against Member B's `ACTIVE` loan
+* **Given** Member A has a 200,000₮ guarantee pledge locked against Member B's `ACTIVE` loan
 * **When** they attempt closure
 * **Then** the flow is blocked with reason "guarantee pledge locked until the guaranteed loan is repaid or released"
 * **And** the pledge remains locked and untouched.
@@ -319,27 +319,27 @@
 * **[CONFIRMED — structural]** The approval threshold m must satisfy 1 ≤ m ≤ n where n = current number of pot approvers; configurations violating this are rejected.
 * **[PROPOSED]** Pending Group Pot outbound approvals expire after 48 hours; on expiry the request is cancelled and the hold released. (Sprint 3 draft; story requires "time-outs", the 48 h value needs PO confirmation.)
 * **[PROPOSED]** Savings Goal scheduled auto-transfers that meet insufficient funds are skipped for that occurrence with a member notification, and do not overdraft the Transaction Account. (Extrapolated from the confirmed Round-Up skip rule; needs PO confirmation.)
-* **[PROPOSED]** Savings Goal target amount must be > $0.00 and target date, when set, must be in the future. (Draft-level validation.)
+* **[PROPOSED]** Savings Goal target amount must be > 0₮ and target date, when set, must be in the future. (Draft-level validation.)
 
 ### US-3.1 — Primary Savings Account with Interest Accrual & Posting (M)
 
 **Scenario 1 — Happy path: automatic opening at activation**
 * **Given** Member A's `MembershipStatus` transitions to `ACTIVE` at 14:02
 * **When** the activation event is processed
-* **Then** a Primary Savings Account is opened automatically with a $0.00 balance and the current US-12.5-configured interest rate
-* **And** the account is visible in-app within the same session with accrued interest shown as $0.00.
+* **Then** a Primary Savings Account is opened automatically with a 0₮ balance and the current US-12.5-configured interest rate
+* **And** the account is visible in-app within the same session with accrued interest shown as 0₮.
 
 **Scenario 2 — Happy path: daily accrual, monthly posting**
-* **Given** Member A holds $1,000.00 for all 30 days of a month at an annual rate of 2.00% (configuration example)
+* **Given** Member A holds 1,000,000₮ for all 30 days of a month at an annual rate of 2.00% (configuration example)
 * **When** the month-end posting job runs
-* **Then** daily accruals of $1,000.00 × 2.00%/365 have accumulated each day and the month's accrued total posts as one interest credit
+* **Then** daily accruals of 1,000,000₮ × 2.00%/365 have accumulated each day and the month's accrued total posts as one interest credit
 * **And** the member-facing yield history shows earned-to-date and the last posting amount, both reconciling to the ledger
 * **And** rounding to integer minor units follows a single documented rule (accumulate at high precision, round at posting).
 
 **Scenario 3 — Negative: withdrawal exceeding available balance**
-* **Given** Member A's savings balance is $150.00 with $100.00 locked as a guarantee pledge (US-6.4), so available = $50.00
-* **When** they attempt an internal transfer of $75.00 out of savings
-* **Then** the transfer is rejected with `422 Unprocessable Content` and message "amount exceeds available balance $50.00"
+* **Given** Member A's savings balance is 150,000₮ with 100,000₮ locked as a guarantee pledge (US-6.4), so available = 50,000₮
+* **When** they attempt an internal transfer of 75,000₮ out of savings
+* **Then** the transfer is rejected with `422 Unprocessable Content` and message "amount exceeds available balance 50,000₮"
 * **And** no ledger entry is created and the locked pledge is untouched.
 
 **Scenario 4 — Edge: effective-dated rate change mid-month**
@@ -351,9 +351,9 @@
 ### US-3.2 — Transaction (Checking) Account with Categorized History (M)
 
 **Scenario 1 — Happy path: real-time balance and categorized history**
-* **Given** Member A's Transaction Account has a $250.00 balance
-* **When** a $12.40 card purchase at a grocery merchant settles
-* **Then** the balance updates to $237.60 in real time
+* **Given** Member A's Transaction Account has a 250,000₮ balance
+* **When** a 12,400₮ card purchase at a grocery merchant settles
+* **Then** the balance updates to 237,600₮ in real time
 * **And** the transaction appears in history with an automatic category "Groceries", merchant name, and timestamp
 * **And** opening the transaction detail offers a shareable confirmation receipt containing timestamp, unique transaction reference, amount, counterparty, and status.
 
@@ -378,24 +378,24 @@
 
 **Scenario 1 — Happy path: create a goal with automated transfers**
 * **Given** Member A has a Primary Savings Account and a Transaction Account
-* **When** they create Savings Goal "New Laptop" with target $900.00, target date 6 months out, an emoji, and a recurring $75.00 monthly auto-transfer from the Transaction Account
+* **When** they create Savings Goal "New Laptop" with target 900,000₮, target date 6 months out, an emoji, and a recurring 75,000₮ monthly auto-transfer from the Transaction Account
 * **Then** the goal is created as a sub-account under the Primary Savings Account with a progress bar at 0%
-* **And** on the next scheduled date $75.00 moves Transaction Account → goal and progress shows $75.00 / $900.00 (8%).
+* **And** on the next scheduled date 75,000₮ moves Transaction Account → goal and progress shows 75,000₮ / 900,000₮ (8%).
 
 **Scenario 2 — Happy path: withdraw from a goal with gentle confirmation**
-* **Given** the "New Laptop" goal holds $300.00
-* **When** Member A withdraws $100.00 back to the Transaction Account
+* **Given** the "New Laptop" goal holds 300,000₮
+* **When** Member A withdraws 100,000₮ back to the Transaction Account
 * **Then** a confirmation explains the effect on their goal progress before executing
-* **And** on confirm, $100.00 transfers and progress updates to $200.00 / $900.00.
+* **And** on confirm, 100,000₮ transfers and progress updates to 200,000₮ / 900,000₮.
 
 **Scenario 3 — Negative: invalid goal parameters**
 * **Given** Member A is creating a goal
-* **When** they submit a target amount of $0.00 or a target date in the past [PROPOSED validation]
+* **When** they submit a target amount of 0₮ or a target date in the past [PROPOSED validation]
 * **Then** the API rejects with `422 Unprocessable Content` naming the invalid fields
 * **And** no goal is created.
 
 **Scenario 4 — Edge: scheduled transfer meets insufficient funds**
-* **Given** Member A's Transaction Account holds $40.00 on the scheduled date of a $75.00 auto-transfer
+* **Given** Member A's Transaction Account holds 40,000₮ on the scheduled date of a 75,000₮ auto-transfer
 * **When** the transfer job runs
 * **Then** the occurrence is skipped without overdrafting [PROPOSED rule], the goal balance is unchanged
 * **And** Member A is notified via US-11.1 with the next scheduled attempt date; the schedule itself remains active.
@@ -410,9 +410,9 @@
 
 **Scenario 2 — Happy path: contributions need no approval**
 * **Given** the pot is formed
-* **When** Member B contributes $50.00 from their Transaction Account
+* **When** Member B contributes 50,000₮ from their Transaction Account
 * **Then** the contribution posts immediately without any approval
-* **And** the ledger shows the pot balance and Member B's cumulative contribution ($50.00) to all pot members.
+* **And** the ledger shows the pot balance and Member B's cumulative contribution (50,000₮) to all pot members.
 
 **Scenario 3 — Negative: invalid approval threshold**
 * **Given** the pot has 3 approvers
@@ -435,18 +435,18 @@
 ### US-3.5 — Group Pot Outbound Approval Workflow (m-of-n) (M)
 
 **Scenario 1 — Happy path: threshold reached, transfer executes**
-* **Given** Group Pot "Community Garden Fund" holds $600.00 with a 2-of-3 rule
-* **When** Member A requests an outbound transfer of $200.00 to a nursery with purpose "seedlings"
-* **Then** the request enters pending-approval, $200.00 is held, and Members B and C are notified with amount, recipient, and purpose (US-11.1)
+* **Given** Group Pot "Community Garden Fund" holds 600,000₮ with a 2-of-3 rule
+* **When** Member A requests an outbound transfer of 200,000₮ to a nursery with purpose "seedlings"
+* **Then** the request enters pending-approval, 200,000₮ is held, and Members B and C are notified with amount, recipient, and purpose (US-11.1)
 * **And when** Member B approves in-app
 * **Then** the 2-of-3 threshold is met (initiator counts as one approval — see note below), the transfer executes, the hold converts to a debit, and all pot members are notified
 * **And** the decision trail (who requested, who approved, when) is written to the pot ledger and the immutable audit log.
 * *Note:* whether the initiator's request counts as their approval is **[PROPOSED — needs PO confirmation]**; scenarios must be re-parameterized once decided.
 
 **Scenario 2 — Negative: threshold becomes unreachable**
-* **Given** a pending $150.00 request under a 2-of-3 rule where the initiator's request counts as one approval
+* **Given** a pending 150,000₮ request under a 2-of-3 rule where the initiator's request counts as one approval
 * **When** both other approvers reject it
-* **Then** the request is cancelled as unreachable, the $150.00 hold is released
+* **Then** the request is cancelled as unreachable, the 150,000₮ hold is released
 * **And** all pot members are notified with the rejection reasons recorded in the ledger.
 
 **Scenario 3 — Negative (security): non-approver or double approval**
@@ -469,13 +469,13 @@
 
 > **Note:** Adjudications for all [PROPOSED] rules: see §Business Rule Adjudication in `05_prd_and_roadmap.md`.
 
-* **[CONFIRMED]** P2P recipients addressed by exactly one of `PHONE | EMAIL | MEMBER_ID`; usernames/handles unsupported (DEC-3). Recipient display-name confirmation before send. Internal P2P fee is $0.00. Per-transaction and velocity limits are US-12.5 configuration.
+* **[CONFIRMED]** P2P recipients addressed by exactly one of `PHONE | EMAIL | MEMBER_ID`; usernames/handles unsupported (DEC-3). Recipient display-name confirmation before send. Internal P2P fee is 0₮. Per-transaction and velocity limits are US-12.5 configuration.
 * **[CONFIRMED]** USD only, integer minor units (DEC-18); FX out of scope. All transfer flows feed AML monitoring (US-13.1). Step-up authentication for external payments above configured thresholds (US-1.4/US-4.2).
-* **[PROPOSED]** Default P2P daily velocity limit $2,000.00 per sender (Sprint 1 draft) — to be seeded as the initial US-12.5 value, not hard-coded.
+* **[PROPOSED]** Default P2P daily velocity limit 1,150,000₮ per sender (DEC-33, income-anchored 0.50·W) — to be seeded as the initial US-12.5 value, not hard-coded.
 * **[PROPOSED]** Default per-sender **recipient-lookup velocity cap** (recipient-lookups per sender per period) — the anti-fishing control relocated here from name-masking per DEC-35, since Mongolian names cannot be masked without exposing the identity. To be seeded as the initial US-12.5 configuration value, **not hard-coded**; no threshold is defined here (PO to confirm). Sibling to the P2P daily velocity limit above (DEC-33) — that caps sends, this caps lookups — and complementary to the uniform-response enumeration protection on `POST /api/v1/payments/recipient-lookup` (04 §3.4; US-4.1 Scenario 2).
 * **[PROPOSED]** Internal P2P ledger settlement SLA < 3 seconds (Sprint 1 draft).
 * **[PROPOSED]** Recipient confirmation shows the recipient's display name before send, for anti-fishing. [ADJUDICATED → see DEC-35 in 05_prd_and_roadmap.md: display is the standard Mongolian short form = patronymic initial + given name (e.g., Cyrillic "Ц. Бат", Latin "Ts. Bat"), with `ner` (DEC-6) shown in full. Name-masking does not apply to Mongolian names — `ner` is the identity, not a family name — so the anti-fishing defence moves to the per-sender recipient-lookup velocity cap (US-12.5 seed, no hard-coded value) plus the existing uniform-response enumeration protection (US-4.1 Scenario 2).]
-* **[PROPOSED]** Default step-up threshold for external payments: single transfer > $1,000.00 (no draft value existed; placeholder for the US-12.5 seed — PO to confirm).
+* **[PROPOSED]** Default step-up threshold for external payments: single transfer > 550,000₮ (DEC-36, income-anchored 0.25·W; placeholder for the US-12.5 seed — PO to confirm).
 * **[PROPOSED]** External account linking verified via micro-deposits or instant account verification before first outbound use. [ADJUDICATED → see DEC-37 in 05_prd_and_roadmap.md: Plaid instant verification primary; micro-deposit fallback for unsupported institutions]
 * **[PROPOSED]** Failed recurring payments retry up to 2 times at 24-hour intervals before the occurrence is marked failed (Sprint drafts imply retry; count/interval need PO confirmation).
 * **Security assertions (all EP-4 stories):** every money-movement command carries an idempotency key; senders can only originate from accounts they own (ownership check server-side); velocity/limit checks evaluate server-side before ledger execution.
@@ -483,10 +483,10 @@
 ### US-4.1 — Instant Internal P2P Transfer (M)
 
 **Scenario 1 — Happy path: send by phone number with display-name confirmation**
-* **Given** Member A has $100.00 in their Transaction Account and Member B has a registered phone number
-* **When** Member A enters that phone number (`RecipientIdentifierType = PHONE`), the app shows Member B's short-form display name for confirmation (patronymic initial + given name per DEC-35, e.g. "Ц. Бат"), and Member A confirms and sends $25.00
-* **Then** the ledger settles instantly (target < 3 s [PROPOSED SLA]) with a $0.00 fee
-* **And** Member A's balance is $75.00 and Member B's is credited $25.00
+* **Given** Member A has 100,000₮ in their Transaction Account and Member B has a registered phone number
+* **When** Member A enters that phone number (`RecipientIdentifierType = PHONE`), the app shows Member B's short-form display name for confirmation (patronymic initial + given name per DEC-35, e.g. "Ц. Бат"), and Member A confirms and sends 25,000₮
+* **Then** the ledger settles instantly (target < 3 s [PROPOSED SLA]) with a 0₮ fee
+* **And** Member A's balance is 75,000₮ and Member B's is credited 25,000₮
 * **And** both parties receive notifications with deep links (US-11.1) and the transfer is emitted to AML monitoring (US-13.1).
 
 **Scenario 2 — Negative: recipient not found / not addressable**
@@ -496,15 +496,15 @@
 * **And** the response is identical whether the identifier is unknown, or belongs to a `SUSPENDED`/`CLOSED` member (no membership-status leakage).
 
 **Scenario 3 — Negative: velocity limit exceeded**
-* **Given** the configured daily P2P limit is $2,000.00 [PROPOSED seed value] and Member A has sent $1,900.00 today
-* **When** they attempt to send another $150.00
-* **Then** the transfer is rejected before execution with "this transfer would exceed your daily limit; remaining today: $100.00"
+* **Given** the configured daily P2P limit is 1,150,000₮ [PROPOSED seed value] and Member A has sent 1,050,000₮ today
+* **When** they attempt to send another 150,000₮
+* **Then** the transfer is rejected before execution with "this transfer would exceed your daily limit; remaining today: 100,000₮"
 * **And** no ledger entry is created.
 
 **Scenario 4 — Edge: duplicate submission (idempotency)**
 * **Given** Member A taps "Send" and the network times out, and the client retries with the same idempotency key
 * **When** both requests reach the server
-* **Then** exactly one $25.00 transfer settles
+* **Then** exactly one 25,000₮ transfer settles
 * **And** the retry receives the original success response; a replay of the same key with a different amount returns `409 Conflict`.
 
 **Scenario 5 — Edge: self-transfer via own identifier**
@@ -517,14 +517,14 @@
 
 **Scenario 1 — Happy path: link external account and send outbound ACH**
 * **Given** Member A has linked and verified an external bank account
-* **When** they submit a $500.00 outbound ACH before the configured cut-off time
+* **When** they submit a 500,000₮ outbound ACH before the configured cut-off time
 * **Then** the payment is accepted with status "submitted", included in that day's batch, and status tracking progresses submitted → processing → completed
 * **And** any configured fee (US-12.5) is disclosed before confirmation and posted as a separate ledger line
 * **And** the payment is emitted to AML monitoring (US-13.1).
 
 **Scenario 2 — Happy path: step-up above the threshold**
-* **Given** the step-up threshold is $1,000.00 [PROPOSED seed value]
-* **When** Member A submits a $2,500.00 wire
+* **Given** the step-up threshold is 550,000₮ [PROPOSED seed value]
+* **When** Member A submits a 2,500,000₮ wire
 * **Then** step-up authentication (US-1.4) is required before the wire is accepted
 * **And** without a fresh successful step-up, the API rejects the submission with `403 Forbidden` reason "step-up required".
 
@@ -535,7 +535,7 @@
 * **And** no payment is initiated.
 
 **Scenario 4 — Edge: ACH return after posting**
-* **Given** Member A's $500.00 inbound ACH was credited and 2 days later an R01 (insufficient funds) return arrives
+* **Given** Member A's 500,000₮ inbound ACH was credited and 2 days later an R01 (insufficient funds) return arrives
 * **When** the return is processed
 * **Then** the credit is reversed with a clearly labeled linked ledger entry, the payment status becomes "returned" with a member-readable reason
 * **And** the member is notified via US-11.1; if the reversal overdraws the account, the balance may go negative and collections/notification policy applies (no silent absorption).
@@ -549,20 +549,20 @@
 ### US-4.3 — Bill Pay & Scheduled / Recurring Transfers (M)
 
 **Scenario 1 — Happy path: recurring payment executes on schedule**
-* **Given** Member A creates a recurring monthly payment of $60.00 to a saved payee, first execution on the 1st
+* **Given** Member A creates a recurring monthly payment of 60,000₮ to a saved payee, first execution on the 1st
 * **When** the 1st arrives with sufficient funds
 * **Then** the payment executes over the appropriate rail (US-4.1/US-4.2), the occurrence is marked completed
 * **And** the schedule shows the next execution date.
 
 **Scenario 2 — Negative: insufficient funds triggers retry policy and notification**
-* **Given** the scheduled $60.00 payment finds a $40.00 balance
+* **Given** the scheduled 60,000₮ payment finds a 40,000₮ balance
 * **When** the execution job runs
 * **Then** the occurrence fails without overdrafting, Member A is notified immediately (US-11.1)
 * **And** the payment retries per policy (up to 2 retries at 24 h intervals [PROPOSED]); after final failure the occurrence is marked failed and the schedule continues to the next period.
 
 **Scenario 3 — Happy path: pause, edit, cancel**
 * **Given** an active schedule
-* **When** Member A pauses it, edits the amount to $75.00, or cancels it before the next cut-off
+* **When** Member A pauses it, edits the amount to 75,000₮, or cancels it before the next cut-off
 * **Then** the change takes effect for all future occurrences and is confirmed in-app
 * **And** already-executed occurrences are unaffected.
 
@@ -575,16 +575,16 @@
 ### US-4.4 — Expense Splitting & Payment Requests (M)
 
 **Scenario 1 — Happy path: equal split with one-tap settlement**
-* **Given** Member A has a $90.00 restaurant transaction in their Transaction Account history
+* **Given** Member A has a 90,000₮ restaurant transaction in their Transaction Account history
 * **When** they split it equally among themselves, Member B, and Member C (addressed per DEC-3)
-* **Then** payment requests of $30.00 are sent to Members B and C with the transaction context
+* **Then** payment requests of 30,000₮ are sent to Members B and C with the transaction context
 * **And when** Member B taps "Pay" and confirms
-* **Then** a US-4.1 transfer of $30.00 settles and the request auto-reconciles to "paid", with Member A's tracker showing B paid / C outstanding.
+* **Then** a US-4.1 transfer of 30,000₮ settles and the request auto-reconciles to "paid", with Member A's tracker showing B paid / C outstanding.
 
 **Scenario 2 — Negative: custom shares don't sum to the total**
-* **Given** Member A chooses custom split amounts on the $90.00 transaction
-* **When** they enter $30.00 + $40.00 + $30.00 (= $100.00)
-* **Then** the client and server reject with `422 Unprocessable Content`: "shares must sum to $90.00"
+* **Given** Member A chooses custom split amounts on the 90,000₮ transaction
+* **When** they enter 30,000₮ + 40,000₮ + 30,000₮ (= 100,000₮)
+* **Then** the client and server reject with `422 Unprocessable Content`: "shares must sum to 90,000₮"
 * **And** no requests are issued.
 
 **Scenario 3 — Negative: request to a non-member**
@@ -594,7 +594,7 @@
 * **And** the remaining valid participants can still be requested.
 
 **Scenario 4 — Edge: recipient declines; reminder nudges**
-* **Given** Member C received a $30.00 request
+* **Given** Member C received a 30,000₮ request
 * **When** Member C declines it
 * **Then** the request is marked declined and Member A is notified (the debt is not enforced by the platform)
 * **And** for outstanding requests, Member A can send at most one reminder nudge per request per 24 hours [PROPOSED anti-spam rule].
