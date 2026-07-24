@@ -22,8 +22,9 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, DeferredEnum, Timestamps, UUIDPrimaryKey
+from app.db.base import Base, Timestamps, UUIDPrimaryKey
 from app.db.types import MoneyMinor
+from app.models.deposits import RecipientIdentifierType
 
 
 # --------------------------------------------------------------------------- #
@@ -227,9 +228,14 @@ class PaymentRequestShare(Base, UUIDPrimaryKey, Timestamps):
     payment_request_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("payment_request.id")
     )
-    # Debtor identified per RecipientIdentifierType (DEC-3). 04 §2.4 does not
-    # enumerate that type's value set here → DeferredEnum (String), not invented.
-    debtor_identifier_type: Mapped[str] = mapped_column(DeferredEnum)
+    # Debtor identified per RecipientIdentifierType (DEC-3, 04 §2.4 line 301).
+    # T4 reconciliation: this is the SAME concept as E-11 GroupPotMember.invited_via
+    # (deposits.py), which owns the real enum/type — not a DeferredEnum. deposits
+    # creates the Postgres type; this column references it (create_type=False) so
+    # CREATE TYPE runs exactly once.
+    debtor_identifier_type: Mapped[RecipientIdentifierType] = mapped_column(
+        Enum(RecipientIdentifierType, name="recipient_identifier_type", create_type=False)
+    )
     debtor_identifier: Mapped[str] = mapped_column(String(255))
     amount = mapped_column(MoneyMinor)  # money, integer minor units
     status: Mapped[PaymentRequestShareStatus] = mapped_column(

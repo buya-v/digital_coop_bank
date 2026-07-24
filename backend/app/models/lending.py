@@ -28,10 +28,15 @@ Timestamps)`; money -> MoneyMinor; ids UUID; FKs by table-name string. Enums are
 real ONLY where 04 §2 lists the value set (LoanStatus per DEC-20 is listed and is
 used verbatim); otherwise DeferredEnum (String). Cross-domain references to tables
 owned by OTHER model slices (ConfigurationParameter, MakerCheckerApproval,
-StaffUser, ComplianceCase, and the glossary `RecipientIdentifierType`) are NOT DB
-foreign keys here — they are plain UUID / String columns with a note — so the
-schema gate resolves against only the tables that exist. This module implements
-NO behaviour: table definitions only.
+StaffUser, ComplianceCase) are NOT DB foreign keys here — they are plain UUID
+columns with a note — so the schema gate resolves against only the tables that
+exist. This module implements NO behaviour: table definitions only.
+
+T4 (RecipientIdentifierType reconciliation): `LoanCircleInvitation.addressed_via`
+(E-22, DEC-3) is the same glossary enum as deposits.py's `RecipientIdentifierType`
+(owner: E-11 GroupPotMember.invited_via) — no longer a DeferredEnum here. It is a
+real Postgres ENUM column referencing the type deposits.py creates
+(`create_type=False`), imported from `app.models.deposits`.
 """
 from __future__ import annotations
 
@@ -52,8 +57,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, DeferredEnum, Timestamps, UUIDPrimaryKey
+from app.db.base import Base, Timestamps, UUIDPrimaryKey
 from app.db.types import MoneyMinor
+from app.models.deposits import RecipientIdentifierType
 
 
 # ---------------------------------------------------------------------------
@@ -349,9 +355,13 @@ class LoanCircleInvitation(Base, UUIDPrimaryKey, Timestamps):
         UUID(as_uuid=True), ForeignKey("member.id")
     )  # ACTIVE only — enforced in service
     # `addressed_via` is the glossary enum RecipientIdentifierType
-    # (PHONE|EMAIL|MEMBER_ID, DEC-3) — owned by another slice; DeferredEnum here
-    # to avoid cross-slice enum-type ownership collision.
-    addressed_via: Mapped[str] = mapped_column(DeferredEnum)
+    # (PHONE|EMAIL|MEMBER_ID, DEC-3, 04 §2.6 line 357) — owned by deposits.py
+    # (E-11 GroupPotMember.invited_via). T4 reconciliation: same concept, so this
+    # references the shared Postgres type (create_type=False); deposits.py remains
+    # the sole CREATE TYPE.
+    addressed_via: Mapped[RecipientIdentifierType] = mapped_column(
+        Enum(RecipientIdentifierType, name="recipient_identifier_type", create_type=False)
+    )
     disclosure = mapped_column(JSONB)  # amount, term, requested pledge, risk stmt
     status: Mapped[LoanCircleInvitationStatus] = mapped_column(
         Enum(LoanCircleInvitationStatus, name="loan_circle_invitation_status")
