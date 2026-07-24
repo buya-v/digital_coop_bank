@@ -11,7 +11,7 @@
 
 ### 1.1 Vision
 
-**Digital Coop Bank is the first purely digital cooperative bank that treats member ownership as a product feature, not a legal footnote.** It occupies the intersection no incumbent covers (per `00_market_research.md` §5): the regulatory safety and full product set of a credit union, the mobile-first UX of a leading neobank, and the participatory governance and transparent treasury of the best Web3 communities — delivered inside regulated, USD, fiat banking.
+**Digital Coop Bank is the first purely digital cooperative bank that treats member ownership as a product feature, not a legal footnote.** It occupies the intersection no incumbent covers (per `00_market_research.md` §5): the regulatory safety and full product set of a credit union, the mobile-first UX of a leading neobank, and the participatory governance and transparent treasury of the best Web3 communities — delivered inside regulated, MNT, fiat banking.
 
 Members join in minutes through fully digital eKYC onboarding, buy one 10,000₮ membership share (provisional, pending DEC-11 / legal), and immediately hold three things no neobank gives them: **a vote** (one member, one vote, from their phone, with Proxy Delegation), **a dividend** (an annual Patronage Dividend they can watch grow in real time), and **verifiable transparency** (a Transparent Capital Ledger showing exactly where the cooperative's collective funds are deployed).
 
