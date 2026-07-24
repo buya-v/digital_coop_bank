@@ -51,9 +51,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
-      "note": "",
+      "note": "agent a7495a2bfa6edd016 spawned (worktree), forked from main incl. T1",
       "description": "Fulfil the promise already written in main.py's /ready docstring: check the DB. Depend on T1's get_session/engine_configured. Update the existing /ready handler so it: (a) if no DB configured -> returns {'status':'degraded','db':'unconfigured','currency':MNT} with HTTP 200 (scaffold/dev is a valid state, not an outage); (b) if configured -> runs `SELECT 1` via a session; success -> {'status':'ready','db':'ok',...}; failure -> HTTP 503 {'status':'unready','db':'error',...} (catch, do not leak the exception text). Keep /health untouched. NEW backend/tests/test_ready.py using fastapi.testclient.TestClient: test the unconfigured path (no DATABASE_URL) returns 200 degraded; test the ok path by OVERRIDING the get_session dependency with a fake session whose execute() returns 1 (no real DB); test the error path by overriding to raise. ACCEPTANCE: the 3 tests pass without any real database; ruff+mypy clean; existing 19 tests still pass."
     },
     {
@@ -69,9 +69,9 @@
         ".github/workflows/ci.yml"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "approved",
       "attempts": 0,
-      "note": "agent a2612d59cfdcc5fc9 spawned (worktree)",
+      "note": "merged; review APPROVED; micro-fix applied (multiset count guard); gate PASS",
       "description": "Backlog item 1: guarantee the initial migration stays in lockstep with the models WITHOUT a database. NEW backend/app/db/check_migration.py: render the full DDL of Base.metadata offline via sqlalchemy.create_mock_engine('postgresql://', dump) + metadata.create_all(engine) into a list of normalised statements; separately render the migration's intended DDL by importing migrations/versions/0001_initial.py and reading its `_UP` list; normalise both (collapse whitespace, sort statement sets) and assert the CREATE TABLE / CREATE TYPE / ALTER sets are EQUAL; print a unified diff + VERDICT: PASS/FAIL and exit nonzero on mismatch. This is the same mock-engine technique used to generate the migration, now used to police drift. NEW backend/tests/test_migration_matches_models.py wrapping it as a pytest. Wire a step into .github/workflows/ci.yml running `python -m app.db.check_migration` in the ORM-gate job (offline, before the Postgres apply step). ACCEPTANCE: check PASSES on current head; if you mutate a model locally to prove it, it must FAIL \u2014 then revert; ruff+mypy clean."
     },
     {
@@ -87,9 +87,9 @@
         "backend/app/models/identity.py"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "approved",
       "attempts": 0,
-      "note": "agent ad2879c4d6db9766c spawned (worktree)",
+      "note": "merged; review APPROVED; owner=deposits.py enum, 2 refs create_type=False; migration regenerated; check_migration PASS",
       "description": "Backlog item 2: RecipientIdentifierType is a real enum in identity.py but DeferredEnum(String) in payments.py and lending.py \u2014 one concept, three encodings. Make identity.py the single source of truth: confirm identity.py's RecipientIdentifierType enum is complete and correctly named (name= on the Enum so the Postgres type is shared), then in payments.py and lending.py replace the DeferredEnum column(s) that hold a recipient-identifier-type with `mapped_column(Enum(RecipientIdentifierType, name='recipientidentifiertype'))` imported from app.models.identity. If any of the three actually needs a DIFFERENT value set (verify by reading the columns' meaning in 04), DO NOT force-merge \u2014 report the divergence in the handoff instead. Ensure only ONE CREATE TYPE for it (create_type=False on the non-owning references so the migration doesn't double-create). ACCEPTANCE: `python -m app.db.check_models` still PASS; the enum appears exactly once in the rendered migration; all tests pass; mypy clean. NOTE: this changes the schema, so 0001_initial.py must be regenerated to match \u2014 if check_migration (T3) exists it will police this; regenerate the migration's affected statements."
     }
   ]

@@ -118,11 +118,24 @@ def main() -> int:
         return 2
 
     matches, only_model, only_migration = compare(model_stmts, migration_stmts)
+    # Multiset guard: set comparison alone would pass a migration that DUPLICATES
+    # a statement (140 lines collapsing to the same 139-member set). Require the
+    # raw counts to agree so an accidental duplicate is caught offline, not only
+    # by the downstream Postgres apply.
+    counts_match = len(model_stmts) == len(migration_stmts)
 
     print(
         f"models: {len(model_stmts)} DDL statements · "
         f"migration: {len(migration_stmts)} DDL statements"
     )
+
+    if not counts_match:
+        print(
+            f"  statement COUNT mismatch: {len(model_stmts)} model vs "
+            f"{len(migration_stmts)} migration (duplicate or missing statement)"
+        )
+        print("VERDICT: FAIL")
+        return 1
 
     if not matches:
         if only_model:
