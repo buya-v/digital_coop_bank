@@ -8,7 +8,7 @@
 
 * **Story IDs:** `US-<epic>.<n>`, freshly numbered. IDs from the sprint drafts (US-1.1a, MIM-1, DGV-3, CAT-1, …) are retired and must not be referenced.
 * **Personas:** referenced only by canonical ID (P-1 Values-Driven Saver, P-2 Digital-Native Member, P-3 Flexible Earner, P-4 Community Organizer, P-5 Cooperative Operations Administrator). Where a story serves several personas, the primary persona voices the story and others are noted in the description.
-* **Enums and terms** are used verbatim per the glossary: `MembershipStatus = PENDING_KYC | PENDING_PAYMENT | ACTIVE | SUSPENDED | CLOSED`; `KycStatus = NOT_STARTED | IN_PROGRESS | PENDING_REVIEW | APPROVED | REJECTED`; `VoteChoice = FOR | AGAINST | ABSTAIN`; `ProposalCategory = COMMUNITY_GRANT | FINANCIAL_POLICY | GOVERNANCE_BYLAW`; `ProposalStatus = DRAFT | SUBMITTED | OPEN_FOR_VOTING | PASSED | REJECTED | WITHDRAWN`; `BallotType = PROPOSAL | BOARD_ELECTION`; `RecipientIdentifierType = PHONE | EMAIL | MEMBER_ID`; `LoanStatus = DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | ACTIVE | DELINQUENT | PAID_OFF | DEFAULTED | WRITTEN_OFF`. All amounts USD, integer minor units (DEC-18).
+* **Enums and terms** are used verbatim per the glossary: `MembershipStatus = PENDING_KYC | PENDING_PAYMENT | ACTIVE | SUSPENDED | CLOSED`; `KycStatus = NOT_STARTED | IN_PROGRESS | PENDING_REVIEW | APPROVED | REJECTED`; `VoteChoice = FOR | AGAINST | ABSTAIN`; `ProposalCategory = COMMUNITY_GRANT | FINANCIAL_POLICY | GOVERNANCE_BYLAW`; `ProposalStatus = DRAFT | SUBMITTED | OPEN_FOR_VOTING | PASSED | REJECTED | WITHDRAWN`; `BallotType = PROPOSAL | BOARD_ELECTION`; `RecipientIdentifierType = PHONE | EMAIL | MEMBER_ID`; `LoanStatus = DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | ACTIVE | DELINQUENT | PAID_OFF | DEFAULTED | WRITTEN_OFF`. All amounts MNT (₮, integer minor units, ISO 4217 numeric 496), displayed whole tögrög (DEC-18). A bounded set of values remains in USD pending downstream decisions, each explicitly marked.
 * **T-shirt sizes:** S / M / L / XL relative implementation complexity. INVEST notes appear only where a story is at risk (typically L/XL) and give split hints.
 * **Dependencies** list other US IDs that must be substantially complete first (build-order, not runtime coupling).
 
@@ -179,7 +179,7 @@ The four deposit constructs per DEC-13: Primary Savings Account, Transaction Acc
 ### US-4.2 — External Payments (ACH, Wire, Real-Time Rails)
 
 * **As a** P-3 (Flexible Earner), **I want to** move money between my cooperative accounts and external bank accounts — including same-day and real-time options where rails permit — **so that** I can receive client income and pay external obligations from one place.
-* **Description:** Inbound and outbound ACH, outbound wire, and real-time rails (FedNow / SEPA Instant as available); external account linking with verification; cut-off times, status tracking, returns/failure handling, and step-up authentication above thresholds (US-1.4). Fees and limits configured via US-12.5; all flows monitored by US-13.1. FX/multi-currency is out of scope (USD only, DEC-18).
+* **Description:** Inbound and outbound ACH, outbound wire, and real-time rails (FedNow / SEPA Instant as available); external account linking with verification; cut-off times, status tracking, returns/failure handling, and step-up authentication above thresholds (US-1.4). Fees and limits configured via US-12.5; all flows monitored by US-13.1. FX/multi-currency is out of scope (MNT only, DEC-18).
 * **Maps to:** F-113; CAP-4.2
 * **Size:** L
 * **Dependencies:** US-3.2, US-1.4

@@ -470,7 +470,7 @@
 > **Note:** Adjudications for all [PROPOSED] rules: see §Business Rule Adjudication in `05_prd_and_roadmap.md`.
 
 * **[CONFIRMED]** P2P recipients addressed by exactly one of `PHONE | EMAIL | MEMBER_ID`; usernames/handles unsupported (DEC-3). Recipient display-name confirmation before send. Internal P2P fee is 0₮. Per-transaction and velocity limits are US-12.5 configuration.
-* **[CONFIRMED]** USD only, integer minor units (DEC-18); FX out of scope. All transfer flows feed AML monitoring (US-13.1). Step-up authentication for external payments above configured thresholds (US-1.4/US-4.2).
+* **[CONFIRMED]** MNT only, integer minor units (DEC-18); FX out of scope. All transfer flows feed AML monitoring (US-13.1). Step-up authentication for external payments above configured thresholds (US-1.4/US-4.2).
 * **[PROPOSED]** Default P2P daily velocity limit 1,150,000₮ per sender (DEC-33, income-anchored 0.50·W) — to be seeded as the initial US-12.5 value, not hard-coded.
 * **[PROPOSED]** Default per-sender **recipient-lookup velocity cap** (recipient-lookups per sender per period) — the anti-fishing control relocated here from name-masking per DEC-35, since Mongolian names cannot be masked without exposing the identity. To be seeded as the initial US-12.5 configuration value, **not hard-coded**; no threshold is defined here (PO to confirm). Sibling to the P2P daily velocity limit above (DEC-33) — that caps sends, this caps lookups — and complementary to the uniform-response enumeration protection on `POST /api/v1/payments/recipient-lookup` (04 §3.4; US-4.1 Scenario 2).
 * **[PROPOSED]** Internal P2P ledger settlement SLA < 3 seconds (Sprint 1 draft).
