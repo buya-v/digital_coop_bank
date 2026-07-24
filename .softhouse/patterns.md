@@ -59,6 +59,27 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-persistence-layer — persistence & service wiring + ORM hardening (2026-07-24)
+
+Turned the completed contract+schema into a runnable persistence layer, WITHOUT overreaching into a feature endpoint. 4 tasks, all 4 independently reviewed and APPROVED. Final main: 60 tables, migration 139/139 in lockstep, 24 tests, all gates PASS.
+
+- **T1** sync SQLAlchemy engine/session factory + `get_session` dependency (import never connects; `DatabaseNotConfigured`; async deliberately deferred).
+- **T2** `/ready` now a real 3-state DB liveness probe (no DB -> 200 degraded; SELECT 1 -> 200 ready; failure -> 503, no leak).
+- **T3** offline CI gate: renders `Base.metadata` DDL via mock engine and asserts it matches `0001_initial._UP` — drift caught with NO database, before the Postgres apply step.
+- **T4** reconciled `RecipientIdentifierType` (was 1 real enum + 2 DeferredEnums) to a single shared Postgres enum.
+
+**Scope discipline (the important decision):** the honest next step was NOT a feature slice. The identity contract exposes member data only as *my profile* (needs auth, unbuilt) or *onboarding* (needs the blocked eKYC decision) — so any feature endpoint now would collide with auth or a blocking question. Built the plumbing every future endpoint needs instead, against a contract-honest target (`/ready`'s docstring already promised a DB check). The ledger (backlog #0) remains untouched — still a human-controller task.
+
+**What the independent reviewers caught / verified that a gate could not:**
+- **T4 corrected a false planning premise of MINE**: I planned it saying `RecipientIdentifierType` lived in `identity.py`. It does not — the owner is `deposits.py:52` (E-11). The worker found this, retargeted, and the reviewer independently re-confirmed the owner location AND byte-level `name=` equality across all 3 Enum sites (a mismatch there would silently create two Postgres types). The planner is not a reliable source of repo facts; verification is.
+- **T4 semantic check**: reviewer traced payments E-17 `debtor_identifier_type` and lending E-22 `addressed_via` to the SAME DEC-3 glossary enum before blessing the merge — guarding against a coincidental-name over-merge.
+- **T2 dependency-resolution subtlety**: a generator dependency's `raise` fires during FastAPI resolution, BEFORE the handler body, so a handler try/except cannot catch `DatabaseNotConfigured`. Both worker and reviewer reasoned this correctly; the `ready_session`-yields-None pattern is the right fix. Reviewer also found the residual malformed-URL->500 edge (backlogged).
+- **T3 normaliser scrutiny**: reviewer confirmed the drift-gate normaliser is minimal (whitespace + trailing semicolon only) and does NOT over-collapse — an over-normalising gate is security theatre. Added a multiset count guard (reviewer's LOW note) as an at-merge micro-fix.
+
+**Process/infra note:** the FIRST T3 and T4 review agents BOTH died on infra errors (API connection closed; watchdog stall) mid-render — NOT verdicts. A failed review agent is NOT an approval; re-ran both, re-scoped to read-and-judge (no heavy offline DDL renders in the reviewer — the orchestrator runs those during verification). The leaner reviews finished fast and clean. Lesson: keep reviewers to reading+judgment; give the deterministic renders to the orchestrator's verification step.
+
+**Verifier**: ORM gate PASS (60/677/49) · migration gate PASS (139/139) · 24 tests · docs gate HARD 5/5, DRIFT unchanged (usd=312/rails=56/vendor=83). No re-baseline.
+
 ### Run 20260722-orm-schema — ORM models + initial migration (2026-07-22)
 
 Derived SQLAlchemy 2.0 models for all 59 entities of 04 §2 (60 tables incl. one child), plus the initial Alembic migration. Gate PASS (60 tables, 677 columns, 49 money columns, no float), 19 tests, migration renders 76 CREATE TYPE + 60 CREATE TABLE + 3 ALTER.
