@@ -2,7 +2,7 @@
   "run_id": "20260724-dec18-amendment",
   "feature": "DEC-18 amendment \u2014 currency type flip USD->MNT",
   "requirement": "Flip the normative DEC-18 currency-type declaration and doc-level 'all amounts USD' conventions across 01-05 to MNT (ISO 4217 numeric 496), with a transitional-exceptions clause for the still-held USD amounts. Fix 3 minor-units par literals the amount pass missed (2500->1000000). Vendor names and held amounts untouched; 06/00 deferred.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
     "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
@@ -29,9 +29,9 @@
         "idea-lab/final_requirements/01_business_analysis.md"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "merged; R1 APPROVED; DEC-18->MNT normative + transitional clause",
       "description": "READ .softhouse/dec18-amendment-brief.md IN FULL first (canonical amended text + exact locations). SCOPE 01: the DEC-18 row (01:374), canonical-term row (01:406), and the '#All monetary values are USD' convention (01:98). This is THE normative amendment \u2014 include the transitional-exceptions clause verbatim from the brief. Flip currency-TYPE declarations USD->MNT (ISO 4217 numeric 496) per the brief's verbatim wording; do NOT re-migrate already-converted amounts, do NOT touch vendor names (Stripe) or held USD amounts. Whole-t\u00f6gr\u00f6g notation; integer minor units in literals (no float). Run .softhouse/verify-docs.sh (HARD stays 0). Handoff lists every declaration flipped + literal fixed + confirms no vendor/held-amount touched."
     },
     {
@@ -46,9 +46,9 @@
         "idea-lab/final_requirements/03_acceptance_criteria.md"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "branch softhouse/T2-dec18-0203 e55936a; 3 decl flips; review R2 a9a847bc09cd9a6dc running",
       "description": "READ .softhouse/dec18-amendment-brief.md IN FULL first (canonical amended text + exact locations). SCOPE: 02 lines 11 and 182 ('USD only'->'MNT only'), 03 line 473 ('USD only'->'MNT only'). Convention lines only \u2014 mechanical, per brief wording. Flip currency-TYPE declarations USD->MNT (ISO 4217 numeric 496) per the brief's verbatim wording; do NOT re-migrate already-converted amounts, do NOT touch vendor names (Stripe) or held USD amounts. Whole-t\u00f6gr\u00f6g notation; integer minor units in literals (no float). Run .softhouse/verify-docs.sh (HARD stays 0). Handoff lists every declaration flipped + literal fixed + confirms no vendor/held-amount touched."
     },
     {
@@ -62,9 +62,9 @@
         "idea-lab/final_requirements/04_technical_architecture.md"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
-      "note": "",
+      "note": "agent a8780be366e75f913 (worktree, hardened)",
       "description": "READ .softhouse/dec18-amendment-brief.md IN FULL first (canonical amended text + exact locations). SCOPE 04: currency-type prose (9,110,209,221,750) USD->MNT incl. the Money implicit/fixed-currency note; schema 'currency:\"USD\"'->'\"MNT\"' (776,781); and the MISSED minor-units par literals amount:2500/par_value:2500->1000000 (776,781). Do NOT touch 'Stripe'/'payment_token (Stripe)' (later run). Flip currency-TYPE declarations USD->MNT (ISO 4217 numeric 496) per the brief's verbatim wording; do NOT re-migrate already-converted amounts, do NOT touch vendor names (Stripe) or held USD amounts. Whole-t\u00f6gr\u00f6g notation; integer minor units in literals (no float). Run .softhouse/verify-docs.sh (HARD stays 0). Handoff lists every declaration flipped + literal fixed + confirms no vendor/held-amount touched."
     },
     {
@@ -78,9 +78,9 @@
         "idea-lab/final_requirements/05_prd_and_roadmap.md"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
-      "note": "",
+      "note": "agent ae6af4ae1f85b725c (worktree, hardened)",
       "description": "READ .softhouse/dec18-amendment-brief.md IN FULL first (canonical amended text + exact locations). SCOPE 05: line 14 'regulated, USD, fiat banking'->'regulated, MNT, fiat banking'; line 1084 'configured par value (2500 cents, DEC-11)'->'(1,000,000 minor units = 10,000\u20ae, DEC-11)'. Do NOT touch 'Stripe'/'Stripe Elements'/'debit Stripe clearing' (later run). Flip currency-TYPE declarations USD->MNT (ISO 4217 numeric 496) per the brief's verbatim wording; do NOT re-migrate already-converted amounts, do NOT touch vendor names (Stripe) or held USD amounts. Whole-t\u00f6gr\u00f6g notation; integer minor units in literals (no float). Run .softhouse/verify-docs.sh (HARD stays 0). Handoff lists every declaration flipped + literal fixed + confirms no vendor/held-amount touched."
     },
     {
@@ -96,9 +96,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent a65eb91e4cd01b2b5",
       "description": "INDEPENDENT review of T1. Read .softhouse/dec18-amendment-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-dec18-amendment/T1.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every currency-type USD->MNT/496 flip matches the brief's canonical wording; (2) the DEC-18 transitional-exceptions clause is present and correctly enumerates KPIs/round-ups/installment/program-caps (T1 only); (3) minor-units literals 2500->1000000 correct where in scope (04:776/781, 05:1084) \u2014 recompute 10,000\u20ae\u00d7100=1,000,000; (4) NO vendor name (Stripe) changed; (5) NO held USD amount converted; (6) NO already-migrated \u20ae amount altered; (7) notation/no-float; (8) scope: only the intended file(s)+handoff. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute, don't trust the handoff."
     },
     {
@@ -117,7 +117,7 @@
       ],
       "status": "pending",
       "attempts": 0,
-      "note": "",
+      "note": "agent a9a847bc09cd9a6dc",
       "description": "INDEPENDENT review of T2. Read .softhouse/dec18-amendment-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-dec18-amendment/T2.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every currency-type USD->MNT/496 flip matches the brief's canonical wording; (2) the DEC-18 transitional-exceptions clause is present and correctly enumerates KPIs/round-ups/installment/program-caps (T1 only); (3) minor-units literals 2500->1000000 correct where in scope (04:776/781, 05:1084) \u2014 recompute 10,000\u20ae\u00d7100=1,000,000; (4) NO vendor name (Stripe) changed; (5) NO held USD amount converted; (6) NO already-migrated \u20ae amount altered; (7) notation/no-float; (8) scope: only the intended file(s)+handoff. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute, don't trust the handoff."
     },
     {
