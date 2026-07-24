@@ -608,7 +608,7 @@ _UP = [
     """CREATE TABLE loan_circle_invitation (
 	loan_circle_id UUID NOT NULL, 
 	invitee_member_id UUID NOT NULL, 
-	addressed_via VARCHAR(64) NOT NULL, 
+	addressed_via recipient_identifier_type NOT NULL, 
 	disclosure JSONB, 
 	status loan_circle_invitation_status NOT NULL, 
 	sent_at TIMESTAMP WITHOUT TIME ZONE, 
@@ -659,7 +659,7 @@ _UP = [
 )""",
     """CREATE TABLE payment_request_share (
 	payment_request_id UUID NOT NULL, 
-	debtor_identifier_type VARCHAR(64) NOT NULL, 
+	debtor_identifier_type recipient_identifier_type NOT NULL, 
 	debtor_identifier VARCHAR(255) NOT NULL, 
 	amount BIGINT, 
 	status payment_request_share_status NOT NULL, 
