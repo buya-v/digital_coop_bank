@@ -83,9 +83,9 @@
         "idea-lab/final_requirements/01_business_analysis.md"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 0,
-      "note": "branch softhouse/T1-currency-01 c10d912; 7 par tokens; DEC-18 flip flagged; review R1 af489183c19766b95 running",
+      "note": "merged; R1 APPROVED; 7 par tokens; DEC-11 meaning intact",
       "description": "Apply the USD\u2192MNT re-denomination to idea-lab/final_requirements/01_business_analysis.md (20 (mostly KPI/persona HELD) USD refs). READ .softhouse/currency-apply-brief.md FIRST \u2014 it is the confirmed source of truth (anchors, full role-by-role table, HOLD list, notation). Also read the derivation table .softhouse/handoff/20260721-currency-policy/T3.md for the worked-example formulas. Most of 01's USD refs are the KPI cluster and persona incomes \u2014 HELD. Real changes: DEC-11 share par role (\u219210,000\u20ae provisional) and any income-anchored limit definitions. Note 01 \u00a76 is NORMATIVE for DEC-1..20. Apply line-by-line BY ROLE (polysemous tokens). Leave HELD sets untouched. Whole-tugrik postfix notation `1,150,000\u20ae`, no float, no stray $/.00. Run .softhouse/verify-docs.sh (HARD must not regress). Handoff must list every changed token (old\u2192new+role), every HELD token (+which set), and any token whose role you couldn't determine."
     },
     {
@@ -203,7 +203,7 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
       "note": "agent af489183c19766b95",
       "description": "INDEPENDENT adversarial review of T1's USD\u2192MNT apply on 01_business_analysis.md. You did NOT plan this. Read .softhouse/currency-apply-brief.md, the T3 derivation table handoff, CLAUDE.md, the handoff .softhouse/handoff/20260724-currency-apply/T1.md, and `git diff main..<branch>`. CHECK EVERY changed number against the confirmed table BY ROLE: (1) each applied value matches the confirmed anchor for that token's role; (2) NO held-set token was changed (KPIs, personas, round-ups, $88.20, program caps, superseded); (3) worked examples were RE-DERIVED from the formula, not digit-scaled \u2014 recompute each yourself and check coupled operands; (4) notation whole-tugrik \u20ae postfix, no float, no stray $/.00; (5) no DEC-n meaning changed; (6) verify-docs.sh HARD not regressed. Report severity/location/wrong/fix. Verdict APPROVED / MICRO-FIX (\u226410 lines) / REJECTED. Recompute arithmetic \u2014 do not trust the handoff."
