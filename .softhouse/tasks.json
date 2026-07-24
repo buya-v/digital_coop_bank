@@ -2,7 +2,7 @@
   "run_id": "20260724-persistence-layer",
   "feature": "Persistence & service wiring + ORM hardening",
   "requirement": "Turn the completed OpenAPI contract + ORM schema into a runnable persistence layer: real DB session/dependency plumbing, a contract-honest /ready DB liveness check, a CI migration-vs-models drift gate, and the RecipientIdentifierType enum reconciliation. No feature endpoints (auth/KYC/ledger/entity-gated epics excluded).",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
     "Migration: add a CI autogenerate-consistency check (alembic revision --autogenerate must produce an empty diff vs models).",
@@ -32,9 +32,9 @@
         "backend/app/api/deps.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "branch softhouse/T1-session-plumbing bc5a9c4; independent review APPROVED; merged",
       "description": "Create the SYNC persistence plumbing (SQLAlchemy 2.0 + psycopg3; async is a deliberately-deferred decision \u2014 do NOT introduce async here). NEW backend/app/db/session.py: build a module-level lazily-initialised Engine from settings.database_url and a sessionmaker `SessionLocal` (expire_on_commit=False). If database_url is empty (scaffold/dev), the engine stays None and a helper `engine_configured()->bool` returns False \u2014 importing the module must NEVER connect or raise. NEW backend/app/api/deps.py: a FastAPI dependency `get_session()` (generator) that yields a Session and closes it in finally; if no DB is configured it raises a clear RuntimeError subclass `DatabaseNotConfigured` (do not map to HTTP here \u2014 mapping is the caller's job). NEW backend/app/api/__init__.py (empty package marker). Do NOT import feature models. Do NOT touch main.py (that is T2). ACCEPTANCE: `python -c 'import app.db.session, app.api.deps'` succeeds with DATABASE_URL unset; ruff+mypy(strict) clean on the new files; no float anywhere; no async."
     },
     {
@@ -69,9 +69,9 @@
         ".github/workflows/ci.yml"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
-      "note": "",
+      "note": "agent a2612d59cfdcc5fc9 spawned (worktree)",
       "description": "Backlog item 1: guarantee the initial migration stays in lockstep with the models WITHOUT a database. NEW backend/app/db/check_migration.py: render the full DDL of Base.metadata offline via sqlalchemy.create_mock_engine('postgresql://', dump) + metadata.create_all(engine) into a list of normalised statements; separately render the migration's intended DDL by importing migrations/versions/0001_initial.py and reading its `_UP` list; normalise both (collapse whitespace, sort statement sets) and assert the CREATE TABLE / CREATE TYPE / ALTER sets are EQUAL; print a unified diff + VERDICT: PASS/FAIL and exit nonzero on mismatch. This is the same mock-engine technique used to generate the migration, now used to police drift. NEW backend/tests/test_migration_matches_models.py wrapping it as a pytest. Wire a step into .github/workflows/ci.yml running `python -m app.db.check_migration` in the ORM-gate job (offline, before the Postgres apply step). ACCEPTANCE: check PASSES on current head; if you mutate a model locally to prove it, it must FAIL \u2014 then revert; ruff+mypy clean."
     },
     {
@@ -87,9 +87,9 @@
         "backend/app/models/identity.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
-      "note": "",
+      "note": "agent ad2879c4d6db9766c spawned (worktree)",
       "description": "Backlog item 2: RecipientIdentifierType is a real enum in identity.py but DeferredEnum(String) in payments.py and lending.py \u2014 one concept, three encodings. Make identity.py the single source of truth: confirm identity.py's RecipientIdentifierType enum is complete and correctly named (name= on the Enum so the Postgres type is shared), then in payments.py and lending.py replace the DeferredEnum column(s) that hold a recipient-identifier-type with `mapped_column(Enum(RecipientIdentifierType, name='recipientidentifiertype'))` imported from app.models.identity. If any of the three actually needs a DIFFERENT value set (verify by reading the columns' meaning in 04), DO NOT force-merge \u2014 report the divergence in the handoff instead. Ensure only ONE CREATE TYPE for it (create_type=False on the non-owning references so the migration doesn't double-create). ACCEPTANCE: `python -m app.db.check_models` still PASS; the enum appears exactly once in the rendered migration; all tests pass; mypy clean. NOTE: this changes the schema, so 0001_initial.py must be regenerated to match \u2014 if check_migration (T3) exists it will police this; regenerate the migration's affected statements."
     }
   ]
