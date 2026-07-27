@@ -78,11 +78,11 @@ _UP = [
     """CREATE TYPE share_status AS ENUM ('MEMBER', 'REDEEMED')""",
     """CREATE TYPE notification_category AS ENUM ('PAYMENTS', 'CARDS', 'GROUP_POTS', 'GOVERNANCE', 'LENDING', 'GUARANTEES', 'DIVIDENDS', 'PROJECTS', 'SECURITY_REGULATORY', 'SYSTEM')""",
     """CREATE TYPE notification_channel AS ENUM ('PUSH', 'EMAIL', 'SMS', 'IN_APP')""",
-    """CREATE TYPE verification_method AS ENUM ('PLAID_INSTANT', 'MICRO_DEPOSIT')""",
+    """CREATE TYPE verification_method AS ENUM ('INSTANT_LINK', 'MICRO_DEPOSIT')""",
     """CREATE TYPE external_account_link_status AS ENUM ('PENDING_VERIFICATION', 'VERIFIED', 'RELINK_REQUIRED', 'REMOVED')""",
     """CREATE TYPE payee_type AS ENUM ('INTERNAL_MEMBER', 'EXTERNAL_ACCOUNT', 'BILLER')""",
     """CREATE TYPE payee_status AS ENUM ('ACTIVE', 'ARCHIVED')""",
-    """CREATE TYPE payment_rail AS ENUM ('INTERNAL_P2P', 'ACH', 'WIRE', 'RTP')""",
+    """CREATE TYPE payment_rail AS ENUM ('INTERNAL_P2P', 'ACH_PLUS', 'RTGS')""",
     """CREATE TYPE scheduled_payment_status AS ENUM ('ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED', 'FAILED')""",
     """CREATE TYPE split_mode AS ENUM ('EQUAL', 'CUSTOM')""",
     """CREATE TYPE payment_request_status AS ENUM ('OPEN', 'PARTIALLY_SETTLED', 'SETTLED', 'CANCELLED', 'EXPIRED')""",
@@ -305,7 +305,7 @@ _UP = [
 )""",
     """CREATE TABLE kyc_submission (
 	member_id UUID NOT NULL, 
-	persona_inquiry_id VARCHAR(128) NOT NULL, 
+	kyc_inquiry_id VARCHAR(128) NOT NULL,
 	document_type kyc_document_type NOT NULL, 
 	ocr_extracted_fields JSON NOT NULL, 
 	screening_result kyc_screening_result NOT NULL, 
@@ -319,7 +319,7 @@ _UP = [
 	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL, 
 	CONSTRAINT pk_kyc_submission PRIMARY KEY (id), 
 	CONSTRAINT fk_kyc_submission_member_id_member FOREIGN KEY(member_id) REFERENCES member (id), 
-	CONSTRAINT uq_kyc_submission_persona_inquiry_id UNIQUE (persona_inquiry_id)
+	CONSTRAINT uq_kyc_submission_kyc_inquiry_id UNIQUE (kyc_inquiry_id)
 )""",
     """CREATE TABLE device_binding (
 	member_id UUID NOT NULL, 
@@ -437,7 +437,7 @@ _UP = [
 )""",
     """CREATE TABLE external_account_link (
 	member_id UUID NOT NULL, 
-	plaid_item_ref VARCHAR(255), 
+	account_link_ref VARCHAR(255),
 	processor_token_ref VARCHAR(255), 
 	institution_name VARCHAR(255), 
 	account_mask VARCHAR(32), 

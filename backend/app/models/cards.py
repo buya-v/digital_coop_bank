@@ -7,13 +7,14 @@ is blocked until the entity decision.
 
 This module therefore exists for SCHEMA COMPLETENESS ONLY. The E-18 table is a
 faithful transcription of 04 §2.5 so the schema is whole and reviewable, but the
-card FEATURE (issuance, Lithic authorization, controls evaluation, round-up
-emission) is NOT implemented and must not be. Defining the table is fine;
-wiring any behaviour to it is not, until Cards is cleared.
+card FEATURE (issuance, card issuer-processor authorization, controls
+evaluation, round-up emission) is NOT implemented and must not be. Defining the
+table is fine; wiring any behaviour to it is not, until Cards is cleared.
 
-MARKET NOTE: `issuer_card_ref` is a Lithic vendor token in 04; the Mongolia
-market clears cards through NETC (a Bank of Mongolia entity), not Lithic — the
-vendor reference is modelled as 04 states it and flagged for the migration.
+MARKET NOTE: `issuer_card_ref` is the card issuer-processor token (migrated to
+match 04 (DEC-5 / rails run) — role-neutral, kept as-is; the concrete
+issuer-processor is procurement/TBD). The Mongolia market clears cards through
+NETC (a Bank of Mongolia entity).
 """
 from __future__ import annotations
 
