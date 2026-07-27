@@ -12,10 +12,9 @@
 # ============================================================================
 #
 # Step-up: PAN / card-credential reveal + PIN set require the `stepUpAssertion`
-# security scheme (04 §5.1). VENDOR ASSUMPTION: 04 names Lithic as the issuer
-# processor; vendor substitution for the Mongolian market (NETC) is a pending
-# requirements change (CLAUDE.md). No money-movement POSTs here → no
-# Idempotency-Key parameter in this slice.
+# security scheme (04 §5.1). The card issuer-processor is a procurement
+# decision (TBD); NETC is the Mongolian card entity (CLAUDE.md). No
+# money-movement POSTs here → no Idempotency-Key parameter in this slice.
 
 /api/v1/cards:
   get:
@@ -142,9 +141,9 @@
         $ref: '#/components/responses/NotFound'
       '502':
         description: >-
-          502 ISSUER_UNAVAILABLE — upstream issuer processor unavailable
-          (04 §3.5). VENDOR ASSUMPTION: 04 names Lithic; NETC is the Mongolian
-          card entity (pending requirements change, CLAUDE.md).
+          502 ISSUER_UNAVAILABLE — upstream card issuer-processor unavailable
+          (04 §3.5). The issuer-processor is a procurement decision (TBD); NETC
+          is the Mongolian card entity (CLAUDE.md).
         content:
           application/json:
             schema:

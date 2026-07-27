@@ -156,8 +156,9 @@
         $ref: '#/components/responses/TooManyRequests'
       '502':
         description: >-
-          502 VENDOR_UNAVAILABLE — the KYC vendor is unreachable (04 §3.1). The
-          vendor is market-dependent (CLAUDE.md flags the Persona assumption).
+          502 VENDOR_UNAVAILABLE — the eKYC provider is unreachable (04 §3.1).
+          The provider is a procurement decision (TBD); ХУР/XYP state-register
+          lookup is the compliant-alternative candidate (CLAUDE.md).
         content:
           application/json:
             schema:

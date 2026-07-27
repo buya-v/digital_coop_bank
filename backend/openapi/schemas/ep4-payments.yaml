@@ -7,9 +7,10 @@ RecipientIdentifierType:
   - MEMBER_ID
 VerificationMethod:
   type: string
-  description: E-14 `verification_method` (04 §2.4).
+  description: E-14 `verification_method` (04 §2.4). Migrated to match 04
+    (DEC-5 / rails run).
   enum:
-  - PLAID_INSTANT
+  - INSTANT_LINK
   - MICRO_DEPOSIT
 ExternalAccountLinkStatus:
   type: string
@@ -100,8 +101,8 @@ PaymentRequestShareStatus:
 ExternalAccountLink:
   type: object
   description: 'E-14 ExternalAccountLink (04 §2.4) — a verified external bank account (US-4.2), linked
-    via Plaid or micro-deposit fallback. VENDOR ASSUMPTION: 04 names Plaid; vendor substitution is a pending
-    requirements change (CLAUDE.md), not a settled integration detail.'
+    via the account-linking provider or micro-deposit fallback. The account-linking provider is a
+    procurement decision (TBD).'
   properties:
     id:
       type: string
@@ -112,7 +113,11 @@ ExternalAccountLink:
     plaid_item_ref:
       type: string
       nullable: true
-      description: Encrypted vendor reference (04 §2.4). Vendor (Plaid) assumed — pending Mongolia migration.
+      description: >-
+        Encrypted account-linking-provider reference (04 §2.4). The provider is
+        a procurement decision (TBD). This property name is pending a follow-up
+        rename to `account_link_ref` to match the ORM/migration rename table —
+        out of scope for this run (see .softhouse/code-sync-brief.md).
     processor_token_ref:
       type: string
       nullable: true

@@ -102,8 +102,8 @@ Card:
   type: object
   description: >-
     E-18 Card (04 §2.5). PAN/CVV never stored — issuer tokens only (PCI scope
-    reduction). VENDOR ASSUMPTION: 04 names Lithic; NETC is the Mongolian card
-    entity (pending requirements change, CLAUDE.md).
+    reduction). The card issuer-processor is a procurement decision (TBD); NETC
+    is the Mongolian card entity (CLAUDE.md).
   properties:
     id:
       type: string

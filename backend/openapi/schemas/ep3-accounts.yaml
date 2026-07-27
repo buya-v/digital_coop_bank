@@ -324,8 +324,8 @@ Transaction:
     external_ref:
       type: string
       nullable: true
-      description: Sponsor bank / vendor id (04 §2.3 names Stripe/Lithic — vendor assumption pending Mongolia
-        migration).
+      description: Sponsor bank / provider id (04 §2.3) — the payment processor
+        and card issuer-processor are procurement decisions (TBD).
     created_at:
       type: string
       format: date-time
