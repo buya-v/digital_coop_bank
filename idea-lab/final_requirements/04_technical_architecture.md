@@ -1081,7 +1081,7 @@ Vendor selections follow the decision log where one exists (Persona per DEC-5); 
 
 ### 4.4 Stripe — Membership Share Purchase (US-2.1)
 
-**Flow:** onboarding client tokenizes card/wallet via Stripe Elements → `POST /onboarding/share-purchase` creates a payment intent for exactly the configured par value (2500 cents, DEC-11) with `member_ref` metadata → on `payment_intent.succeeded` (webhook) the ledger posts `SHARE_SUBSCRIPTION` (credit Membership Share equity account, debit Stripe clearing), MembershipShare is issued, member → `ACTIVE`, confirmation pack (share record, bylaws) is generated.
+**Flow:** onboarding client tokenizes card/wallet via Stripe Elements → `POST /onboarding/share-purchase` creates a payment intent for exactly the configured par value (1,000,000 minor units = 10,000₮, DEC-11) with `member_ref` metadata → on `payment_intent.succeeded` (webhook) the ledger posts `SHARE_SUBSCRIPTION` (credit Membership Share equity account, debit Stripe clearing), MembershipShare is issued, member → `ACTIVE`, confirmation pack (share record, bylaws) is generated.
 **Failure handling:** payment failure keeps the member in `PENDING_PAYMENT` with retry (card, other card, or bank-transfer alternative via §4.3); asynchronous settlement (e.g., delayed wallet captures) is handled by webhook-driven activation; refunds on aborted applications reverse the ledger and void the share; Stripe outage ⇒ bank-transfer path remains available. Amounts other than the configured par are rejected server-side (`422 AMOUNT_MISMATCH`).
 
 ### 4.5 Lithic — Card Issuing & Processing (EP-5, EP-10)

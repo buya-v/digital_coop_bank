@@ -59,6 +59,24 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-dec18-amendment — currency TYPE flip USD->MNT (2026-07-24)
+
+Amended DEC-18 (normative, 01 §6) and all doc-level "all amounts USD" declarations across 01-05 to MNT (ISO 4217 numeric 496), with a transitional-exceptions clause covering the bounded held-USD remainder. Also fixed minor-units par literals the amount pass had MISSED. 4 applies + 4 reviews + verifier, all APPROVED. Docs gate 5/5; zero currency-type USD declarations remain in 01-05.
+
+**What worked**
+- Executing an ALREADY-RATIFIED direction (CLAUDE.md fixes the market as Mongolia / MNT) as spec_writer tasks rather than re-litigating it as a user decision. A normative DEC amendment is fine to execute when the PO direction is already recorded; the transitional-exceptions clause kept it honest (DEC-18 now says MNT while 131 residual USD amounts remain, each enumerated as pending a named downstream decision — no false "all MNT" claim).
+- A committed brief with VERBATIM canonical wording made 4 agents produce identical convention text.
+
+**A worker caught a defect in MY brief (the value of honesty-over-guessing)**
+- The brief told T5 to fix a par literal at "05:1084". That line does not exist (05 is 456 lines). The literal is at 04:1084. T5 did its real edit (05:14) and REFUSED to invent the phantom one, diagnosing the 04-vs-05 typo. The independent reviewer confirmed. Lesson: when an agent can't find an instructed target, "I could not find it, here's why" is the correct answer — do not fabricate a plausible edit. My brief's line-number provenance was the bug.
+
+**Currency-apply MISS surfaced and fixed**
+- Three minor-units par literals (04:776 amount+par_value, 04:781 redemption, 04:1084) read `2500` (=$25.00 in cents) with NO `$` sign, so the currency-apply regex never counted them and the amount pass skipped them. Fixed to 1000000 (=10,000₮×100), now matching the ORM/migration par (line 179). GENERAL LESSON: a `$`-anchored inventory misses bare minor-units literals in schema/API examples. A currency migration must ALSO sweep for unmarked numeric money literals (amount:/par_value:/N cents), not only `$` tokens.
+- 04:1084 sat inside a Stripe vendor sentence; fixed ONLY the currency portion as an orchestrator micro-fix, leaving the vendor words for the vendor-removal run. Split a mixed line by concern.
+
+**Verifier**: HARD 5/5 · USD drift 131 (unchanged — type declarations + non-$ literals aren't $-counted; coherence, not the drift number, was the goal) · rails/vendor unchanged.
+**Backlog added**: minor-unit TERM cleanup — "cents" still appears as the minor-unit name (04:9 gloss, 04:657 *_cents config keys, and elsewhere); MNT's minor unit is möngö (obsolete), so the whole-tögrög convention means these should be reconciled/de-"cents"-ed together in one terminology pass.
+
 ### Run 20260724-currency-apply — USD->MNT re-denomination (DEC-18) (2026-07-24)
 
 Applied the PO-confirmed re-derivation table to final_requirements 01-05, line-by-line by role. 7 applies + 7 independent opus reviews + verifier. USD drift 312 -> 131 (-181 applied); the residual 131 are the deliberately-HELD sets. Re-baselined usd=131. HARD gate 5/5. NO content lost despite a serious orchestration incident (below).
