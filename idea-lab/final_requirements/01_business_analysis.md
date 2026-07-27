@@ -174,7 +174,7 @@ Digital Coop Bank — Capability Map
 │
 ├── CAP-4  Payments & Transfers
 │   ├── CAP-4.1  Internal P2P Transfers (instant, free; recipient identifiers per DEC-3)
-│   ├── CAP-4.2  External Payments (ACH, wire; real-time rails: FedNow / SEPA Instant as available)
+│   ├── CAP-4.2  External Payments (ACH+ ≤ threshold, 24/7; Banksüljee (RTGS) > threshold)
 │   ├── CAP-4.3  Bill Pay & Recurring / Scheduled Transfers
 │   └── CAP-4.4  Expense Splitting & Payment Requests
 │
@@ -271,7 +271,7 @@ Stable feature IDs **F-101 …** in one continuous series, grouped by capability
 | ID | Feature | Capability | Personas | Description | Priority |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | F-112 | Instant Internal P2P Transfer | CAP-4.1 | P-2, P-3 | Instant, free member-to-member transfer addressed by phone number, email, or Member ID (DEC-3); confirmation of recipient display name before send. | MVP |
-| F-113 | External Payments (ACH / Wire / Real-Time Rails) | CAP-4.2 | P-3, P-4 | Inbound/outbound external transfers with same-day and real-time options where rails permit. | MVP |
+| F-113 | External Payments (ACH+ / Banksüljee RTGS) | CAP-4.2 | P-3, P-4 | Inbound/outbound external transfers routed by amount against a configurable threshold: ACH+ (24/7) at or below threshold, Banksüljee (RTGS) above threshold. | MVP |
 | F-114 | Bill Pay & Scheduled Transfers | CAP-4.3 | P-3, P-4 | Recurring and future-dated payments with failure retry and notifications. | P2 |
 | F-115 | Expense Splitting & Payment Requests | CAP-4.4 | P-2 | Split a transaction among members; send payment requests resolved via F-112. | P2 |
 | F-116 | Virtual Debit Card | CAP-5.1, CAP-5.4 | P-2, P-3 | Instant virtual card at account opening; wallet tokenization (Apple Pay / Google Pay). | MVP |
