@@ -62,7 +62,7 @@ Each subsection is a self-contained requirement statement a stakeholder can read
 
 ### EP-4 — Payments & Transfers (CAP-4)
 
-**Requirement.** Instant, free internal P2P addressed strictly by `PHONE | EMAIL | MEMBER_ID` with display-name confirmation (US-4.1, DEC-3); external ACH/wire/real-time-rail payments with account linking, cut-offs, returns handling, and step-up above thresholds (US-4.2); bill pay and scheduled/recurring transfers with retry policy (US-4.3); and expense splitting with one-tap payment requests (US-4.4).
+**Requirement.** Instant, free internal P2P addressed strictly by `PHONE | EMAIL | MEMBER_ID` with display-name confirmation (US-4.1, DEC-3); external ACH+ / Banksüljee (RTGS) payments — routed by the configurable ₮5,000,000 threshold (Governor's order): > threshold → Banksüljee (RTGS), ≤ threshold → ACH+ (24/7) — with account linking, cut-offs, returns handling, and step-up above thresholds (US-4.2); bill pay and scheduled/recurring transfers with retry policy (US-4.3); and expense splitting with one-tap payment requests (US-4.4).
 **Features / stories:** F-112–F-115 → US-4.1–US-4.4 (M/L/M/M).
 **AC themes (03 EP-4, 18 scenarios):** 0₮ P2P fee; settlement < 3 s; velocity/limit checks server-side from US-12.5 config; idempotency keys on all money movement; uniform recipient-lookup responses (no membership enumeration); return-code handling with member notification; anti-spam reminder throttling on payment requests.
 **API surface (04 §3.4):** `/payments/recipient-lookup`, `/payments/p2p`, `/external-accounts*`, `/payments/external`, `/payees*`, `/payments/schedules*`, `/payment-requests*`; BaaS and Plaid webhooks.
@@ -233,7 +233,7 @@ Each subsection is a self-contained requirement statement a stakeholder can read
 | US-3.4 | Group Pot creation & ledger | L | Should | S4 | P-4 anchor feature |
 | US-3.5 | Group Pot m-of-n approvals | M | Should | S4 | DEC-32 initiator rule |
 | US-4.1 | Instant internal P2P | M | Must | S2 | DEC-3 addressing |
-| US-4.2 | External payments (ACH/wire/RTP) | L | Must | S2 | Rail-by-rail split available |
+| US-4.2 | External payments (ACH+/RTGS) | L | Must | S2 | Rail-by-rail split available |
 | US-4.3 | Bill pay & scheduled transfers | M | Should | S4 | DEC-38 retry policy |
 | US-4.4 | Expense splitting & requests | M | Should | S4 | DEC-39 reminder cap |
 | US-5.1 | Virtual card & wallet tokenization | M | Must | S2 | Auto-issue at account opening |
@@ -310,7 +310,7 @@ All 34 Must stories. A member can join in minutes, hold the share, save, spend (
 
 * **Goal:** members transact (P2P, external rails, card) and cast their first secret ballot; staff operate members and cases from the 360° console with configuration in place.
 * **In-sprint sequencing:** US-12.1 → US-12.2 and US-12.1 → US-12.5; US-5.1/US-3.3 → US-10.1.
-* **Exit criteria:** P2P settles < 3 s at 0₮ fee with DEC-33 velocity seed enforced from config; first ACH round-trip (including a return) processed against the sponsor-bank sandbox; card authorization webhook answers ≤ 200 ms with US-5.3 controls applied; a test ballot opens against an S1 eligibility snapshot, prevents double voting, and issues content-free receipts; KYC `PENDING_REVIEW` cases resolved through the queue under the DEC-71 SLA timer; all §3 configuration seeds loaded in US-12.5 with maker-checker.
+* **Exit criteria:** P2P settles < 3 s at 0₮ fee with DEC-33 velocity seed enforced from config; first ACH+ round-trip (including a return) processed against the sponsor-bank sandbox; card authorization webhook answers ≤ 200 ms with US-5.3 controls applied; a test ballot opens against an S1 eligibility snapshot, prevents double voting, and issues content-free receipts; KYC `PENDING_REVIEW` cases resolved through the queue under the DEC-71 SLA timer; all §3 configuration seeds loaded in US-12.5 with maker-checker.
 
 #### Sprint S3 — Lending, governance operations, transparency: MVP completion (11 stories, 26 pts — peak sprint)
 
@@ -389,7 +389,7 @@ S3 is the acknowledged peak; its mitigation is the pre-agreed slippage of the US
 | ID | Risk | Likelihood / Impact | Mitigation |
 | :--- | :--- | :--- | :--- |
 | R-1 | **Regulatory/charter risk:** the charter route (credit union vs bank vs BaaS partnership) shifts compliance obligations (deposit insurance wording, prudential reports, DSAR deadlines, age floor DEC-25) | Med / High | Configuration-first design (US-12.5, US-13.2, DEC-74); OI-1/OI-3 gated before launch; regulatory counsel embedded in S1–S3 reviews. |
-| R-2 | **BaaS / sponsor-bank dependency:** the entire money-rail stack (FBO structure, ACH/wire/FedNow, card settlement) rides one procurement decision (`04` §4.3); onboarding lead times and sponsor compliance reviews are notoriously long | High / High | Procurement must conclude **before S2** (US-4.2); daily three-way reconciliation and degradation modes are specified; Stripe path keeps share purchase (S1) independent of the BaaS timeline; abstract contracts in `04` make substitution "an integration change, not a requirements change". |
+| R-2 | **BaaS / sponsor-bank dependency:** the entire money-rail stack (FBO structure, ACH+/Banksüljee RTGS, NETC card settlement) rides one procurement decision (`04` §4.3); onboarding lead times and sponsor compliance reviews are notoriously long | High / High | Procurement must conclude **before S2** (US-4.2); daily three-way reconciliation and degradation modes are specified; Stripe path keeps share purchase (S1) independent of the BaaS timeline; abstract contracts in `04` make substitution "an integration change, not a requirements change". |
 | R-3 | **Vendor concentration & outage:** Persona, Plaid, Lithic, Stripe, e-sign — five external dependencies on the critical path | Med / Med | `04` §4 mandates graceful degradation, queued retry, reconciliation pollers, and stand-in authorization rules; Jumio documented as KYC fallback (DEC-5). |
 | R-4 | **S3 scope peak (26 pts) on the lending chain** US-6.1→6.2→6.6→6.7→12.3 | Med / Med | Pre-agreed slip lanes (bureau slice, ML monitoring slice); S6 buffer; MVP gate criteria written against the rules-based paths. |
 | R-5 | **Governance cold start:** KPI-3.1 (≥ 40% participation) fails if early ballots are dull or scarce; conversely DEC-57's low threshold could flood the S4+ agenda | Med / Med | US-12.4 admin-initiated ballots from S3 create a voting habit before proposals open; threshold is a config seed tunable by observed volume; discussion threads (S5) deepen engagement. |
