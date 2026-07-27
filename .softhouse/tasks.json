@@ -32,9 +32,9 @@
         "idea-lab/final_requirements/04_technical_architecture.md"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "approved",
       "attempts": 0,
-      "note": "agent a630ea4152719906b (worktree, hardened)",
+      "note": "merged; R1 APPROVED; 10 identifiers renamed, 04 vendor-clean",
       "description": "READ .softhouse/vendor-removal-brief.md IN FULL first (role abstractions, the CANONICAL identifier-rename table, DEC-5 amendment, out-of-scope). SCOPE 04 (~70 refs, the CANONICAL schema source): rename ALL identifiers per the brief table (persona_inquiry_id x3, plaid_item_ref, plaid_public_token, PLAID_INSTANT enum, 502 PLAID_UNAVAILABLE, all /webhooks/{persona,plaid,stripe,lithic} paths); neutralize the vendor table rows (04:27-28 Persona/Plaid), the S-1/S-4 service descs, the mermaid nodes (04:69-70), the F-A/F-D flow prose (Persona inquiry, Stripe collection, Plaid underwriting), 'Persona evidence pack' (04:942), the E-2/E-14 field comments. Mark provider TBD/procurement; eKYC -> \u0425\u0423\u0420/XYP candidate note. Rename each identifier EXACTLY per the table (cross-doc consistency); replace vendor prose with role-neutral terms; mark concrete provider as procurement/TBD; do NOT invent a Mongolian vendor. Do NOT touch rail terms (already migrated), amounts, or non-vendor field names. Run .softhouse/verify-docs.sh (HARD stays 0; vendor DRIFT drops). Handoff lists every vendor prose ref changed, every identifier renamed (old->new+location), and confirms no rail/amount/non-vendor-field touched."
     },
     {
@@ -114,9 +114,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent adbe5b70ee24d91af",
       "description": "INDEPENDENT review of T1. Read .softhouse/vendor-removal-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-vendor-removal/T1.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every vendor name (Stripe/Plaid/Lithic/Persona/Jumio) removed from in-scope text OR legitimately residual; (2) each IDENTIFIER renamed EXACTLY per the brief's table (persona_inquiry_id->kyc_inquiry_id, plaid_item_ref->account_link_ref, plaid_public_token->account_link_public_token, PLAID_INSTANT->INSTANT_LINK, 502 PLAID_UNAVAILABLE->502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE, webhook paths) \u2014 and CONSISTENTLY (same old name -> same new name everywhere); (3) NO Mongolian vendor invented \u2014 provider marked TBD/procurement, eKYC notes \u0425\u0423\u0420/XYP candidate; (4) role abstractions correct (Stripe=payment processor, Plaid=account-linking, Persona/Jumio=eKYC, Lithic=card issuer-processor); (5) NO rail term / amount / non-vendor field name changed; (6) scope = only intended file(s)+handoff. Extra: the IDENTIFIER rename completeness is the crux \u2014 grep the branch's 04 for any remaining plaid_/persona_/stripe_/lithic_ identifier, PLAID_INSTANT, PLAID_UNAVAILABLE, /webhooks/{persona,plaid,stripe,lithic}; ANY leftover = finding. Verify each new name matches the brief table EXACTLY. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Grep the branch for any leftover vendor name; don't trust the handoff."
     },
     {
