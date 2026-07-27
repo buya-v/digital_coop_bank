@@ -95,9 +95,9 @@
         "idea-lab/final_requirements/05_prd_and_roadmap.md"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 0,
-      "note": "branch softhouse/T5-rails-05 3417577; 4 edits; vendors untouched; review R5 a8dd364ceb64ad96f running",
+      "note": "merged; R5 APPROVED; 4 edits",
       "description": "READ .softhouse/payment-rails-brief.md IN FULL first (mapping, canonical enum, routing rule, return-code honesty, out-of-scope). SCOPE 05 (8 refs): the EP-4 requirement (05:65) 'external ACH/wire/real-time-rail'->Mongolia rails; US-4.2 row (05:236) 'External payments (ACH/wire/RTP)'->'(ACH+/RTGS)'; exit criteria (05:313) 'first ACH round-trip'->'first ACH+ round-trip'; R-2 risk (05:392) 'ACH/wire/FedNow'->Mongolia rails. 'Rail-by-rail split' note stays. Apply BY CONTEXT (rail choice depends on amount vs the \u20ae5m config threshold). Do NOT touch vendor names (Stripe/Plaid/Lithic/Persona \u2014 next run), do NOT change amounts except the rail-driven re-derivation the brief specifies, never write '3m' as the threshold. Run .softhouse/verify-docs.sh (HARD stays 0; rails DRIFT should drop). Handoff lists every rail term changed (old->new+context), every amount re-derived for routing, every TBD/config note used instead of inventing a Mongolian specific."
     },
     {
@@ -185,7 +185,7 @@
       "dependencies": [
         "T5"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
       "note": "agent a8dd364ceb64ad96f",
       "description": "INDEPENDENT review of T5. Read .softhouse/payment-rails-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-payment-rails/T5.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every rail mapping correct by context (ACH->ACH+, wire/large->Banks\u00fcljee RTGS, FedNow/RTP->ACH+, SEPA removed, cards->NETC); (2) the rail ENUM is INTERNAL_P2P|ACH_PLUS|RTGS everywhere it appears; (3) ROUTING integrity \u2014 NO sub-\u20ae5m amount labelled RTGS/Banks\u00fcljee, and any amount re-derived to exceed \u20ae5m for an RTGS demo is internally consistent with its scenario; (4) NO '3m' threshold anywhere; threshold framed as config not literal; (5) return codes \u2014 US codes (R01) removed, reason kept, code catalogue marked TBD/config NOT invented; (6) NO vendor name changed, NO amount changed except sanctioned routing re-derivations; (7) scope = only the intended file(s)+handoff.  Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute routing/amounts; don't trust the handoff."
