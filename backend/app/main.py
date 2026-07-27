@@ -16,6 +16,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session
+from app.api.errors import register_error_handlers
+from app.api.routers.onboarding import router as onboarding_router
 from app.config import get_settings
 from app.db.session import engine_configured
 from app.money import CURRENCY_CODE
@@ -26,10 +28,14 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.version,
     description=(
-        "Scaffold. Currency is MNT (integer minor units). No feature endpoints "
-        "yet — see docs/adr/0001-technology-stack.md."
+        "Scaffold + EP-1 onboarding slice 1. Currency is MNT (integer minor "
+        "units). See docs/adr/0001-technology-stack.md."
     ),
 )
+
+# Uniform error envelope (04 §3.0) + the first feature router (EP-1 onboarding).
+register_error_handlers(app)
+app.include_router(onboarding_router)
 
 
 @app.get("/health", tags=["ops"], summary="Liveness probe")

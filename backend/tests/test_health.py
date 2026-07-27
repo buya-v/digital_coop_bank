@@ -22,9 +22,14 @@ def test_ready_reports_mnt():
     assert r.json()["currency"] == "MNT"
 
 
-def test_no_feature_routes_yet():
-    # The scaffold must not have quietly grown feature endpoints.
+def test_only_expected_feature_routes():
+    # EP-1 onboarding (slice 1) is the FIRST feature. Guard against any OTHER
+    # feature endpoint being wired in without its contract/legal clearance.
     paths = {route.path for route in app.routes}
     assert paths >= {"/health", "/ready"}
-    feature_ish = [p for p in paths if p.startswith("/api/")]
-    assert feature_ish == [], f"unexpected feature routes in scaffold: {feature_ish}"
+    feature_ish = {p for p in paths if p.startswith("/api/")}
+    expected = {
+        "/api/v1/onboarding/applications",
+        "/api/v1/onboarding/applications/current",
+    }
+    assert feature_ish == expected, f"unexpected feature routes: {feature_ish - expected}"
