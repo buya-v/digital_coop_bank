@@ -176,14 +176,14 @@ The four deposit constructs per DEC-13: Primary Savings Account, Transaction Acc
 * **Size:** M
 * **Dependencies:** US-3.2, US-1.4
 
-### US-4.2 — External Payments (ACH, Wire, Real-Time Rails)
+### US-4.2 — External Payments (ACH+, Banksüljee RTGS)
 
 * **As a** P-3 (Flexible Earner), **I want to** move money between my cooperative accounts and external bank accounts — including same-day and real-time options where rails permit — **so that** I can receive client income and pay external obligations from one place.
-* **Description:** Inbound and outbound ACH, outbound wire, and real-time rails (FedNow / SEPA Instant as available); external account linking with verification; cut-off times, status tracking, returns/failure handling, and step-up authentication above thresholds (US-1.4). Fees and limits configured via US-12.5; all flows monitored by US-13.1. FX/multi-currency is out of scope (MNT only, DEC-18).
+* **Description:** External transfers route by amount against a configurable threshold (₮5,000,000, set by Governor's order): above the threshold via Banksüljee (RTGS); at or below it via ACH+ (24/7, also covering the instant/real-time retail case — there is no separate real-time rail). External account linking with verification; cut-off times (RTGS only — ACH+ is 24/7), status tracking, returns/failure handling, and step-up authentication above thresholds (US-1.4). Fees and limits configured via US-12.5; all flows monitored by US-13.1. FX/multi-currency is out of scope (MNT only, DEC-18).
 * **Maps to:** F-113; CAP-4.2
 * **Size:** L
 * **Dependencies:** US-3.2, US-1.4
-* **INVEST note:** Multi-rail integration; if it exceeds a sprint, split by rail (ACH first, then wire, then real-time) — each rail is independently shippable.
+* **INVEST note:** Multi-rail integration; if it exceeds a sprint, split by rail (ACH+ first, then Banksüljee RTGS) — each rail is independently shippable.
 
 ### US-4.3 — Bill Pay & Scheduled / Recurring Transfers
 
