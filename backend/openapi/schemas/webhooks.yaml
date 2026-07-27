@@ -13,9 +13,8 @@
 # eKYC-provider / payment-processor / card-issuer-processor / account-linking-
 # provider schema and field names are migrated to role-neutral names (migrated
 # to match 04 — DEC-5 / rails run). The concrete providers remain procurement
-# decisions (TBD). NOTE: `plaid_item_ref` (ExternalAccountLink schema, EP-4;
-# also referenced below in AccountLinkWebhook) is pending a follow-up rename
-# to `account_link_ref` — out of scope for this run.
+# decisions (TBD). The ExternalAccountLink reference field is `account_link_ref`
+# (EP-4; also referenced below in AccountLinkWebhook), matching the ORM column.
 #
 # Money is the shared integer-minor-units schema (#/components/schemas/Money) —
 # the project money non-negotiable applies inside webhook payloads too.
@@ -263,9 +262,8 @@ AccountLinkWebhook:
       type: string
       description: >-
         Account-linking-provider item identifier. Corresponds to the
-        `plaid_item_ref` field (pending a follow-up rename to
-        `account_link_ref` — out of scope for this run). Drives the E-14
-        `RELINK_REQUIRED` status (04 §3.4).
+        `account_link_ref` field. Drives the E-14 `RELINK_REQUIRED` status
+        (04 §3.4).
 
 # ---------------------------------------------------------------------------
 # E-signature provider — envelope lifecycle (US-6.6). 04 §3.14: "Envelope

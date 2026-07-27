@@ -264,8 +264,7 @@
       (04 §3.4); transaction refresh feeds EP-6 underwriting (deferred —
       CLAUDE.md). Migrated to match 04 (DEC-5 / rails run): the account-linking
       provider is a procurement decision (TBD); `item_id` corresponds to the
-      `plaid_item_ref` field (pending a follow-up rename to `account_link_ref`
-      — out of scope for this run).
+      `account_link_ref` field.
     security: []
     x-webhook-verification: 'JWT verification (04 §3.14)'
     requestBody:
