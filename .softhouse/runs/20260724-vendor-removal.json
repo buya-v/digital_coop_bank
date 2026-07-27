@@ -1,0 +1,217 @@
+{
+  "run_id": "20260724-vendor-removal",
+  "feature": "Vendor removal \u2014 Stripe/Plaid/Lithic/Persona -> role-neutral",
+  "requirement": "Neutralize US vendor names across 01-05 requirements docs: prose -> role abstractions (payment processor / account-linking provider / eKYC provider / card issuer-processor), schema identifiers -> neutral names per a canonical rename table, DEC-5 amended (provider TBD, \u0425\u0423\u0420/XYP candidate, false 'integration-not-requirements' claim corrected). No Mongolian vendor invented. 06/00 deferred; backend code sync is a separate follow-up run.",
+  "status": "executing",
+  "backlog": [
+    "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
+    "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
+    "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
+    "Vendors: Stripe/Plaid/Lithic/Persona leaked into schema field names and error codes \u2014 removal is a requirements change.",
+    "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
+    "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
+    "00_market_research.md entirely US/EU-framed \u2014 rewrite against Mongolia.",
+    "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
+    "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling.",
+    "/ready malformed DATABASE_URL edge (LOW, T2 review): a non-empty-but-garbage URL passes engine_configured() then create_engine() raises ArgumentError during dependency resolution -> 500 instead of 503. Operator-misconfig edge; harden when auth/real-deploy lands.",
+    "DEC-18 currency-type amendment (surfaced by currency-apply agents): multiple docs now state amounts in \u20ae while the DEC-18 declaration + the doc-level 'all amounts USD' conventions (01:374/406, 02:11, 04:9/110/750) still say USD/ISO-4217 USD. Flipping DEC-18 to MNT/496 is a NORMATIVE currency-policy decision (01 \u00a76 owns it) \u2014 a user/coordinator amendment, not an amount pass. Do after the amount applies land.",
+    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
+    "Minor-unit TERM cleanup: 'cents' still used as the minor-unit name (04:9 gloss, 04:657 *_cents config keys, schema field names). MNT minor unit is m\u00f6ng\u00f6 (obsolete); the whole-t\u00f6gr\u00f6g convention means these should be reconciled in one terminology pass (rename/neutralize 'cents' -> 'minor units').",
+    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
+    "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN)."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Vendors in 04 (schema/API/webhooks/DEC refs)",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/04_technical_architecture.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R1 APPROVED; 10 identifiers renamed, 04 vendor-clean",
+      "description": "READ .softhouse/vendor-removal-brief.md IN FULL first (role abstractions, the CANONICAL identifier-rename table, DEC-5 amendment, out-of-scope). SCOPE 04 (~70 refs, the CANONICAL schema source): rename ALL identifiers per the brief table (persona_inquiry_id x3, plaid_item_ref, plaid_public_token, PLAID_INSTANT enum, 502 PLAID_UNAVAILABLE, all /webhooks/{persona,plaid,stripe,lithic} paths); neutralize the vendor table rows (04:27-28 Persona/Plaid), the S-1/S-4 service descs, the mermaid nodes (04:69-70), the F-A/F-D flow prose (Persona inquiry, Stripe collection, Plaid underwriting), 'Persona evidence pack' (04:942), the E-2/E-14 field comments. Mark provider TBD/procurement; eKYC -> \u0425\u0423\u0420/XYP candidate note. Rename each identifier EXACTLY per the table (cross-doc consistency); replace vendor prose with role-neutral terms; mark concrete provider as procurement/TBD; do NOT invent a Mongolian vendor. Do NOT touch rail terms (already migrated), amounts, or non-vendor field names. Run .softhouse/verify-docs.sh (HARD stays 0; vendor DRIFT drops). Handoff lists every vendor prose ref changed, every identifier renamed (old->new+location), and confirms no rail/amount/non-vendor-field touched."
+    },
+    {
+      "id": "T2",
+      "title": "Vendors in 01 (DEC-5 normative + prose)",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/01_business_analysis.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R2 APPROVED; DEC-5 amended normatively",
+      "description": "READ .softhouse/vendor-removal-brief.md IN FULL first (role abstractions, the CANONICAL identifier-rename table, DEC-5 amendment, out-of-scope). SCOPE 01 (~33 refs): AMEND DEC-5 (01:361) per the brief \u2014 remove named Persona, provider=procurement/TBD role-defined, \u0425\u0423\u0420/XYP candidate, and CORRECT the false 'substitution is an integration change not a requirements change' claim. Neutralize all other vendor prose (architecture, capability, feature descriptions). Keep DEC-5's ID/meaning; DEC-5 REFERENCES stay as the ID. Rename each identifier EXACTLY per the table (cross-doc consistency); replace vendor prose with role-neutral terms; mark concrete provider as procurement/TBD; do NOT invent a Mongolian vendor. Do NOT touch rail terms (already migrated), amounts, or non-vendor field names. Run .softhouse/verify-docs.sh (HARD stays 0; vendor DRIFT drops). Handoff lists every vendor prose ref changed, every identifier renamed (old->new+location), and confirms no rail/amount/non-vendor-field touched."
+    },
+    {
+      "id": "T3",
+      "title": "Vendors in 05",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R3 APPROVED; 24 refs; R-3 reframed",
+      "description": "READ .softhouse/vendor-removal-brief.md IN FULL first (role abstractions, the CANONICAL identifier-rename table, DEC-5 amendment, out-of-scope). SCOPE 05 (~23 refs): the R-3 vendor-dependency risk row (Persona/Plaid/Lithic/Stripe/Jumio), the BaaS/Stripe references in R-2, DEC-5 references, roadmap/exit-criteria vendor mentions. Role-neutralize; provider TBD. Keep rail terms already migrated. Rename each identifier EXACTLY per the table (cross-doc consistency); replace vendor prose with role-neutral terms; mark concrete provider as procurement/TBD; do NOT invent a Mongolian vendor. Do NOT touch rail terms (already migrated), amounts, or non-vendor field names. Run .softhouse/verify-docs.sh (HARD stays 0; vendor DRIFT drops). Handoff lists every vendor prose ref changed, every identifier renamed (old->new+location), and confirms no rail/amount/non-vendor-field touched."
+    },
+    {
+      "id": "T4",
+      "title": "Vendors in 03",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R4 APPROVED; 10 refs",
+      "description": "READ .softhouse/vendor-removal-brief.md IN FULL first (role abstractions, the CANONICAL identifier-rename table, DEC-5 amendment, out-of-scope). SCOPE 03 (~10 refs): scenario/AC vendor mentions (Persona KYC, Plaid linking, Stripe payment). Role-neutralize; rename any identifier per the table. Keep amounts and rail terms untouched. Rename each identifier EXACTLY per the table (cross-doc consistency); replace vendor prose with role-neutral terms; mark concrete provider as procurement/TBD; do NOT invent a Mongolian vendor. Do NOT touch rail terms (already migrated), amounts, or non-vendor field names. Run .softhouse/verify-docs.sh (HARD stays 0; vendor DRIFT drops). Handoff lists every vendor prose ref changed, every identifier renamed (old->new+location), and confirms no rail/amount/non-vendor-field touched."
+    },
+    {
+      "id": "T5",
+      "title": "Vendors in 02",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/02_user_stories.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R5 APPROVED; 4 refs; disambig verified",
+      "description": "READ .softhouse/vendor-removal-brief.md IN FULL first (role abstractions, the CANONICAL identifier-rename table, DEC-5 amendment, out-of-scope). SCOPE 02 (~5 refs): US vendor mentions in story descriptions. Role-neutralize per the brief. Rename each identifier EXACTLY per the table (cross-doc consistency); replace vendor prose with role-neutral terms; mark concrete provider as procurement/TBD; do NOT invent a Mongolian vendor. Do NOT touch rail terms (already migrated), amounts, or non-vendor field names. Run .softhouse/verify-docs.sh (HARD stays 0; vendor DRIFT drops). Handoff lists every vendor prose ref changed, every identifier renamed (old->new+location), and confirms no rail/amount/non-vendor-field touched."
+    },
+    {
+      "id": "R1",
+      "title": "Review 04 vendors",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/04_technical_architecture.md"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent adbe5b70ee24d91af",
+      "description": "INDEPENDENT review of T1. Read .softhouse/vendor-removal-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-vendor-removal/T1.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every vendor name (Stripe/Plaid/Lithic/Persona/Jumio) removed from in-scope text OR legitimately residual; (2) each IDENTIFIER renamed EXACTLY per the brief's table (persona_inquiry_id->kyc_inquiry_id, plaid_item_ref->account_link_ref, plaid_public_token->account_link_public_token, PLAID_INSTANT->INSTANT_LINK, 502 PLAID_UNAVAILABLE->502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE, webhook paths) \u2014 and CONSISTENTLY (same old name -> same new name everywhere); (3) NO Mongolian vendor invented \u2014 provider marked TBD/procurement, eKYC notes \u0425\u0423\u0420/XYP candidate; (4) role abstractions correct (Stripe=payment processor, Plaid=account-linking, Persona/Jumio=eKYC, Lithic=card issuer-processor); (5) NO rail term / amount / non-vendor field name changed; (6) scope = only intended file(s)+handoff. Extra: the IDENTIFIER rename completeness is the crux \u2014 grep the branch's 04 for any remaining plaid_/persona_/stripe_/lithic_ identifier, PLAID_INSTANT, PLAID_UNAVAILABLE, /webhooks/{persona,plaid,stripe,lithic}; ANY leftover = finding. Verify each new name matches the brief table EXACTLY. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Grep the branch for any leftover vendor name; don't trust the handoff."
+    },
+    {
+      "id": "R2",
+      "title": "Review 01 DEC-5+vendors",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/01_business_analysis.md"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT review of T2. Read .softhouse/vendor-removal-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-vendor-removal/T2.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every vendor name (Stripe/Plaid/Lithic/Persona/Jumio) removed from in-scope text OR legitimately residual; (2) each IDENTIFIER renamed EXACTLY per the brief's table (persona_inquiry_id->kyc_inquiry_id, plaid_item_ref->account_link_ref, plaid_public_token->account_link_public_token, PLAID_INSTANT->INSTANT_LINK, 502 PLAID_UNAVAILABLE->502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE, webhook paths) \u2014 and CONSISTENTLY (same old name -> same new name everywhere); (3) NO Mongolian vendor invented \u2014 provider marked TBD/procurement, eKYC notes \u0425\u0423\u0420/XYP candidate; (4) role abstractions correct (Stripe=payment processor, Plaid=account-linking, Persona/Jumio=eKYC, Lithic=card issuer-processor); (5) NO rail term / amount / non-vendor field name changed; (6) scope = only intended file(s)+handoff. Extra: verify the DEC-5 amendment keeps its meaning, removes the named vendor, adds the \u0425\u0423\u0420/XYP candidate, and CORRECTS the false 'integration-not-requirements' claim. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Grep the branch for any leftover vendor name; don't trust the handoff."
+    },
+    {
+      "id": "R3",
+      "title": "Review 05 vendors",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [
+        "T3"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT review of T3. Read .softhouse/vendor-removal-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-vendor-removal/T3.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every vendor name (Stripe/Plaid/Lithic/Persona/Jumio) removed from in-scope text OR legitimately residual; (2) each IDENTIFIER renamed EXACTLY per the brief's table (persona_inquiry_id->kyc_inquiry_id, plaid_item_ref->account_link_ref, plaid_public_token->account_link_public_token, PLAID_INSTANT->INSTANT_LINK, 502 PLAID_UNAVAILABLE->502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE, webhook paths) \u2014 and CONSISTENTLY (same old name -> same new name everywhere); (3) NO Mongolian vendor invented \u2014 provider marked TBD/procurement, eKYC notes \u0425\u0423\u0420/XYP candidate; (4) role abstractions correct (Stripe=payment processor, Plaid=account-linking, Persona/Jumio=eKYC, Lithic=card issuer-processor); (5) NO rail term / amount / non-vendor field name changed; (6) scope = only intended file(s)+handoff.  Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Grep the branch for any leftover vendor name; don't trust the handoff."
+    },
+    {
+      "id": "R4",
+      "title": "Review 03 vendors",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [
+        "T4"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a5fb257320b2d6634",
+      "description": "INDEPENDENT review of T4. Read .softhouse/vendor-removal-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-vendor-removal/T4.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every vendor name (Stripe/Plaid/Lithic/Persona/Jumio) removed from in-scope text OR legitimately residual; (2) each IDENTIFIER renamed EXACTLY per the brief's table (persona_inquiry_id->kyc_inquiry_id, plaid_item_ref->account_link_ref, plaid_public_token->account_link_public_token, PLAID_INSTANT->INSTANT_LINK, 502 PLAID_UNAVAILABLE->502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE, webhook paths) \u2014 and CONSISTENTLY (same old name -> same new name everywhere); (3) NO Mongolian vendor invented \u2014 provider marked TBD/procurement, eKYC notes \u0425\u0423\u0420/XYP candidate; (4) role abstractions correct (Stripe=payment processor, Plaid=account-linking, Persona/Jumio=eKYC, Lithic=card issuer-processor); (5) NO rail term / amount / non-vendor field name changed; (6) scope = only intended file(s)+handoff.  Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Grep the branch for any leftover vendor name; don't trust the handoff."
+    },
+    {
+      "id": "R5",
+      "title": "Review 02 vendors",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/02_user_stories.md"
+      ],
+      "dependencies": [
+        "T5"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent af1d496f096b95bb0",
+      "description": "INDEPENDENT review of T5. Read .softhouse/vendor-removal-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-vendor-removal/T5.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every vendor name (Stripe/Plaid/Lithic/Persona/Jumio) removed from in-scope text OR legitimately residual; (2) each IDENTIFIER renamed EXACTLY per the brief's table (persona_inquiry_id->kyc_inquiry_id, plaid_item_ref->account_link_ref, plaid_public_token->account_link_public_token, PLAID_INSTANT->INSTANT_LINK, 502 PLAID_UNAVAILABLE->502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE, webhook paths) \u2014 and CONSISTENTLY (same old name -> same new name everywhere); (3) NO Mongolian vendor invented \u2014 provider marked TBD/procurement, eKYC notes \u0425\u0423\u0420/XYP candidate; (4) role abstractions correct (Stripe=payment processor, Plaid=account-linking, Persona/Jumio=eKYC, Lithic=card issuer-processor); (5) NO rail term / amount / non-vendor field name changed; (6) scope = only intended file(s)+handoff.  Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Grep the branch for any leftover vendor name; don't trust the handoff."
+    },
+    {
+      "id": "V",
+      "title": "Verify docs gate + re-baseline vendor",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        ".softhouse/verify-docs.sh"
+      ],
+      "dependencies": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "After merges: run verify-docs.sh; HARD 5/5. vendor DRIFT drops from 83 to residual (06 deferred + any legitimately-retained). ENUMERATE the residual per doc and confirm each is legitimate (06/00 deferred, or a corrected 'was-a-vendor' historical note) BEFORE re-baselining \u2014 do NOT bake a miss into the baseline (lesson from the rails run). Re-baseline vendor downward; record residual + the code-sync follow-up in the postmortem."
+    }
+  ]
+}

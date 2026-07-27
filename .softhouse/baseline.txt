@@ -1,4 +1,4 @@
-# Regenerated f11d903
+# Regenerated 122b65a
 usd=131
 rails=20
-vendor=83
+vendor=6

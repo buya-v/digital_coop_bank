@@ -59,6 +59,26 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-vendor-removal — US vendors -> role-neutral (2026-07-24)
+
+Neutralized Stripe/Plaid/Lithic/Persona/Jumio across 01-05: prose -> role abstractions (payment processor / account-linking provider / eKYC provider / card issuer-processor), schema identifiers -> neutral names via a canonical rename table, DEC-5 amended. 5 applies + 5 reviews + verifier, all APPROVED. vendor DRIFT 83 -> 6 (residual entirely 06, deferred), re-baselined. Docs gate 5/5.
+
+**What worked**
+- A canonical IDENTIFIER-RENAME TABLE in the brief (persona_inquiry_id->kyc_inquiry_id, plaid_item_ref->account_link_ref, plaid_public_token->account_link_public_token, PLAID_INSTANT->INSTANT_LINK, 502 PLAID_UNAVAILABLE->502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE, /webhooks/{persona,plaid,stripe,lithic}->{kyc,account-link,payments,card}) made a cross-doc rename CONSISTENT and reviewable. The 04 reviewer verified old-ids=0 AND new-ids-exact AND renamed-at-every-reference-site (field def + API + flow + traceability) — a rename is only correct if applied at EVERY reference, not just the definition.
+- HONESTY: Mongolia vendors are not chosen, so every de-named provider became "procurement decision (TBD)", eKYC carrying the ХУР/XYP state-register compliant-alternative note (blocking-question 2). No Mongolian vendor invented.
+- DEC-5 (normative) amended to remove the named vendor, define by role, and CORRECT its own false claim that "vendor substitution is an integration change, not a requirements change" — false precisely because vendor names had leaked into schema field names and error codes. The migration makes that true going forward.
+
+**Disambiguation the reviews enforced**
+- "Persona" the VENDOR vs "Persona(s)" the user-persona noun (P-1..P-5) vs "Personal" substring — every 02/01/05 reviewer grep-verified that only the vendor was neutralized and the noun/substring left. A naive find-replace would have corrupted the user-persona roster.
+- Orchestrator caught a cross-doc INCONSISTENCY the per-doc reviews flagged: 05's R-2 still echoed the "integration change, not a requirements change" claim after DEC-5 (in 01) had corrected it. Fixed as a micro-fix aligning 05 to the corrected DEC-5. Cross-doc claims must be reconciled after all slices merge — a per-doc review can only flag it, the orchestrator resolves it.
+
+**Backlog surfaced**
+- CODE SYNC (high value, natural next): the backend carries the OLD vendor field names verbatim (models persona_inquiry_id/plaid_item_ref/PLAID_INSTANT enum, migration DDL, OpenAPI schemas — 124 hits) and explicitly flags them as awaiting this requirements change. A follow-up run should adopt THIS brief's rename table in the code and re-run the code gates (check_models, check_migration, openapi validate). Doc field names and code field names now diverge until then.
+- Other-vendor abstraction: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) vendors are already framed as `-class` role abstractions and out of the five-vendor scope, but a completeness pass could give them the same TBD-provider treatment.
+- 06 (ledger addendum) still carries 6 vendor refs — clears with the controller ledger rewrite.
+
+**Verifier**: HARD 5/5 · vendor 83 -> 6 (re-baselined; residual entirely 06, deferred; 01-05 are vendor-clean) · USD 131 / rails 20 unchanged.
+
 ### Run 20260724-payment-rails — US rails -> Mongolia (2026-07-24)
 
 Migrated US payment-rail concepts (ACH/FedNow/SEPA/wire) across 01-05 to Mongolia's system: ACH+ (<=₮5m, 24/7), Banksüljee/RTGS (>₮5m), NETC (cards). 5 applies + 5 reviews + verifier, all APPROVED. rails DRIFT 56 -> 20, re-baselined. Docs gate 5/5 (incl. the HARD 3m-threshold check — never introduced).
