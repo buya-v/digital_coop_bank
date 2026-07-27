@@ -24,7 +24,7 @@
 
 * **[CONFIRMED]** Onboarding time is measured from first app-flow screen to `MembershipStatus = ACTIVE`; targets: median ≤ 8 minutes, p90 ≤ 10 minutes (DEC-17, KPI-1.1). Instrumentation timestamps are mandatory.
 * **[CONFIRMED]** `KycStatus = NOT_STARTED | IN_PROGRESS | PENDING_REVIEW | APPROVED | REJECTED` (DEC-19). `REJECTED` ends the application; no member record reaches a "rejected" membership status (DEC-4).
-* **[CONFIRMED]** Persona is the identity-verification vendor for document OCR, biometric selfie match, and sanctions/PEP screening (DEC-5).
+* **[CONFIRMED]** The eKYC / identity-verification provider (procurement decision, TBD) performs document OCR, biometric selfie match, and sanctions/PEP screening (DEC-5).
 * **[CONFIRMED]** Name/address use the DEC-6 three-part Mongolian model (`ner`, `etsgiin_ner`, optional `ovog`, plus read-only `mrz_name_latin` and `registration_number`, `address_line_1`, `address_line_2`, `city`, `region`, `postal_code`, `country`); Cyrillic is canonical and `mrz_name_latin` is stored verbatim; the derived `legal_name` (the composition `ovog` `etsgiin_ner` `ner`) is display-only and never independently editable; `etsgiin_ner` is a patronymic and MUST NOT be treated as a family name or used to infer household or relationship.
 * **[CONFIRMED]** Step-up authentication is required for: external payments above limits, card credential reveal, vote submission, Proxy Delegation changes, and guarantee pledges (US-1.4 list).
 * **[PROPOSED]** Accepted ID-capture formats JPEG/PNG/PDF; maximum upload size 10 MB per file. (Sprint 1 draft.)
@@ -66,13 +66,13 @@
 * **Then** the server rejects the stale submission with `409 Conflict`
 * **And** device 1 refreshes to the current server-side step without losing any data.
 
-### US-1.2 — eKYC Verification via Persona (Document, Biometric, Screening) (L)
+### US-1.2 — eKYC Verification via the eKYC Provider (Document, Biometric, Screening) (L)
 
 **Data validation & security:** OCR output must populate non-empty `ner`, `etsgiin_ner`, `mrz_name_latin`, date of birth, and document number before proceeding; `registration_number` is **not** expected from card-face OCR (post-2022 ID cards do not print it) — it is supplied by the applicant and confirmed against the verified identity source, and a mismatch blocks the application (DEC-6(d)); the vendor result is correlated to the application by `registration_number` only, never by name match (DEC-6(c)); all vendor callbacks are signature-verified; screening results are never exposed to the applicant verbatim (tipping-off safeguard).
 
 **Scenario 1 — Happy path: clear pass end to end**
 * **Given** Member A's application is at the KYC step with `KycStatus = IN_PROGRESS`
-* **When** they photograph a valid, unexpired government ID, Persona OCR extracts the DEC-6 name/address fields with ≥ 80% confidence [PROPOSED threshold]
+* **When** they photograph a valid, unexpired government ID, the eKYC provider's OCR extracts the DEC-6 name/address fields with ≥ 80% confidence [PROPOSED threshold]
 * **And** the live selfie passes liveness detection and matches the document photo at ≥ 95% confidence [PROPOSED threshold]
 * **And** sanctions/PEP screening returns no hits
 * **Then** `KycStatus` transitions to `APPROVED`
@@ -82,12 +82,12 @@
 **Scenario 2 — Negative: liveness spoof attempt**
 * **Given** Member A is at the selfie step
 * **When** a printed photograph is presented to the camera instead of a live face
-* **Then** Persona liveness detection fails the capture
+* **Then** the eKYC provider's liveness detection fails the capture
 * **And** `KycStatus` remains `IN_PROGRESS` with the attempt counter incremented ("Attempt 1 of 3" [PROPOSED limit])
 * **And** the applicant sees retry guidance without any indication of which specific check failed beyond "we could not verify it was you, live".
 
 **Scenario 3 — Negative: hard fail ends the application**
-* **Given** Persona returns a confirmed document-fraud signal (tampered ID)
+* **Given** the eKYC provider returns a confirmed document-fraud signal (tampered ID)
 * **When** the verification result is processed
 * **Then** `KycStatus` transitions to `REJECTED`
 * **And** the application ends; no member record is created and no "rejected" membership status exists (DEC-4)
@@ -97,7 +97,7 @@
 * **Given** the selfie match returns 87% confidence (below the [PROPOSED] 95% auto-pass) with passed liveness
 * **When** the third automated attempt also scores below threshold
 * **Then** `KycStatus` transitions to `PENDING_REVIEW`
-* **And** a case is created in the US-12.2 KYC queue containing the Persona evidence bundle
+* **And** a case is created in the US-12.2 KYC queue containing the KYC evidence bundle
 * **And** the applicant sees "Your identity is being reviewed — we'll notify you" with the application saved for resume.
 
 **Scenario 5 — Edge: watchlist potential match**
@@ -173,7 +173,7 @@
 **Scenario 3 — Edge: KYC-relevant change triggers re-verification**
 * **Given** Member A changes `etsgiin_ner` and `address_line_1`
 * **When** the change is submitted
-* **Then** the change is held pending re-verification (Persona re-check or US-12.1 admin review, per policy)
+* **Then** the change is held pending re-verification (eKYC re-check or US-12.1 admin review, per policy)
 * **And** the previous verified values remain in force for card embossing, ACH+, and statements until the re-verification completes
 * **And** a consent-relevant change (e.g., withdrawing marketing consent) takes effect immediately and is recorded for US-13.6 enforcement.
 
@@ -476,7 +476,7 @@
 * **[PROPOSED]** Internal P2P ledger settlement SLA < 3 seconds (Sprint 1 draft).
 * **[PROPOSED]** Recipient confirmation shows the recipient's display name before send, for anti-fishing. [ADJUDICATED → see DEC-35 in 05_prd_and_roadmap.md: display is the standard Mongolian short form = patronymic initial + given name (e.g., Cyrillic "Ц. Бат", Latin "Ts. Bat"), with `ner` (DEC-6) shown in full. Name-masking does not apply to Mongolian names — `ner` is the identity, not a family name — so the anti-fishing defence moves to the per-sender recipient-lookup velocity cap (US-12.5 seed, no hard-coded value) plus the existing uniform-response enumeration protection (US-4.1 Scenario 2).]
 * **[PROPOSED]** Default step-up threshold for external payments: single transfer > 550,000₮ (DEC-36, income-anchored 0.25·W; placeholder for the US-12.5 seed — PO to confirm).
-* **[PROPOSED]** External account linking verified via micro-deposits or instant account verification before first outbound use. [ADJUDICATED → see DEC-37 in 05_prd_and_roadmap.md: Plaid instant verification primary; micro-deposit fallback for unsupported institutions]
+* **[PROPOSED]** External account linking verified via micro-deposits or instant account verification before first outbound use. [ADJUDICATED → see DEC-37 in 05_prd_and_roadmap.md: account-linking-provider instant verification primary; micro-deposit fallback for unsupported institutions]
 * **[PROPOSED]** Failed recurring payments retry up to 2 times at 24-hour intervals before the occurrence is marked failed (Sprint drafts imply retry; count/interval need PO confirmation).
 * **Security assertions (all EP-4 stories):** every money-movement command carries an idempotency key; senders can only originate from accounts they own (ownership check server-side); velocity/limit checks evaluate server-side before ledger execution.
 
@@ -612,7 +612,7 @@
 * **[CONFIRMED]** Virtual card issued automatically on Transaction Account opening; PAN/CVV reveal requires step-up authentication; wallet tokenization for Apple Pay and Google Pay; card transactions post to the Transaction Account and drive Round-Ups (US-5.1).
 * **[CONFIRMED]** Physical card embossing uses `mrz_name_latin` verbatim — the platform never transliterates the Cyrillic name fields to produce an embossed name (DEC-6(b)) — and shipping uses the DEC-6 structured address (US-5.2).
 * **[CONFIRMED]** Card controls (freeze, per-period spending limits, online/ATM/merchant-category toggles) are enforced at authorization time and take effect in seconds; all changes logged to US-13.3 (US-5.3).
-* **[PROPOSED]** Virtual card expiry 3 years from issuance. (Sprint 1 draft.) [ADJUDICATED → see DEC-40 in 05_prd_and_roadmap.md: REJECTED — no platform-side expiry rule; defer to the issuer-processor (Lithic) default]
+* **[PROPOSED]** Virtual card expiry 3 years from issuance. (Sprint 1 draft.) [ADJUDICATED → see DEC-40 in 05_prd_and_roadmap.md: REJECTED — no platform-side expiry rule; defer to the card issuer-processor's default]
 * **[PROPOSED]** Control-change propagation target ≤ 500 ms to the authorization decision path. (Sprint 1 draft; story only commits to "seconds".)
 * **[PROPOSED]** Full PAN is never stored or logged by Digital Coop Bank systems outside the PCI-scoped issuer-processor integration; in-app reveal is fetched on demand and never cached. (Security engineering rule to ratify.)
 * **[PROPOSED]** Frozen-card declines use a distinct decline reason ("card frozen") and trigger a member notification. (Sprint 1 draft behavior.)
@@ -1584,7 +1584,7 @@
 ### US-12.2 — KYC / AML Case Management Queues (M)
 
 **Scenario 1 — Happy path: KYC escalation approved**
-* **Given** Member A's onboarding case sits in the KYC queue with `KycStatus = PENDING_REVIEW` and the Persona evidence bundle attached
+* **Given** Member A's onboarding case sits in the KYC queue with `KycStatus = PENDING_REVIEW` and the KYC evidence bundle attached
 * **When** Operator A reviews the evidence and approves
 * **Then** `KycStatus` transitions to `APPROVED`, the applicant advances to `PENDING_PAYMENT` and is notified to complete the share purchase
 * **And** the case closes with decision, reviewer, and evidence references recorded; queue SLA timers (24 business hours [PROPOSED]) stop.
