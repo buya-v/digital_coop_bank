@@ -206,8 +206,7 @@ _UP = [
 	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	CONSTRAINT pk_onboarding_application PRIMARY KEY (id),
-	CONSTRAINT uq_onboarding_application_resume_token_hash UNIQUE (resume_token_hash),
-	CONSTRAINT uq_onboarding_application_registration_number UNIQUE (registration_number)
+	CONSTRAINT uq_onboarding_application_resume_token_hash UNIQUE (resume_token_hash)
 )""",
     """CREATE TABLE notification_event_type (
 	event_key VARCHAR(128) NOT NULL, 

@@ -148,7 +148,10 @@ class OnboardingApplication(Base, UUIDPrimaryKey, Timestamps):
     # Provisional national registration number (2 Cyrillic + 8 digits); the
     # KYC-verified value is authoritative (DEC-6(d)). Unique; STRUCTURAL validation
     # only — the check-digit algorithm is unpublished (never guessed).
-    registration_number: Mapped[Optional[str]] = mapped_column(String(10), unique=True)
+    # NOT unique on the draft: it is a provisional, applicant-entered value (the
+    # authoritative uniqueness lives on Member). A unique constraint here would let a
+    # throwaway draft pre-claim a real applicant's registration number and block them.
+    registration_number: Mapped[Optional[str]] = mapped_column(String(10))
 
     # DEC-6 structured postal address (OnboardingApplicationPatchRequest).
     address_line_1: Mapped[Optional[str]] = mapped_column(String(255))

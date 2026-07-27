@@ -2,7 +2,7 @@
   "run_id": "20260724-onboarding-slice1",
   "feature": "Onboarding application vertical (EP-1, slice 1: draft create/get/update + foundation)",
   "requirement": "First real feature build. Implement createOnboardingApplication/getCurrentOnboardingApplication/updateCurrentOnboardingApplication against the existing OpenAPI contract, adding the OnboardingApplication model+migration and the persistence/service/router foundation. Blocker-free: no ledger/money/\u0425\u0423\u0420/eligibility/KYC (deferred to slice 2). All 4 code gates must pass.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
@@ -34,9 +34,9 @@
         "backend/migrations/versions/0001_initial.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "merged; R1 APPROVED (gates re-run); micro-fix applied: dropped unique on provisional draft registration_number (griefing vector)",
       "description": "READ .softhouse/onboarding-build-brief.md IN FULL. Resolve the OnboardingApplication data model against 04_technical_architecture.md \u00a72 AND backend/openapi/schemas/ep1-identity.yaml (OnboardingApplication* schemas), then add the `onboarding_application` entity (resumable DRAFT: DEC-6 identity fields ovog/etsgiin_ner/ner, mrz_name_latin, registration_number[10-char, structural only], structured address, status DRAFT/SUBMITTED, timestamps) to backend/app/models/identity.py \u2014 OR follow 04 if it models onboarding as Member-in-PENDING_KYC (flag which). Add the same table to migrations/versions/0001_initial.py (extend 0001; nothing deployed) so metadata DDL == migration DDL. NO money/float, no first_name/last_name, no invented check-digit. GATES from backend/: `python3 -m app.db.check_models` PASS, `python3 -m app.db.check_migration` PASS (139->more, still matching), `python3 -m pytest -q` green. Handoff: the model decision + 04 reconciliation, the new table's columns, gate outputs."
     },
     {
@@ -75,9 +75,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent a6e1a0578d66475fe",
       "description": "INDEPENDENT review of T1. Read the brief, 04 \u00a72, the OpenAPI OnboardingApplication schemas, the handoff .softhouse/handoff/20260724-onboarding-slice1/T1.md, and `git diff main...<branch>` (three-dot). In your worktree `git checkout` the branch, `cd backend`, and RUN the gates yourself: check_models PASS, check_migration PASS (model==migration after the new table), pytest green. CHECK: the data-model decision is justified against 04+contract (not invented); DEC-6 three-part name (no first/last); registration_number 10-char structural only (no check-digit); no float/money column; the new table added to BOTH model and migration identically. Verdict APPROVED/MICRO-FIX/REJECTED with the gate outputs."
     },
     {
