@@ -46,10 +46,10 @@ Everything from first app screen to a KYC-approved applicant, plus authenticatio
 * **Size:** M
 * **Dependencies:** none (backlog root)
 
-### US-1.2 — eKYC Verification via Persona (Document, Biometric, Screening)
+### US-1.2 — eKYC Verification via the eKYC Provider (Document, Biometric, Screening)
 
 * **As a** P-2 (Digital-Native Member), **I want to** photograph my government ID and pass a live selfie check in-app, **so that** my identity is verified in minutes with no manual document handling.
-* **Description:** Integration with the Persona verification service (DEC-5) for document capture with OCR extraction into the DEC-6 name/address fields, biometric selfie match with liveness detection, and automated sanctions/PEP watchlist screening. Clear pass → `KycStatus = APPROVED`; ambiguous results → `PENDING_REVIEW` and routing to the CAP-12.2 queue (US-12.2); hard fail → `REJECTED`, which ends the application (per DEC-4, no member record reaches a "rejected" membership status). Retry guidance (blur, glare, lighting) is in scope; manual review tooling is not (US-12.2).
+* **Description:** Integration with the eKYC / identity-verification provider (DEC-5; provider is a procurement decision, TBD) for document capture with OCR extraction into the DEC-6 name/address fields, biometric selfie match with liveness detection, and automated sanctions/PEP watchlist screening. Clear pass → `KycStatus = APPROVED`; ambiguous results → `PENDING_REVIEW` and routing to the CAP-12.2 queue (US-12.2); hard fail → `REJECTED`, which ends the application (per DEC-4, no member record reaches a "rejected" membership status). Retry guidance (blur, glare, lighting) is in scope; manual review tooling is not (US-12.2).
 * **Maps to:** F-101; CAP-1.2, CAP-1.3
 * **Size:** L
 * **Dependencies:** US-1.1
@@ -506,7 +506,7 @@ All P-5 stories. Every mutating action in this epic operates under four-eyes/mak
 ### US-12.2 — KYC / AML Case Management Queues
 
 * **As a** P-5 (Cooperative Operations Administrator), **I want** work queues for KYC escalations (`KycStatus = PENDING_REVIEW`) and AML alerts, with assignment, SLA timers, evidence view, decisioning, and escalation, **so that** manual reviews are resolved quickly and consistently.
-* **Description:** Queue management for onboarding escalations from US-1.2 (review Persona evidence, approve → `APPROVED`, or reject → `REJECTED` with reason codes) and for AML alerts raised by US-13.1 (triage, investigate against the member 360°, escalate to SAR workflow); four-eyes on rejections; complete decision audit trail. Directly protects KPI-1.1/1.2 by keeping manual-review turnaround short.
+* **Description:** Queue management for onboarding escalations from US-1.2 (review KYC evidence, approve → `APPROVED`, or reject → `REJECTED` with reason codes) and for AML alerts raised by US-13.1 (triage, investigate against the member 360°, escalate to SAR workflow); four-eyes on rejections; complete decision audit trail. Directly protects KPI-1.1/1.2 by keeping manual-review turnaround short.
 * **Maps to:** F-142; CAP-12.2
 * **Size:** M
 * **Dependencies:** US-1.2, US-12.1
@@ -604,7 +604,7 @@ Every feature F-101…F-152 is covered by at least one story. No feature is inte
 
 | Feature | Name (short) | Covered by | Notes |
 | :--- | :--- | :--- | :--- |
-| F-101 | Instant Digital Onboarding & eKYC | US-1.1, US-1.2 | Journey vs. Persona verification split |
+| F-101 | Instant Digital Onboarding & eKYC | US-1.1, US-1.2 | Journey vs. eKYC-provider verification split |
 | F-102 | Eligibility & Common-Bond Check | US-1.3 | |
 | F-103 | Initial Membership Share Purchase | US-2.1 | |
 | F-104 | MFA & Biometrics | US-1.4 | |
