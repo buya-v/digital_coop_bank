@@ -24,11 +24,11 @@ Digital Coop Bank is a purely digital cooperative banking platform: a mobile-fir
 | :--- | :--- |
 | Member app (iOS / Android / web) | All member-facing capabilities (EP-1…EP-11, EP-13 member views). Authenticates via OAuth 2.0 Authorization Code + PKCE. |
 | Back-office console (web) | All P-5 staff capabilities (EP-12, EP-13 staff views). Separate staff identity realm, maker-checker on every mutating action. |
-| **Persona** | eKYC vendor (DEC-5): document OCR, biometric selfie/liveness match, sanctions/PEP screening. Webhook-driven. |
-| **Plaid** | External bank account linking and verification; open-banking transaction data for underwriting (US-6.2). |
+| **eKYC / identity-verification provider** | eKYC provider (DEC-5): document OCR, biometric selfie/liveness match, sanctions/PEP screening. Webhook-driven. Concrete provider is a procurement decision (TBD); ХУР/XYP state-register lookup is the compliant-alternative candidate (biometric eKYC legally unresolved — see `01` §6.3 blocking question 2). |
+| **Account-linking provider** | External bank account linking and verification; open-banking transaction data for underwriting (US-6.2). Concrete provider is a procurement decision (TBD). |
 | **Sponsor bank / BaaS provider** (entity and charter form is **pending counsel** — see `01` §6.3 item 3 and `05` OI-3 / R-1. The previous US deposit-insurance framing assumed a US sponsor-bank/BaaS structure that does not apply in Mongolia and is withdrawn with no replacement claim about final form. Whichever structure is confirmed, payment-rail settlement runs through a bank on the Bank of Mongolia settlement-agent register; final selection is a procurement decision, not a requirements change.) | FBO account structure, ACH+ origination/receipt (24/7), Banksüljee (RTGS) large-value settlement, NETC card-network settlement. |
-| **Stripe** | Card-payment capture for the one mandatory 10,000₮ (provisional, pending DEC-11 / legal) membership share purchase (US-2.1) and its refunds. |
-| **Lithic** (card issuer-processor) | Virtual and physical debit card issuance, PAN tokenization, Apple Pay / Google Pay provisioning, real-time authorization webhooks. |
+| **Payment processor** | Card/wallet payment capture for the one mandatory 10,000₮ (provisional, pending DEC-11 / legal) membership share purchase (US-2.1) and its refunds. Concrete provider is a procurement decision (TBD). |
+| **Card issuer-processor** | Virtual and physical debit card issuance, PAN tokenization, Apple Pay / Google Pay provisioning, real-time authorization webhooks (cards — EP-5 remains entity-gated / not-buildable). Concrete provider is a procurement decision (TBD). |
 | **E-signature provider** (Dropbox Sign or DocuSign class) | Legally binding e-signature ceremonies for loan agreements and guarantee pledge agreements (US-6.6). |
 | **Notification channels** | FCM/APNs (push), SendGrid-class email, Twilio-class SMS — behind the platform's own Notification Service (US-11.1). |
 | Credit bureau (optional pulls) | Optional bureau data for underwriting (US-6.2); adverse-action content obligations apply. |
@@ -40,11 +40,11 @@ A modular service architecture (deployable as a modular monolith at launch, serv
 
 | # | Service / Module | Epics | Owns (primary entities) | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| S-1 | Identity & Onboarding Service | EP-1 | Member (profile/KYC fields), KycSubmission, DeviceBinding, ConsentRecord | Persona integration; OAuth2/OIDC identity provider integration; step-up policy engine. |
-| S-2 | Membership & Share Registry Service | EP-2 | MembershipShare, membership status machine | Enforces DEC-4 transitions; produces EligibilitySnapshots for ballots; Stripe integration for share purchase. |
+| S-1 | Identity & Onboarding Service | EP-1 | Member (profile/KYC fields), KycSubmission, DeviceBinding, ConsentRecord | eKYC-provider integration; OAuth2/OIDC identity provider integration; step-up policy engine. |
+| S-2 | Membership & Share Registry Service | EP-2 | MembershipShare, membership status machine | Enforces DEC-4 transitions; produces EligibilitySnapshots for ballots; payment-processor integration for share purchase. |
 | S-3 | Account & Ledger Service | EP-3 (core for all money epics) | Account, LedgerEntry, Transaction, SavingsGoal, GroupPot* entities; interest accrual engine | Double-entry, ACID, serializable isolation; source of truth for all balances; sponsor-bank reconciliation. |
-| S-4 | Payments Service | EP-4 | ExternalAccountLink, Payee, ScheduledPayment, PaymentRequest | P2P (internal ledger settlement), external transfers over Mongolia rails — ACH+ (24/7) and Banksüljee (RTGS) for large-value — via sponsor bank, Plaid linking, recipient lookup per DEC-3. |
-| S-5 | Card Service | EP-5 | Card (controls, wallet tokens) | Lithic integration; <200 ms authorization decisioning; emits settled-transaction events to Round-Up Service. |
+| S-4 | Payments Service | EP-4 | ExternalAccountLink, Payee, ScheduledPayment, PaymentRequest | P2P (internal ledger settlement), external transfers over Mongolia rails — ACH+ (24/7) and Banksüljee (RTGS) for large-value — via sponsor bank, external account linking via the account-linking provider, recipient lookup per DEC-3. |
+| S-5 | Card Service | EP-5 | Card (controls, wallet tokens) | Card issuer-processor integration; <200 ms authorization decisioning; emits settled-transaction events to Round-Up Service. |
 | S-6 | Lending Service | EP-6 | LoanProduct, LoanApplication, Loan, RepaymentSchedule, RepaymentInstallment, LoanCircle, LoanCircleInvitation, PeerGuarantee, PooledLoanCircle(+Participant), CollectionsCase, SignedDocument | Underwriting engine, e-sign integration, servicing (disbursement, autopay, payoff), arrears monitoring. |
 | S-7 | Dividend Service | EP-7 | PatronageFactorRecord, DividendDeclaration, DividendAllocation | Year-long factor accumulation; deterministic calculation runs; Dividend Estimator; statements. |
 | S-8 | Governance Service | EP-8 | Proposal, ProposalCosignature, ProposalComment, Ballot, ElectionCandidate, VoteParticipation, VoteRecord, ProxyDelegation | Secret-ballot engine (participation/choice separation), DEC-8 delegation semantics, governance archive. |
@@ -66,11 +66,11 @@ graph TD
     GW --> S6[Lending]
     GW --> S8[Governance]
     GW --> S12[Back-Office]
-    S1 <--> PERSONA[Persona eKYC]
-    S4 <--> PLAID[Plaid]
+    S1 <--> KYC[eKYC provider]
+    S4 <--> LINK[Account-linking provider]
     S4 <--> BAAS[Sponsor Bank / BaaS]
-    S2[Membership & Shares] <--> STRIPE[Stripe]
-    S5[Cards] <--> LITHIC[Lithic]
+    S2[Membership & Shares] <--> PAY[Payment processor]
+    S5[Cards] <--> CARDPROC[Card issuer-processor]
     S6 <--> ESIGN[E-Signature Provider]
     S11[Notifications] --> FCM[FCM/APNs, Email, SMS]
     S3 --- LEDGER[(Double-Entry Ledger DB)]
@@ -79,13 +79,13 @@ graph TD
 
 ### 1.3 Key Flows
 
-**F-A — Onboarding to activation (EP-1 → EP-2; KPI-1.1 median ≤ 8 min).** The applicant starts an onboarding application (US-1.1); the application is saved server-side and resumable. Personal details are captured per the DEC-6 structured model; the eligibility/common-bond check (US-1.3) runs before any payment. KYC (US-1.2) runs through a Persona inquiry: `KycStatus` moves `NOT_STARTED → IN_PROGRESS` at document capture; Persona's webhook outcome maps to `APPROVED` (clear pass), `PENDING_REVIEW` (routed to the US-12.2 queue), or `REJECTED` (application ends; per DEC-4 no member record reaches a rejected membership status). On `KycStatus = APPROVED` the member record enters `MembershipStatus = PENDING_KYC → PENDING_PAYMENT` and the share purchase (US-2.1) is presented: 10,000₮ collected by Stripe (card/wallet) or bank transfer via the sponsor bank. On settlement the Ledger Service posts the share subscription (equity, non-withdrawable), the Share Registry issues the MembershipShare, the member transitions `PENDING_PAYMENT → ACTIVE`, the Primary Savings Account and Transaction Account open automatically (US-3.1/US-3.2), a virtual card is issued (US-5.1), and voting/borrowing/guaranteeing rights activate.
+**F-A — Onboarding to activation (EP-1 → EP-2; KPI-1.1 median ≤ 8 min).** The applicant starts an onboarding application (US-1.1); the application is saved server-side and resumable. Personal details are captured per the DEC-6 structured model; the eligibility/common-bond check (US-1.3) runs before any payment. KYC (US-1.2) runs through a KYC inquiry with the eKYC provider: `KycStatus` moves `NOT_STARTED → IN_PROGRESS` at document capture; the eKYC provider's webhook outcome maps to `APPROVED` (clear pass), `PENDING_REVIEW` (routed to the US-12.2 queue), or `REJECTED` (application ends; per DEC-4 no member record reaches a rejected membership status). On `KycStatus = APPROVED` the member record enters `MembershipStatus = PENDING_KYC → PENDING_PAYMENT` and the share purchase (US-2.1) is presented: 10,000₮ collected by the payment processor (card/wallet) or bank transfer via the sponsor bank. On settlement the Ledger Service posts the share subscription (equity, non-withdrawable), the Share Registry issues the MembershipShare, the member transitions `PENDING_PAYMENT → ACTIVE`, the Primary Savings Account and Transaction Account open automatically (US-3.1/US-3.2), a virtual card is issued (US-5.1), and voting/borrowing/guaranteeing rights activate.
 
 **F-B — Instant internal P2P (EP-4).** Sender resolves the recipient strictly via `RecipientIdentifierType = PHONE | EMAIL | MEMBER_ID` (DEC-3); the API returns the recipient's display name for confirmation, never the underlying identifier of record. On send (with a mandatory `Idempotency-Key`), the Ledger Service atomically writes the balanced LedgerEntry pair, the Transaction settles instantly at 0₮ fee, both parties are notified (US-11.1), and the transfer event feeds AML monitoring (US-13.1). Limits come from the Configuration Registry (US-12.5).
 
-**F-C — Card authorization and Round-Up (EP-5 → EP-10).** Lithic forwards each authorization to the platform's decisioning webhook. The Card Service validates card status, member-configured controls (freeze, limits, category blocks — US-5.3), and available Transaction Account balance (holds included), responding within 200 ms. On settlement, the transaction posts to the Transaction Account and a settled-transaction event reaches the Round-Up Service, which computes the round-up per the member's RoundUpConfig (multiplier, monthly cap; whole-dollar amounts yield $0.00 <!-- held: round-up mechanic/denomination deferred, no confirmed MNT figure -->), accumulates it, and on reaching the batch threshold transfers it to the chosen destination — a Savings Goal or a Community Project, the only two destinations per DEC-12.
+**F-C — Card authorization and Round-Up (EP-5 → EP-10).** The card issuer-processor forwards each authorization to the platform's decisioning webhook. The Card Service validates card status, member-configured controls (freeze, limits, category blocks — US-5.3), and available Transaction Account balance (holds included), responding within 200 ms. On settlement, the transaction posts to the Transaction Account and a settled-transaction event reaches the Round-Up Service, which computes the round-up per the member's RoundUpConfig (multiplier, monthly cap; whole-dollar amounts yield $0.00 <!-- held: round-up mechanic/denomination deferred, no confirmed MNT figure -->), accumulates it, and on reaching the batch threshold transfers it to the chosen destination — a Savings Goal or a Community Project, the only two destinations per DEC-12.
 
-**F-D — Loan Circle lending, end to end (EP-6).** Borrower applies (US-6.1, `DRAFT → SUBMITTED`); underwriting (US-6.2) combines open-banking data (Plaid), optional bureau data, and cooperative history, producing approve / decline-with-reasons / referral to the US-12.3 queue. Optionally the borrower forms a Loan Circle (US-6.3): 3–5 ACTIVE members accept invitations and pledge savings or share capital (US-6.4); each guarantee pledge is e-signed (US-6.6), then locked (ledger hold excluded from withdrawals, transfers, and Round-Up sweeps), and underwriting applies the tiered rate reduction. On offer acceptance and loan agreement e-signature the loan disburses (`APPROVED → ACTIVE`), a RepaymentSchedule (standard, seasonal, or income-linked) is generated, and servicing runs autopay with retry. Principal repayments release pledges pro-rata; missed payments move the loan to `DELINQUENT`, trigger borrower and guarantor notifications at defined milestones, and open a CollectionsCase (US-6.8 → US-12.3). Terminal states: `PAID_OFF`, `DEFAULTED`, `WRITTEN_OFF` (admin-only, dual approval).
+**F-D — Loan Circle lending, end to end (EP-6).** Borrower applies (US-6.1, `DRAFT → SUBMITTED`); underwriting (US-6.2) combines open-banking data (via the account-linking provider), optional bureau data, and cooperative history, producing approve / decline-with-reasons / referral to the US-12.3 queue. Optionally the borrower forms a Loan Circle (US-6.3): 3–5 ACTIVE members accept invitations and pledge savings or share capital (US-6.4); each guarantee pledge is e-signed (US-6.6), then locked (ledger hold excluded from withdrawals, transfers, and Round-Up sweeps), and underwriting applies the tiered rate reduction. On offer acceptance and loan agreement e-signature the loan disburses (`APPROVED → ACTIVE`), a RepaymentSchedule (standard, seasonal, or income-linked) is generated, and servicing runs autopay with retry. Principal repayments release pledges pro-rata; missed payments move the loan to `DELINQUENT`, trigger borrower and guarantor notifications at defined milestones, and open a CollectionsCase (US-6.8 → US-12.3). Terminal states: `PAID_OFF`, `DEFAULTED`, `WRITTEN_OFF` (admin-only, dual approval).
 
 **F-E — Secret ballot with Proxy Delegation (EP-8).** When a Ballot is scheduled (US-12.4) the Share Registry captures an EligibilitySnapshot — the set of ACTIVE members at ballot open (US-2.3). A vote submission (step-up authenticated) is written as two decoupled records in one logical operation: a VoteParticipation row (member × ballot, no choice — enforces one-member-one-vote and computes the Governance Participation Rate) and an anonymous VoteRecord (choice `FOR | AGAINST | ABSTAIN` per DEC-1, or candidate selections for `BOARD_ELECTION` ballots), with no relational link between them; the member receives a verifiable receipt hash that never reveals content. Delegate-cast votes record `via_delegation = true` against the delegator's participation; a delegator's direct vote before close voids the delegate-cast vote for that ballot only (DEC-8). Certification (US-12.4, maker-checker) computes `PASSED`/`REJECTED` (reason `QUORUM_NOT_MET` where applicable) and publishes to the member-visible archive (US-8.7).
 
@@ -143,12 +143,12 @@ The natural person holding a membership record; exactly one voting right while `
 Relationships: 1—N KycSubmission, DeviceBinding, ConsentRecord, MembershipShare, Account, Card, LoanApplication, Loan, PeerGuarantee, Backing, Notification; 1—1 RoundUpConfig, NotificationPreference set; 1—N ProxyDelegation (as delegator; ≤1 per scope).
 
 #### E-2 KycSubmission
-One Persona verification attempt (retries create new rows). Owned by S-1.
+One eKYC-provider verification attempt (retries create new rows). Owned by S-1.
 
 * `id` UUID PK; `member_id` FK→Member (N:1).
-* `persona_inquiry_id` String UQ — vendor reference (DEC-5).
+* `kyc_inquiry_id` String UQ — eKYC-provider inquiry reference (DEC-5).
 * `document_type` Enum `PASSPORT | DRIVERS_LICENSE | NATIONAL_ID`.
-* `ocr_extracted_fields` JSON (encrypted) — vendor OCR output mapped to DEC-6 fields for member confirmation.
+* `ocr_extracted_fields` JSON (encrypted) — eKYC-provider OCR output mapped to DEC-6 fields for member confirmation.
 * `screening_result` Enum `CLEAR | POTENTIAL_MATCH | MATCH` — sanctions/PEP watchlist outcome.
 * `result` Enum `PASSED | NEEDS_REVIEW | FAILED`; `result_reasons` JSON — maps to member `KycStatus` `APPROVED / PENDING_REVIEW / REJECTED`.
 * `evidence_refs` JSON — encrypted object-store URIs (ID images, selfie) with retention class.
@@ -221,7 +221,7 @@ The business-level money movement grouping its LedgerEntries; the member-visible
 * `amount` Money; `currency` `MNT`; `memo?` String(140).
 * `counterparty` JSON — recipient identifier type/display name (P2P), external account ref, merchant descriptor (card), etc.
 * `category?` String — automatic categorization (US-3.2); `receipt_ref?` String — WORM object-store URI of the shareable confirmation receipt.
-* `initiated_by` FK→Member or StaffUser; `external_ref?` String (sponsor bank / Stripe / Lithic ID).
+* `initiated_by` FK→Member or StaffUser; `external_ref?` String (sponsor bank / payment processor / card issuer-processor ID).
 * `created_at`, `settled_at?` Timestamps.
 
 Relationships: 1—N LedgerEntry (balanced); referenced by MembershipShare, RepaymentInstallment, Backing, DividendAllocation, RoundUpCapture.
@@ -267,12 +267,12 @@ Pending outbound transfer awaiting m-of-n approval (US-3.5).
 ### 2.4 Payments & Transfers (EP-4)
 
 #### E-14 ExternalAccountLink
-A verified external bank account (US-4.2), linked via Plaid (or micro-deposit fallback).
+A verified external bank account (US-4.2), linked via the account-linking provider (or micro-deposit fallback).
 
 * `id` UUID PK; `member_id` FK→Member.
-* `plaid_item_ref?`, `processor_token_ref?` String (encrypted) — vendor references; account/routing numbers are tokenized at the sponsor bank, never stored raw.
+* `account_link_ref?`, `processor_token_ref?` String (encrypted) — account-linking-provider references; account/routing numbers are tokenized at the sponsor bank, never stored raw.
 * `institution_name`, `account_mask`, `account_subtype` String.
-* `verification_method` Enum `PLAID_INSTANT | MICRO_DEPOSIT`; `status` Enum `PENDING_VERIFICATION | VERIFIED | RELINK_REQUIRED | REMOVED`.
+* `verification_method` Enum `INSTANT_LINK | MICRO_DEPOSIT`; `status` Enum `PENDING_VERIFICATION | VERIFIED | RELINK_REQUIRED | REMOVED`.
 * `open_banking_consent` Boolean — reuse of transaction data for underwriting requires explicit consent (E-4).
 * `created_at`, `verified_at?` Timestamps.
 
@@ -305,14 +305,14 @@ Expense split / request-to-pay among members (US-4.4).
 ### 2.5 Card Management (EP-5)
 
 #### E-18 Card
-Virtual or physical debit card on the Transaction Account (US-5.1–US-5.3). PAN/CVV never stored — Lithic tokens only (PCI scope reduction).
+Virtual or physical debit card on the Transaction Account (US-5.1–US-5.3). PAN/CVV never stored — card issuer-processor tokens only (PCI scope reduction).
 
 | Attribute | Type | Notes |
 | :--- | :--- | :--- |
 | `id` | UUID PK | |
 | `member_id` FK→Member; `funding_account_id` FK→Account (`TRANSACTION`) | | |
 | `card_type` | Enum `VIRTUAL \| PHYSICAL` | Virtual issued automatically at Transaction Account opening. |
-| `issuer_card_ref` | String UQ | Lithic card token. |
+| `issuer_card_ref` | String UQ | Card issuer-processor card token. |
 | `masked_pan`, `expiry_month`, `expiry_year` | String/Int | Display only. |
 | `embossed_name` | String | Copied verbatim from `mrz_name_latin` (DEC-6); **never transliterated from the Cyrillic name fields**; physical only. Absent `mrz_name_latin`, no physical card may be produced. |
 | `status` | Enum `PENDING_ACTIVATION \| ACTIVE \| FROZEN \| REPORTED_LOST \| TERMINATED` | Freeze declines with explanatory notification (US-5.3). |
@@ -760,7 +760,7 @@ erDiagram
 | `GET /api/v1/onboarding/applications/current` | Applicant | — | `application_id`, `current_step`, `saved_data`, `progress_pct`, `kpi_timestamps` | `404 NO_APPLICATION` |
 | `PATCH /api/v1/onboarding/applications/current` | Applicant | Step payloads incl. DEC-6 fields: `ner`, `etsgiin_ner`, `ovog?`, `registration_number` (provisional — the verified value is authoritative per DEC-6(d)), `address_line_1..country`, `date_of_birth` (`mrz_name_latin` is KYC-populated, not client-supplied) | `current_step`, `validation_results` | `422 VALIDATION_FAILED` (per-field); `409 REGISTRATION_NUMBER_MISMATCH` |
 | `POST /api/v1/onboarding/eligibility-check` | Applicant | `eligibility_answers` (data-driven per config `eligibility.common_bond_rules`) | `eligible` Boolean, `failed_criteria[]`, `remediation[]` | `409 ALREADY_CHECKED_PASSED` |
-| `POST /api/v1/onboarding/kyc/sessions` | Applicant | — (server creates Persona inquiry) | `persona_inquiry_id`, `session_token`, `kyc_status:"IN_PROGRESS"` | `409 KYC_ALREADY_APPROVED`; `502 VENDOR_UNAVAILABLE` |
+| `POST /api/v1/onboarding/kyc/sessions` | Applicant | — (server creates KYC inquiry) | `kyc_inquiry_id`, `session_token`, `kyc_status:"IN_PROGRESS"` | `409 KYC_ALREADY_APPROVED`; `502 VENDOR_UNAVAILABLE` |
 | `GET /api/v1/onboarding/kyc/status` | Applicant | — | `kyc_status` (DEC-19), `retry_guidance?` (blur/glare/lighting), `pending_review` Boolean | — |
 | `POST /api/v1/auth/mfa/enrollments` | Applicant/Member | `factor_type` (`TOTP\|SMS\|BIOMETRIC`), `device_fingerprint`, `platform` | `enrollment_id`, `binding_challenge` | `409 FACTOR_EXISTS` |
 | `POST /api/v1/auth/step-up` | Member | `factor_response`, `action_context` | `step_up_token` (short-lived), `expires_at` | `401 STEP_UP_FAILED`; `423 FACTOR_LOCKED` |
@@ -773,7 +773,7 @@ erDiagram
 
 | Method & Path | Auth | Request body (keys) | Response (keys) | Key error cases |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST /api/v1/onboarding/share-purchase` | Applicant with `kyc_status=APPROVED` (`MembershipStatus=PENDING_PAYMENT`); Idempotency-Key | `payment_method` (`CARD\|BANK_TRANSFER\|WALLET`), `payment_token` (Stripe) or `external_account_link_id`, `amount:1000000`, `currency:"MNT"` | `transaction_id`, `status`, `share:{certificate_number, par_value:1000000}`, `membership_status:"ACTIVE"` (on settlement), `member_id`, `confirmation_pack_refs` (share record, bylaws copy) | `402 PAYMENT_FAILED`; `409 WRONG_MEMBERSHIP_STATE`; `422 AMOUNT_MISMATCH` (must equal configured par) |
+| `POST /api/v1/onboarding/share-purchase` | Applicant with `kyc_status=APPROVED` (`MembershipStatus=PENDING_PAYMENT`); Idempotency-Key | `payment_method` (`CARD\|BANK_TRANSFER\|WALLET`), `payment_token` (payment processor) or `external_account_link_id`, `amount:1000000`, `currency:"MNT"` | `transaction_id`, `status`, `share:{certificate_number, par_value:1000000}`, `membership_status:"ACTIVE"` (on settlement), `member_id`, `confirmation_pack_refs` (share record, bylaws copy) | `402 PAYMENT_FAILED`; `409 WRONG_MEMBERSHIP_STATE`; `422 AMOUNT_MISMATCH` (must equal configured par) |
 | `GET /api/v1/onboarding/share-purchase/{transaction_id}` | Applicant | — | `status` (`PENDING\|SETTLED\|FAILED`), `membership_status` | — |
 | `GET /api/v1/members/me/membership` | Member (any status) | — | `membership_status` + practical-meaning copy, `rights:{vote, borrow, guarantee}`, `member_id`, `joined_at` | — |
 | `GET /api/v1/members/me/shares` | Member | — | `shares[]{certificate_number, share_class, par_value, status, issued_at}`, `total_equity` | — |
@@ -809,7 +809,7 @@ erDiagram
 | :--- | :--- | :--- | :--- | :--- |
 | `POST /api/v1/payments/recipient-lookup` | Member (ACTIVE) | `identifier_type` (`PHONE\|EMAIL\|MEMBER_ID`, DEC-3), `identifier` | `recipient_display_name` (Mongolian short form = patronymic initial + given name per DEC-35, e.g. "Ц. Бат"), `recipient_ref` (opaque, short-lived) — confirmation before send | `404 RECIPIENT_NOT_FOUND` (uniform response; no membership enumeration); `429 LOOKUP_THROTTLED` (per-sender recipient-lookup velocity cap, US-12.5 config seed per DEC-35; no hard-coded threshold) |
 | `POST /api/v1/payments/p2p` | Member (ACTIVE); Idempotency-Key; step-up above config limit | `source_account_id`, `recipient_ref`, `amount`, `memo?` | `transaction_id`, `status:"SETTLED"` (instant, 0₮ fee), `settled_at`, `receipt_url` | `422 INSUFFICIENT_FUNDS`; `422 LIMIT_EXCEEDED` (per-txn/velocity, config US-12.5); `409 RECIPIENT_NOT_ACTIVE` |
-| `POST /api/v1/external-accounts` | Member (ACTIVE) | `plaid_public_token` or `micro_deposit_details` | ExternalAccountLink per E-14 | `502 PLAID_UNAVAILABLE`; `422 VERIFICATION_FAILED` |
+| `POST /api/v1/external-accounts` | Member (ACTIVE) | `account_link_public_token` or `micro_deposit_details` | ExternalAccountLink per E-14 | `502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE`; `422 VERIFICATION_FAILED` |
 | `GET /api/v1/external-accounts` / `DELETE /api/v1/external-accounts/{id}` | Member | — | `links[]` / `status:"REMOVED"` | `409 LINK_IN_USE` (active schedules) |
 | `POST /api/v1/payments/external` | Member (ACTIVE); Idempotency-Key; step-up above threshold | `direction` (`INBOUND\|OUTBOUND`), `rail` (`ACH_PLUS\|RTGS`; omit to auto-route by `amount` against the configured threshold), `source_account_id`/`external_account_link_id`, `amount`, `memo?` | `transaction_id`, `status:"PENDING"`, `expected_settlement`, `cutoff_notice?`, `fees` (config) | `422 LIMIT_EXCEEDED`; `422 RAIL_UNAVAILABLE`; `402 FEE_BALANCE_INSUFFICIENT` |
 | `GET /api/v1/payments/{transaction_id}` | Member (party) | — | Status tracking incl. `RETURNED` + `failure_reason` (return code) | — |
@@ -939,7 +939,7 @@ Capture computation, accumulation, threshold-batched `ROUND_UP_TRANSFER` executi
 | `POST /api/v1/admin/approvals/{id}/decision` | Any role holding checker rights for the `action_type`; checker ≠ maker | `decision` (`APPROVE\|REJECT`), `note` | MakerCheckerApproval resolution; target action executes on approval | `403 MAKER_CANNOT_CHECK`; `410 APPROVAL_EXPIRED` |
 | `GET /api/v1/admin/cases?type=KYC_REVIEW\|AML_ALERT\|SAR&status=` | COMPLIANCE_OFFICER | — | Queue with SLA timers, priorities, assignment state | — |
 | `POST /api/v1/admin/cases/{id}/assign` | COMPLIANCE_OFFICER | `assignee_staff_id` | Assignment | `409 ALREADY_ASSIGNED` |
-| `GET /api/v1/admin/cases/{id}/evidence` | COMPLIANCE_OFFICER | — | Persona evidence pack / transaction bundle / member 360 link | — |
+| `GET /api/v1/admin/cases/{id}/evidence` | COMPLIANCE_OFFICER | — | KYC evidence pack / transaction bundle / member 360 link | — |
 | `POST /api/v1/admin/cases/{id}/decision` | COMPLIANCE_OFFICER; rejections four-eyes | `decision` (KYC: `APPROVE`→`KycStatus=APPROVED` \| `REJECT`→`REJECTED` + `reason_codes[]`; AML: `DISMISS\|ESCALATE_SAR`) | Case resolution + downstream state changes; SAR escalation opens `SAR` case with narrative/evidence assembly, dual review, filing-ready output; no member-visible traces | `422 REASON_CODES_REQUIRED` |
 | `GET /api/v1/admin/loan-referrals` | LOAN_OFFICER | — | US-6.2 referral queue: full application, data inputs, engine recommendation | — |
 | `POST /api/v1/admin/loan-applications/{id}/decision` | LOAN_OFFICER (maker-checker) | `decision` (`APPROVE\|DECLINE\|COUNTER_OFFER`), `terms?`, `reasons` | Decision + adverse-action artifact on decline | — |
@@ -973,12 +973,12 @@ Capture computation, accumulation, threshold-batched `ROUND_UP_TRANSFER` executi
 
 | Path | Source | Purpose | Verification |
 | :--- | :--- | :--- | :--- |
-| `POST /api/v1/webhooks/persona` | Persona | Inquiry outcome → `KycStatus` transitions; screening hits → ComplianceCase | HMAC signature + replay window |
-| `POST /api/v1/webhooks/stripe` | Stripe | Share-purchase payment_intent settlement/failure → US-2.1 activation | Signature header |
-| `POST /api/v1/webhooks/lithic/authorization` | Lithic | Real-time auth decisioning (≤ 200 ms response) | mTLS + HMAC |
-| `POST /api/v1/webhooks/lithic/events` | Lithic | Settlements (→ Round-Up), card lifecycle, fulfilment updates | HMAC |
+| `POST /api/v1/webhooks/kyc` | eKYC provider | Inquiry outcome → `KycStatus` transitions; screening hits → ComplianceCase | HMAC signature + replay window |
+| `POST /api/v1/webhooks/payments` | Payment processor | Share-purchase payment_intent settlement/failure → US-2.1 activation | Signature header |
+| `POST /api/v1/webhooks/card/authorization` | Card issuer-processor | Real-time auth decisioning (≤ 200 ms response) | mTLS + HMAC |
+| `POST /api/v1/webhooks/card/events` | Card issuer-processor | Settlements (→ Round-Up), card lifecycle, fulfilment updates | HMAC |
 | `POST /api/v1/webhooks/baas` | Sponsor bank / BaaS | ACH+/Banksüljee (RTGS) status, returns (with the settlement operator's return codes — config, TBD pending settlement-agent selection), inbound credits | mTLS + signature |
-| `POST /api/v1/webhooks/plaid` | Plaid | Item status (relink required), transaction refresh for underwriting | JWT verification |
+| `POST /api/v1/webhooks/account-link` | Account-linking provider | Item status (relink required), transaction refresh for underwriting | JWT verification |
 | `POST /api/v1/webhooks/esign` | E-signature provider | Envelope completed/declined → pledge lock, loan disbursement triggers | HMAC + envelope hash check |
 
 ### 3.15 Story → Endpoint Traceability (all 60 stories)
@@ -988,11 +988,11 @@ Legend: **M** = member app endpoint(s); **A** = admin/back-office endpoint(s) (s
 | Story | Primary endpoints (representative) | Surface |
 | :--- | :--- | :--- |
 | US-1.1 | `POST/GET/PATCH /onboarding/applications*` | M |
-| US-1.2 | `POST /onboarding/kyc/sessions`, `GET /onboarding/kyc/status`, `POST /webhooks/persona` | M + E |
+| US-1.2 | `POST /onboarding/kyc/sessions`, `GET /onboarding/kyc/status`, `POST /webhooks/kyc` | M + E |
 | US-1.3 | `POST /onboarding/eligibility-check` (rules from `eligibility.common_bond_rules` config) | M |
 | US-1.4 | `POST /auth/mfa/enrollments`, `POST /auth/step-up`, `GET/DELETE /auth/devices*` | M |
 | US-1.5 | `GET /members/me`, `PATCH /members/me/profile`, `GET/PUT /members/me/consents*` | M |
-| US-2.1 | `POST /onboarding/share-purchase`, `GET /onboarding/share-purchase/{id}`, `POST /webhooks/stripe` | M + E |
+| US-2.1 | `POST /onboarding/share-purchase`, `GET /onboarding/share-purchase/{id}`, `POST /webhooks/payments` | M + E |
 | US-2.2 | `GET /members/me/membership` (member view); `POST /admin/members/{id}/status-transitions` + domain rules asserted on every guarded endpoint | M + A |
 | US-2.3 | `GET /members/me/shares`, `GET /admin/shares/registry`, `POST /admin/ballots/{id}/eligibility-snapshot` | M + A |
 | US-2.4 | `GET /members/me/closure-preconditions`, `POST /members/me/closure-requests` | M |
@@ -1002,12 +1002,12 @@ Legend: **M** = member app endpoint(s); **A** = admin/back-office endpoint(s) (s
 | US-3.4 | `POST /group-pots`, invitations endpoints, `GET /group-pots/{id}(/ledger)`, `POST /group-pots/{id}/contributions` | M |
 | US-3.5 | `POST /group-pots/{id}/outbound-requests`, `POST /group-pots/outbound-requests/{id}/decision` | M |
 | US-4.1 | `POST /payments/recipient-lookup`, `POST /payments/p2p` | M |
-| US-4.2 | `POST/GET/DELETE /external-accounts*`, `POST /payments/external`, `GET /payments/{id}`, `POST /webhooks/baas`, `POST /webhooks/plaid` | M + E |
+| US-4.2 | `POST/GET/DELETE /external-accounts*`, `POST /payments/external`, `GET /payments/{id}`, `POST /webhooks/baas`, `POST /webhooks/account-link` | M + E |
 | US-4.3 | `POST/GET/PATCH/DELETE /payees*`, `POST/GET/PATCH/DELETE /payments/schedules*` | M |
 | US-4.4 | `POST /payment-requests`, `GET /payment-requests`, `POST /payment-requests/{id}/settle\|remind\|cancel` | M |
 | US-5.1 | `GET /cards`, `POST /cards/{id}/credentials`, `POST /cards/{id}/wallet-tokens` (auto-issue = E; disputes via `POST /admin/members/{id}/notes`) | M + E + A |
 | US-5.2 | `POST /cards/physical`, `GET /cards/{id}/fulfilment`, `POST /cards/{id}/activate`, `PUT /cards/{id}/pin` | M |
-| US-5.3 | `POST /cards/{id}/freeze\|unfreeze`, `PUT /cards/{id}/controls`, `POST /webhooks/lithic/authorization` (enforcement) | M + E |
+| US-5.3 | `POST /cards/{id}/freeze\|unfreeze`, `PUT /cards/{id}/controls`, `POST /webhooks/card/authorization` (enforcement) | M + E |
 | US-6.1 | `GET /loan-products`, `POST/PATCH /loan-applications*`, `POST /loan-applications/{id}/submit`, `GET /loan-applications/{id}` (offer) | M |
 | US-6.2 | Decision engine = E; surfaced via `GET /loan-applications/{id}` (`decision`, itemized cooperative-history discounts); referrals → `GET /admin/loan-referrals` | E + M + A |
 | US-6.3 | `POST /loan-circles`, `POST /loan-circles/{id}/invitations`, `POST /loan-circles/invitations/{id}/respond` | M |
@@ -1032,7 +1032,7 @@ Legend: **M** = member app endpoint(s); **A** = admin/back-office endpoint(s) (s
 | US-9.3 | `GET /community-projects/{id}/match-status`; pool/match admin `GET/POST /admin/grant-pools/*`; release via `COMMUNITY_GRANT` ballots (US-8.1/12.4 endpoints) | M + A + E |
 | US-9.4 | `GET /community-projects/{id}/impact` | M |
 | US-10.1 | `GET/PUT /round-ups/config` | M |
-| US-10.2 | `GET /round-ups/activity`; capture/routing engine = E on Lithic settlement events | M + E |
+| US-10.2 | `GET /round-ups/activity`; capture/routing engine = E on card issuer-processor settlement events | M + E |
 | US-11.1 | `GET /notifications*`, `POST /notifications/{id}/read`, `POST /notifications/push-registrations`; catalog via `GET/POST /admin/notification-event-types` | M + A + E |
 | US-11.2 | `GET/PUT /notifications/preferences` | M |
 | US-12.1 | `GET /admin/members*`, `GET /admin/members/{id}` (360°), `POST /admin/members/{id}/notes\|status-transitions`, `POST /admin/approvals/{id}/decision` | A |
@@ -1053,42 +1053,47 @@ Every one of the 60 stories has at least one concrete endpoint or an explicitly 
 ---
 ## 4. Third-Party Integrations
 
-Vendor selections follow the decision log where one exists (Persona per DEC-5); other named vendors are the working canonical choices for consistent contracts and test fixtures — substituting an equivalent later is an integration change, not a requirements change. Every integration follows four platform rules: (1) all inbound webhooks are signature-verified, replay-protected, and idempotent; (2) every vendor call carries a correlation ID logged to US-13.3; (3) vendor outage degrades gracefully with member-facing status, queued retry, and staff alerting — never silent failure; (4) no vendor stores platform credentials beyond scoped, rotatable API keys held in the secrets manager.
+Concrete vendor selections are procurement decisions (TBD) — no provider is named here. Each integration is defined by role only: the eKYC / identity-verification provider (DEC-5), the account-linking provider, the payment processor, and the card issuer-processor. For eKYC, ХУР/XYP state-register lookup is the compliant-alternative candidate (biometric eKYC legally unresolved — `01` §6.3 blocking question 2). Note: earlier drafts claimed vendor substitution was "an integration change, not a requirements change"; that claim was false, because vendor names had leaked into schema field names and API error codes. This run removes that leakage (fields and codes are now role-neutral) so that, going forward, substituting an equivalent provider can be an integration change. Every integration follows four platform rules: (1) all inbound webhooks are signature-verified, replay-protected, and idempotent; (2) every vendor call carries a correlation ID logged to US-13.3; (3) vendor outage degrades gracefully with member-facing status, queued retry, and staff alerting — never silent failure; (4) no vendor stores platform credentials beyond scoped, rotatable API keys held in the secrets manager.
 
-### 4.1 Persona — eKYC (DEC-5; US-1.2)
+### 4.1 eKYC / Identity-Verification Provider (DEC-5; US-1.2)
+
+**Provider:** a procurement decision (TBD) — no vendor is named. ХУР/XYP state-register lookup is the compliant-alternative candidate (biometric eKYC legally unresolved — `01` §6.3 blocking question 2).
 
 **Scope:** document capture + OCR into DEC-6 fields, biometric selfie match with liveness, sanctions/PEP watchlist screening.
 
 **Flow:**
-1. Backend creates a Persona inquiry (`POST /onboarding/kyc/sessions`), stores `persona_inquiry_id` on KycSubmission, returns the session token; `KycStatus → IN_PROGRESS`.
-2. The member completes capture in the Persona-embedded flow; media uploads go directly to Persona (images never transit or persist on platform servers beyond encrypted evidence references).
-3. Persona webhook posts the outcome (HMAC-verified). Backend fetches full inquiry results server-to-server (never trusting webhook payload alone), maps OCR output to DEC-6 fields for member confirmation, and applies the decision matrix: clear pass → `KycStatus = APPROVED` (member → `PENDING_PAYMENT`); ambiguous → `PENDING_REVIEW` + ComplianceCase in the US-12.2 queue with SLA timer; hard fail → `REJECTED`, application ends (DEC-4).
+1. Backend creates a KYC inquiry with the eKYC provider (`POST /onboarding/kyc/sessions`), stores `kyc_inquiry_id` on KycSubmission, returns the session token; `KycStatus → IN_PROGRESS`.
+2. The member completes capture in the provider-embedded flow; media uploads go directly to the eKYC provider (images never transit or persist on platform servers beyond encrypted evidence references).
+3. The eKYC provider's webhook posts the outcome (HMAC-verified). Backend fetches full inquiry results server-to-server (never trusting webhook payload alone), maps OCR output to DEC-6 fields for member confirmation, and applies the decision matrix: clear pass → `KycStatus = APPROVED` (member → `PENDING_PAYMENT`); ambiguous → `PENDING_REVIEW` + ComplianceCase in the US-12.2 queue with SLA timer; hard fail → `REJECTED`, application ends (DEC-4).
 4. Retry guidance (blur/glare/lighting) surfaces via `GET /onboarding/kyc/status`; each retry is a new KycSubmission row.
 
-**Failure handling:** Persona unavailable ⇒ `502 VENDOR_UNAVAILABLE`, onboarding state preserved for resume (US-1.1), KPI-1.1 clock annotated. Webhook missed ⇒ reconciliation poller re-queries open inquiries every 5 minutes. Screening `POTENTIAL_MATCH` always routes to manual review — never auto-approved. Ongoing (post-onboarding) re-screening runs on Persona watchlist reports; hits open `AML_ALERT` cases.
+**Failure handling:** eKYC provider unavailable ⇒ `502 VENDOR_UNAVAILABLE`, onboarding state preserved for resume (US-1.1), KPI-1.1 clock annotated. Webhook missed ⇒ reconciliation poller re-queries open inquiries every 5 minutes. Screening `POTENTIAL_MATCH` always routes to manual review — never auto-approved. Ongoing (post-onboarding) re-screening runs on the eKYC provider's watchlist reports; hits open `AML_ALERT` cases.
 
-### 4.2 Plaid — External Account Linking & Open-Banking Data (US-4.2, US-6.2)
+### 4.2 Account-Linking Provider — External Account Linking & Open-Banking Data (US-4.2, US-6.2)
 
-**Flow (linking):** client launches Plaid Link → `public_token` → backend exchanges for `access_token` → creates a processor token for the sponsor bank → ExternalAccountLink `VERIFIED`. Micro-deposit fallback for unsupported institutions.
+**Provider:** a procurement decision (TBD) — no vendor is named.
+**Flow (linking):** client launches the account-linking flow → `public_token` → backend exchanges for `access_token` → creates a processor token for the sponsor bank → ExternalAccountLink `VERIFIED`. Micro-deposit fallback for unsupported institutions.
 **Flow (underwriting):** with explicit `DATA_SHARING_OPEN_BANKING` consent (E-4), the underwriting engine pulls transaction history for income/affordability analysis; summaries (not raw feeds) are stored on the application's `decision` record.
-**Failure handling:** `ITEM_LOGIN_REQUIRED` ⇒ link status `RELINK_REQUIRED` + member notification; Plaid outage never blocks underwriting entirely — the engine degrades to cooperative-history + declared-affordability rules with the degradation recorded in `decision.model_version`.
+**Failure handling:** `ITEM_LOGIN_REQUIRED` ⇒ link status `RELINK_REQUIRED` + member notification; an account-linking-provider outage never blocks underwriting entirely — the engine degrades to cooperative-history + declared-affordability rules with the degradation recorded in `decision.model_version`.
 
 ### 4.3 Sponsor Bank / BaaS — Money Rails (US-2.1 bank-transfer leg, US-4.2, US-4.3, US-7.2)
 
-**Scope:** FBO account structure mirroring the platform ledger, ACH+ origination/receipt (24/7, covering the real-time retail case), outbound Banksüljee (RTGS) for large-value transfers, settlement of card-network activity via NETC (Lithic-issued cards).
+**Scope:** FBO account structure mirroring the platform ledger, ACH+ origination/receipt (24/7, covering the real-time retail case), outbound Banksüljee (RTGS) for large-value transfers, settlement of card-network activity via NETC (cards issued by the card issuer-processor).
 **Flow (outbound ACH+ example):** member request passes limits/step-up → Transaction `PENDING` + ledger hold → payment instruction to BaaS with the platform `Idempotency-Key` → BaaS webhooks (`sent`, `settled`, `returned`) drive Transaction status; returns post reversing ledger entries with the settlement operator's return code (config, TBD pending settlement-agent selection) in `failure_reason` and notify the member with retry options (US-4.3 policy).
 **Failure handling:** cut-off calendars enforced pre-submission; daily three-way reconciliation (platform ledger ↔ BaaS FBO report ↔ NETC card-network settlement) with any break opening a `HIGH` ComplianceCase; duplicate-webhook tolerance via external_ref idempotency; where a chosen rail is unavailable the constraint is surfaced explicitly, never a silent downgrade — a below-threshold transfer stays on ACH+ (24/7), and an above-threshold transfer requires Banksüljee (RTGS) and is queued to the next settlement window rather than downgraded.
 
-### 4.4 Stripe — Membership Share Purchase (US-2.1)
+### 4.4 Payment Processor — Membership Share Purchase (US-2.1)
 
-**Flow:** onboarding client tokenizes card/wallet via Stripe Elements → `POST /onboarding/share-purchase` creates a payment intent for exactly the configured par value (1,000,000 minor units = 10,000₮, DEC-11) with `member_ref` metadata → on `payment_intent.succeeded` (webhook) the ledger posts `SHARE_SUBSCRIPTION` (credit Membership Share equity account, debit Stripe clearing), MembershipShare is issued, member → `ACTIVE`, confirmation pack (share record, bylaws) is generated.
-**Failure handling:** payment failure keeps the member in `PENDING_PAYMENT` with retry (card, other card, or bank-transfer alternative via §4.3); asynchronous settlement (e.g., delayed wallet captures) is handled by webhook-driven activation; refunds on aborted applications reverse the ledger and void the share; Stripe outage ⇒ bank-transfer path remains available. Amounts other than the configured par are rejected server-side (`422 AMOUNT_MISMATCH`).
+**Provider:** a procurement decision (TBD) — no vendor is named.
+**Flow:** onboarding client tokenizes card/wallet via the payment processor's client SDK → `POST /onboarding/share-purchase` creates a payment intent for exactly the configured par value (1,000,000 minor units = 10,000₮, DEC-11) with `member_ref` metadata → on `payment_intent.succeeded` (webhook) the ledger posts `SHARE_SUBSCRIPTION` (credit Membership Share equity account, debit payment-processor clearing), MembershipShare is issued, member → `ACTIVE`, confirmation pack (share record, bylaws) is generated.
+**Failure handling:** payment failure keeps the member in `PENDING_PAYMENT` with retry (card, other card, or bank-transfer alternative via §4.3); asynchronous settlement (e.g., delayed wallet captures) is handled by webhook-driven activation; refunds on aborted applications reverse the ledger and void the share; a payment-processor outage ⇒ bank-transfer path remains available. Amounts other than the configured par are rejected server-side (`422 AMOUNT_MISMATCH`).
 
-### 4.5 Lithic — Card Issuing & Processing (EP-5, EP-10)
+### 4.5 Card Issuer-Processor — Card Issuing & Processing (EP-5, EP-10)
 
-**Flow (issuance):** on Transaction Account opening the Card Service creates a virtual card at Lithic, storing only the card token and masked PAN (PCI scope reduction — PAN/CVV reveal uses Lithic's hosted components behind step-up). Physical orders submit the DEC-6 address and the verbatim `mrz_name_latin` for embossing — the platform performs no Cyrillic-to-Latin transliteration (DEC-6(b)); fulfilment webhooks update `fulfilment.stage`.
-**Flow (authorization):** Lithic ASA (active-stance authorization) webhook → Card Service evaluates card status, member controls (freeze/limits/MCC blocks), and available balance from a Redis-cached balance view → APPROVE/DECLINE **within 200 ms**. Settlements post Transactions and emit events consumed by the Round-Up Service (US-10.2).
-**Failure handling:** if the decision webhook times out, the configured stand-in rule applies (conservative low-limit approval for card-present, decline for high-risk MCCs), with all stand-in activity reconciled and flagged next cycle; wallet-provisioning failures surface actionable errors; card-control writes are synchronous to Lithic with local cache invalidation (effective in seconds, US-5.3).
+**Provider:** a procurement decision (TBD) — no vendor is named. Cards (EP-5) remain entity-gated / not-buildable pending the entity decision.
+**Flow (issuance):** on Transaction Account opening the Card Service creates a virtual card at the card issuer-processor, storing only the card token and masked PAN (PCI scope reduction — PAN/CVV reveal uses the issuer-processor's hosted components behind step-up). Physical orders submit the DEC-6 address and the verbatim `mrz_name_latin` for embossing — the platform performs no Cyrillic-to-Latin transliteration (DEC-6(b)); fulfilment webhooks update `fulfilment.stage`.
+**Flow (authorization):** the card issuer-processor's ASA (active-stance authorization) webhook → Card Service evaluates card status, member controls (freeze/limits/MCC blocks), and available balance from a Redis-cached balance view → APPROVE/DECLINE **within 200 ms**. Settlements post Transactions and emit events consumed by the Round-Up Service (US-10.2).
+**Failure handling:** if the decision webhook times out, the configured stand-in rule applies (conservative low-limit approval for card-present, decline for high-risk MCCs), with all stand-in activity reconciled and flagged next cycle; wallet-provisioning failures surface actionable errors; card-control writes are synchronous to the card issuer-processor with local cache invalidation (effective in seconds, US-5.3).
 
 ### 4.6 E-Signature Provider — Agreements (US-6.6)
 
@@ -1132,7 +1137,7 @@ Optional soft/hard pulls under member authorization; bureau attributes enter the
 
 `SUPER_ADMIN` administers staff identities and roles only — it holds **no** member-data or financial capability, and no role can read individual vote choices or member-visible traces of SAR cases.
 
-**Encryption & data protection.** TLS 1.3 (TLS 1.2 minimum for third-party integrations that do not yet support 1.3) — mTLS for vendor webhooks where supported; certificate pinning in mobile clients; AES-256-GCM at rest with KMS-managed keys, per-data-class key separation, and annual rotation; field-level encryption for PII columns flagged in §2; PAN/CVV never stored or transited (Lithic-hosted, PCI-DSS scope reduction); secrets in a managed vault, never in code or config files.
+**Encryption & data protection.** TLS 1.3 (TLS 1.2 minimum for third-party integrations that do not yet support 1.3) — mTLS for vendor webhooks where supported; certificate pinning in mobile clients; AES-256-GCM at rest with KMS-managed keys, per-data-class key separation, and annual rotation; field-level encryption for PII columns flagged in §2; PAN/CVV never stored or transited (issuer-processor-hosted, PCI-DSS scope reduction); secrets in a managed vault, never in code or config files.
 
 **Idempotency & financial integrity.** `Idempotency-Key` mandatory on all money-movement POSTs, persisted with request hash and response for ≥ 72 h; the double-entry ledger is append-only under `SERIALIZABLE` isolation — balances are derived, corrections are reversing entries; holds (pledges, pot approvals, card auths) are ledger postings, not mutable flags; all external instructions carry end-to-end idempotency references.
 
@@ -1142,7 +1147,7 @@ Optional soft/hard pulls under member authorization; bureau attributes enter the
 
 | Operation | Target |
 | :--- | :--- |
-| Card authorization decision (Lithic webhook, end-to-end) | ≤ 200 ms hard ceiling (stand-in rules beyond) |
+| Card authorization decision (card issuer-processor webhook, end-to-end) | ≤ 200 ms hard ceiling (stand-in rules beyond) |
 | Internal P2P ledger settlement | ≤ 3 s end-to-end; p95 API response ≤ 500 ms |
 | Read APIs (balances, ballot lists, dashboards) | p95 ≤ 300 ms; p99 ≤ 800 ms (read replicas + Redis caches) |
 | Write APIs (non-ledger) | p95 ≤ 500 ms |
@@ -1174,7 +1179,7 @@ Rate limits at the gateway (per token): reads 120/min, money movement 30/min, au
 * **Consent enforcement (US-1.5/US-13.6):** processing purposes checked against ConsentRecords at use time (e.g., open-banking underwriting requires explicit consent); consent history is append-only.
 * **Retention by record class:** financial and AML records retained per statutory minima (these lawfully override deletion requests and are itemized in DSAR responses); KYC evidence retained per regulatory schedule then cryptographically erased; marketing data deleted on withdrawal; post-`CLOSED` member data enters the retention pipeline automatically (US-2.4).
 * **DSAR workflow (US-13.6):** intake, compilation, redaction, and delivery within statutory deadlines with tracked `deadline_at`; deletion executes as cryptographic erasure of encryption keys where physical deletion conflicts with WORM audit storage.
-* **Minimization:** vote choices never linked to identity; KYC media held by Persona with platform-side references only; PAN held by Lithic; external account numbers tokenized at the sponsor bank; analytics and estimator outputs use aggregates, and all modeled member-facing figures are labeled "estimated" (DEC-15).
+* **Minimization:** vote choices never linked to identity; KYC media held by the eKYC provider with platform-side references only; PAN held by the card issuer-processor; external account numbers tokenized at the sponsor bank; analytics and estimator outputs use aggregates, and all modeled member-facing figures are labeled "estimated" (DEC-15).
 
 ---
 
