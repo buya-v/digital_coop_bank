@@ -20,7 +20,7 @@ import enum
 import uuid
 from typing import Optional
 
-from sqlalchemy import JSON, Enum, ForeignKey, String
+from sqlalchemy import JSON, Date, Enum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -82,6 +82,90 @@ class ConsentAction(enum.Enum):
 
     GRANTED = "GRANTED"
     WITHDRAWN = "WITHDRAWN"
+
+
+class OnboardingApplicationStatus(enum.Enum):
+    """Lifecycle status of a pre-auth onboarding DRAFT (EP-1 slice 1).
+
+    04 §2 does not enumerate an OnboardingApplication entity or its status set —
+    it models onboarding save/resume state as the E-1 Member `onboarding_state`
+    JSON (04 §2.2, line 140) reached AFTER a member exists. This value set is the
+    contract-side lifecycle of the *pre-auth* draft the OpenAPI schemas define
+    (`OnboardingApplicationCreateRequest/Response/Current/Patch*`), which the
+    contract itself does not name; DRAFT/SUBMITTED are the two states this slice
+    needs (create -> DRAFT; identity captured/handed to KYC -> SUBMITTED). KYC,
+    eligibility and promotion to a Member are later slices.
+    """
+
+    DRAFT = "DRAFT"
+    SUBMITTED = "SUBMITTED"
+
+
+class OnboardingApplication(Base, UUIDPrimaryKey, Timestamps):
+    """Resumable, pre-auth onboarding draft (US-1.1; F-A, 04 §2.1 line 82).
+
+    RECONCILIATION (04 §2 vs the OpenAPI contract): 04 §2.2 does NOT define a
+    distinct onboarding entity — it carries save/resume onboarding state on the
+    E-1 Member (`onboarding_state` JSON) and drives progression through
+    `MembershipStatus`/`KycStatus`. The OpenAPI contract, however, exposes a
+    *pre-auth* `OnboardingApplication` resource: `POST /onboarding/applications`
+    mints an `application_id` + `resume_token` and returns `kyc_status =
+    NOT_STARTED` BEFORE any authenticated Member (or IdP subject) exists, and
+    PATCH carries provisional DEC-6 identity fields. Modelling onboarding as a
+    Member-in-PENDING_KYC would require inserting a Member row at that pre-auth
+    bootstrap; a rejected application would then have to be deleted, which
+    violates DEC-4 ("no member record reaches a rejected membership status") and
+    the audit posture. So this is a DISTINCT draft entity — the physical form the
+    contract forces and the server-side resumable application F-A describes —
+    PROMOTED to an E-1 Member on KYC approval (a later slice). It is not in this
+    slice's scope to create a Member. No field here is invented: every column
+    maps to a contract property or a DEC-6 identity field.
+
+    Nullability: identity/address/dob fields are Optional because the draft row
+    is created at the pre-auth bootstrap (email + phone + channel code only) and
+    filled step-by-step by PATCH (whose schema marks every field optional);
+    NOT-NULL enforcement of the DEC-6 name parts happens at promotion to Member.
+    No money/float. No first_name/last_name. registration_number is structural-
+    only (10 chars, 2 Cyrillic + 8 digits) — no check-digit is guessed here.
+    """
+
+    __tablename__ = "onboarding_application"
+
+    # Verified contact channels supplied at create (OnboardingApplicationCreateRequest).
+    email: Mapped[str] = mapped_column(String(320))
+    phone_number: Mapped[str] = mapped_column(String(32))  # E.164
+    # Bootstrap "resume_token" (CreateResponse) — stored as a hash so a leaked row
+    # does not yield a usable token; the service compares hashes. Application-scoped
+    # only; NOT full auth/MFA (a later slice).
+    resume_token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+
+    # DEC-6 three-part Mongolian name (Cyrillic canonical); all Optional in the draft.
+    ovog: Mapped[Optional[str]] = mapped_column(String(120))  # clan, optional
+    etsgiin_ner: Mapped[Optional[str]] = mapped_column(String(120))  # patronymic
+    ner: Mapped[Optional[str]] = mapped_column(String(120))  # given name
+    # Verbatim Latin from the document MRZ; KYC-populated, never derived (DEC-6).
+    mrz_name_latin: Mapped[Optional[str]] = mapped_column(String(120))
+    # Provisional national registration number (2 Cyrillic + 8 digits); the
+    # KYC-verified value is authoritative (DEC-6(d)). Unique; STRUCTURAL validation
+    # only — the check-digit algorithm is unpublished (never guessed).
+    registration_number: Mapped[Optional[str]] = mapped_column(String(10), unique=True)
+
+    # DEC-6 structured postal address (OnboardingApplicationPatchRequest).
+    address_line_1: Mapped[Optional[str]] = mapped_column(String(255))
+    address_line_2: Mapped[Optional[str]] = mapped_column(String(255))
+    city: Mapped[Optional[str]] = mapped_column(String(120))
+    region: Mapped[Optional[str]] = mapped_column(String(120))  # aimag
+    postal_code: Mapped[Optional[str]] = mapped_column(String(32))
+    country: Mapped[Optional[str]] = mapped_column(String(120))
+    date_of_birth: Mapped[Optional[datetime.date]] = mapped_column(Date)
+
+    status: Mapped[OnboardingApplicationStatus] = mapped_column(
+        Enum(OnboardingApplicationStatus, name="onboarding_application_status")
+    )
+    # Save/resume step state + KPI-1.1 instrumentation timestamps — mirrors the
+    # E-1 `onboarding_state` JSON (04 §2.2); backs the Current response's
+    # current_step / saved_data / progress_pct / kpi_timestamps views.
+    onboarding_state: Mapped[Optional[dict]] = mapped_column(JSON)
 
 
 class KycSubmission(Base, UUIDPrimaryKey, Timestamps):
