@@ -4,10 +4,11 @@ Derived from 04_technical_architecture.md §2.2 (lines 145-173), owned by S-1
 (Identity & Onboarding Service). Table definitions only — no behaviour.
 
 Enums whose value sets 04 enumerates are real Enums (values verbatim). Money is
-MoneyMinor; ids are UUID; FKs are by table-name string. `persona_inquiry_id`
-(E-2) is kept verbatim from 04, but note: it is a vendor-named field (Persona)
-flagged in CLAUDE.md as a US-market leak — the Mongolia migration will revisit
-the eKYC vendor. Reproduced here only to mirror 04 §2 faithfully.
+MoneyMinor; ids are UUID; FKs are by table-name string. `kyc_inquiry_id`
+(E-2) is the eKYC-provider inquiry reference (migrated to match 04 (DEC-5 /
+rails run) — the former vendor-named field is now role-neutral; the concrete
+eKYC provider is a procurement/TBD decision, with ХУР/XYP state-register lookup
+the compliant-alternative candidate). Reproduced here to mirror 04 §2 faithfully.
 
 Nullability convention: a field is Optional iff 04 marks it `?`; otherwise NOT
 NULL. (04 does not otherwise specify column nullability.)
@@ -96,9 +97,9 @@ class KycSubmission(Base, UUIDPrimaryKey, Timestamps):
     member_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("member.id")
     )
-    # Vendor reference (DEC-5). Vendor-named field flagged in CLAUDE.md — verbatim
-    # from 04 §2 only; the Mongolia migration will revisit the eKYC vendor.
-    persona_inquiry_id: Mapped[str] = mapped_column(String(128), unique=True)
+    # eKYC-provider inquiry reference (DEC-5). Migrated to match 04 (DEC-5 /
+    # rails run) — role-neutral; the concrete eKYC provider is procurement/TBD.
+    kyc_inquiry_id: Mapped[str] = mapped_column(String(128), unique=True)
     document_type: Mapped[KycDocumentType] = mapped_column(
         Enum(KycDocumentType, name="kyc_document_type")
     )

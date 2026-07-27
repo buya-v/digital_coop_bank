@@ -3,13 +3,13 @@
 Table definitions only — no payment logic, no rail selection, no idempotency
 enforcement. Derived from 04 §2.4 verbatim.
 
-MARKET NOTE (CLAUDE.md): 04 was written against US/EU rails and vendors. The
-`rail` enum values (ACH | WIRE | RTP) and the Plaid vendor references
-(`plaid_item_ref`, `processor_token_ref`) are modelled *as 04 states them*, but
-the Mongolia migration must replace them — rails become RTGS (Банксүлжээ /
-Banksuljee) above the Governor-set threshold and ACH+ at/below it; card rails
-clear via NETC; Plaid is not a Mongolian vendor. These are flagged, not
-silently "corrected", because the schema mirrors the ratified 04 baseline.
+MARKET NOTE (CLAUDE.md): migrated to match 04 (DEC-5 / rails run). The `rail`
+enum values are now ACH_PLUS | RTGS (ACH+ at/below the Governor-set threshold;
+RTGS / Банксүлжээ / Banksuljee above it — threshold is configuration, never
+hard-coded), plus INTERNAL_P2P for internal ledger settlement. The external
+account-linking references (`account_link_ref`, `processor_token_ref`) are
+role-neutral; the account-linking provider is a procurement/TBD decision. Card
+rails clear via NETC (a Bank of Mongolia entity).
 """
 from __future__ import annotations
 
@@ -31,9 +31,9 @@ from app.models.deposits import RecipientIdentifierType
 # E-14 ExternalAccountLink                                                     #
 # --------------------------------------------------------------------------- #
 class VerificationMethod(enum.Enum):
-    """E-14 verification_method. Values verbatim from 04 §2.4."""
+    """E-14 verification_method. Migrated to match 04 (DEC-5 / rails run)."""
 
-    PLAID_INSTANT = "PLAID_INSTANT"
+    INSTANT_LINK = "INSTANT_LINK"
     MICRO_DEPOSIT = "MICRO_DEPOSIT"
 
 
@@ -50,17 +50,18 @@ class ExternalAccountLink(Base, UUIDPrimaryKey, Timestamps):
     """E-14 ExternalAccountLink — a verified external bank account (US-4.2).
 
     Account/routing numbers are tokenized at the sponsor bank, never stored raw.
-    The *_ref columns are encrypted vendor references (encryption is an
-    application concern, not modelled here)."""
+    The *_ref columns are encrypted account-linking-provider references
+    (encryption is an application concern, not modelled here)."""
 
     __tablename__ = "external_account_link"
 
     member_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("member.id")
     )
-    # Vendor references (04 leaks the Plaid vendor into the schema — CLAUDE.md).
-    # Encrypted at rest by the application layer.
-    plaid_item_ref: Mapped[Optional[str]] = mapped_column(String(255))
+    # Account-linking-provider references (migrated to match 04 (DEC-5 / rails
+    # run) — role-neutral; provider is procurement/TBD). Encrypted at rest by
+    # the application layer.
+    account_link_ref: Mapped[Optional[str]] = mapped_column(String(255))
     processor_token_ref: Mapped[Optional[str]] = mapped_column(String(255))
     institution_name: Mapped[Optional[str]] = mapped_column(String(255))
     account_mask: Mapped[Optional[str]] = mapped_column(String(32))
@@ -114,17 +115,18 @@ class Payee(Base, UUIDPrimaryKey, Timestamps):
 # E-16 ScheduledPayment                                                        #
 # --------------------------------------------------------------------------- #
 class PaymentRail(enum.Enum):
-    """E-16 rail. Values verbatim from 04 §2.4.
+    """E-16 rail. Migrated to match 04 (DEC-5 / rails run).
 
-    MARKET NOTE: ACH | WIRE | RTP are US rails that do not exist in Mongolia
-    (CLAUDE.md). The Mongolia migration replaces them with RTGS/Banksuljee and
-    ACH+ (threshold set by Governor's order → configuration, never hard-coded).
-    Modelled here as 04 states so the schema mirrors the ratified baseline."""
+    MARKET NOTE: the US rails (ACH | WIRE | RTP) are replaced by Mongolia's
+    actual rails. ACH → ACH_PLUS (ACH+, 24/7, at/below the threshold — RTP folds
+    in, there is no separate real-time rail); WIRE → RTGS (Банксүлжээ /
+    Banksuljee, large-value above the threshold). External transfers route by
+    amount against a configurable threshold (set by Governor's order → never
+    hard-coded). INTERNAL_P2P is internal ledger settlement."""
 
     INTERNAL_P2P = "INTERNAL_P2P"
-    ACH = "ACH"
-    WIRE = "WIRE"
-    RTP = "RTP"
+    ACH_PLUS = "ACH_PLUS"
+    RTGS = "RTGS"
 
 
 class ScheduledPaymentStatus(enum.Enum):
