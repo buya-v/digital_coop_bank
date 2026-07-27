@@ -47,9 +47,9 @@
         "idea-lab/final_requirements/03_acceptance_criteria.md"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "approved",
       "attempts": 0,
-      "note": "agent a8d1ad0abaf55354b (worktree, hardened)",
+      "note": "merged; R2 APPROVED; routing integrity verified; 6.5m re-derivation",
       "description": "READ .softhouse/payment-rails-brief.md IN FULL first (mapping, canonical enum, routing rule, return-code honesty, out-of-scope). SCOPE 03 (13 refs): US-4.2 scenarios (516-572). Apply the ROUTING re-derivation \u2014 03:520 '500,000\u20ae outbound ACH'->'ACH+' (below threshold, stays); 03:527 '2,500,000\u20ae wire' is BELOW \u20ae5m so re-derive it ABOVE threshold (e.g. 6,500,000\u20ae) routed via Banks\u00fcljee (RTGS) to preserve the two-rail demo, flag as rail-driven re-derivation; 03:537-546 'ACH return'/'R01'->reason kept+code TBD, 'real-time rail (FedNow) unavailable'->ACH+ logic, 'offers wire'->'offers Banks\u00fcljee (RTGS) where eligible'. 03:177 'card embossing, ACH, statements'->ACH+. Keep step-up semantics. Apply BY CONTEXT (rail choice depends on amount vs the \u20ae5m config threshold). Do NOT touch vendor names (Stripe/Plaid/Lithic/Persona \u2014 next run), do NOT change amounts except the rail-driven re-derivation the brief specifies, never write '3m' as the threshold. Run .softhouse/verify-docs.sh (HARD stays 0; rails DRIFT should drop). Handoff lists every rail term changed (old->new+context), every amount re-derived for routing, every TBD/config note used instead of inventing a Mongolian specific."
     },
     {
@@ -131,7 +131,7 @@
       "dependencies": [
         "T2"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
       "note": "",
       "description": "INDEPENDENT review of T2. Read .softhouse/payment-rails-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-payment-rails/T2.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every rail mapping correct by context (ACH->ACH+, wire/large->Banks\u00fcljee RTGS, FedNow/RTP->ACH+, SEPA removed, cards->NETC); (2) the rail ENUM is INTERNAL_P2P|ACH_PLUS|RTGS everywhere it appears; (3) ROUTING integrity \u2014 NO sub-\u20ae5m amount labelled RTGS/Banks\u00fcljee, and any amount re-derived to exceed \u20ae5m for an RTGS demo is internally consistent with its scenario; (4) NO '3m' threshold anywhere; threshold framed as config not literal; (5) return codes \u2014 US codes (R01) removed, reason kept, code catalogue marked TBD/config NOT invented; (6) NO vendor name changed, NO amount changed except sanctioned routing re-derivations; (7) scope = only the intended file(s)+handoff. Extra: the ROUTING integrity check is the crux \u2014 recompute every scenario amount against the \u20ae5m threshold; a sub-5m amount routed via RTGS is a REJECT. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute routing/amounts; don't trust the handoff."
