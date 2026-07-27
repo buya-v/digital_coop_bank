@@ -68,7 +68,7 @@ All still require a Mongolian lawyer for final sign-off. As of 2026-07-24 the pr
 3. **Data localisation** — the MDDIC Information Security Requirement (11 Sept 2023) may require servers in Mongolia accessible only from Mongolia. If literal, foreign public cloud is foreclosed for regulated workloads.
    - **PO direction (provisional):** assume **in-Mongolia self-host only** for regulated workloads and member data. Confirms the self-hostable stack (ADR 0001); no dependency on foreign public cloud for regulated paths.
 4. **Tax** — SCC distributions are capital-proportional, so they read as dividends at 10% withholding, with no apparent patronage deduction. Potential double taxation undermines the cooperative's economics.
-   - **Still OPEN** — no PO direction yet; affects the dividend/patronage economics (EP-7), not the onboarding path.
+   - **PO direction (provisional):** treat distributions as **dividends with 10% withholding** (conservative reading; no patronage deduction assumed). Build EP-7 to this; revisit if tax counsel finds a patronage-deduction path.
 5. **E-vote quorum** — electronic vote submission is valid (Art. 32.6, amended 12 Jan 2024), but whether an e-vote counts toward the Art. 32.1 quorum is undefined. Determines whether digital governance functions at all.
    - **PO direction (provisional):** design **digital-first governance assuming e-votes count toward quorum**. Carries rework risk if later ruled otherwise; isolate the quorum rule behind config so a reversal is a config change, not a redesign.
 
