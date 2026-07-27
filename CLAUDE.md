@@ -59,13 +59,18 @@ Grep diffs against these. Violating one is a rejection, not a discussion.
 
 ## Blocking questions — do not plan build work past these
 
-All require a Mongolian lawyer. None can be resolved by further research.
+All still require a Mongolian lawyer for final sign-off. As of 2026-07-24 the product owner recorded **provisional direction** on four of the five (marked **PO direction** below) so design/planning can proceed on that assumption — but the direction is **not** legal resolution: build to it, but treat it as reversible until counsel confirms, and do not represent it as settled law.
 
 1. **Common bond (SCC Law Art. 19.3)** — members must share an employer, association, or aimag/district. A nationwide open-membership app may not be a lawful SCC. This bounds the entire product.
+   - **PO direction (provisional):** pursue the **lawful SCC path with a defined common bond**. The addressable market is bounded to the bond group. *Open sub-decision:* which bond (employer / profession-association / aimag-district) — a product decision, not yet made. Onboarding must include the US-1.3 common-bond eligibility check scoped to the chosen bond.
 2. **Biometric eKYC** — two law-firm sources read the Personal Data Protection Law as restricting biometric collection to enumerated *state* bodies, which would forbid face-match onboarding. But bank practice reportedly *is* face-match + liveness. Contradiction unresolved. The compliant alternative is ХУР/XYP state-register lookup.
+   - **PO direction (provisional):** target **ХУР/XYP state-register lookup**, not biometric face-match. Onboarding KYC integrates the state register; no biometric collection. (DEC-5's eKYC provider role is the state-register lookup.)
 3. **Data localisation** — the MDDIC Information Security Requirement (11 Sept 2023) may require servers in Mongolia accessible only from Mongolia. If literal, foreign public cloud is foreclosed for regulated workloads.
+   - **PO direction (provisional):** assume **in-Mongolia self-host only** for regulated workloads and member data. Confirms the self-hostable stack (ADR 0001); no dependency on foreign public cloud for regulated paths.
 4. **Tax** — SCC distributions are capital-proportional, so they read as dividends at 10% withholding, with no apparent patronage deduction. Potential double taxation undermines the cooperative's economics.
+   - **Still OPEN** — no PO direction yet; affects the dividend/patronage economics (EP-7), not the onboarding path.
 5. **E-vote quorum** — electronic vote submission is valid (Art. 32.6, amended 12 Jan 2024), but whether an e-vote counts toward the Art. 32.1 quorum is undefined. Determines whether digital governance functions at all.
+   - **PO direction (provisional):** design **digital-first governance assuming e-votes count toward quorum**. Carries rework risk if later ruled otherwise; isolate the quorum rule behind config so a reversal is a config change, not a redesign.
 
 ## Known defects in the baseline
 

@@ -4,6 +4,7 @@
   "requirement": null,
   "status": "idle",
   "backlog": [
+    "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
     "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
     "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
