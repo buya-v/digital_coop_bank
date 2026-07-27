@@ -1,8 +1,8 @@
 {
-  "run_id": "20260724-market-research-mn",
-  "feature": "Market research rewrite \u2014 US/EU -> Mongolia",
-  "requirement": "Rewrite 00_market_research.md from its US/EU framing to Mongolia, anchored STRICTLY to CLAUDE.md's verified market facts, marking all other claims UNVERIFIED (no fabricated competitors/stats). Honest thesis: 98.3% banked, over-credited/under-saved, Khan Bank dominance, the digitized-SCC niche. Analyst + independent review (fabrication-focused) + verifier.",
-  "status": "planning",
+  "run_id": null,
+  "feature": null,
+  "requirement": null,
+  "status": "idle",
   "backlog": [
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
     "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
@@ -10,7 +10,6 @@
     "Vendors: Stripe/Plaid/Lithic/Persona leaked into schema field names and error codes \u2014 removal is a requirements change.",
     "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
     "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
-    "00_market_research.md entirely US/EU-framed \u2014 rewrite against Mongolia.",
     "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
     "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling.",
     "/ready malformed DATABASE_URL edge (LOW, T2 review): a non-empty-but-garbage URL passes engine_configured() then create_engine() raises ArgumentError during dependency resolution -> 500 instead of 503. Operator-misconfig edge; harden when auth/real-deploy lands.",
@@ -21,58 +20,5 @@
     "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
     "Other-vendor abstraction completeness: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) providers are `-class` abstractions but could get the same 'provider TBD/procurement' treatment as the five main vendors."
   ],
-  "tasks": [
-    {
-      "id": "T1",
-      "title": "Rewrite 00_market_research.md for Mongolia",
-      "agent_role": "analyst",
-      "executor": "agent",
-      "model": "opus",
-      "target": "requirements",
-      "files_hint": [
-        "idea-lab/final_requirements/00_market_research.md"
-      ],
-      "dependencies": [],
-      "status": "pending",
-      "attempts": 0,
-      "note": "",
-      "description": "Rewrite idea-lab/final_requirements/00_market_research.md from its US/EU framing to Mongolia. READ CLAUDE.md FIRST \u2014 its 'Current status' and 'Market facts that change the product thesis' sections are the VERIFIED anchor: account ownership 98.3% (rural 98.8% > urban; NO underbanked gap), borrowing 68.3% (~2x peer; over-credited), saving 47.9% (under-saved), Khan Bank 2.9m customers (82% of population, 99.4% digital, 58-mini-app super-app \u2014 'neobank parity' is NOT a differentiator), SCC sector = 172 cooperatives / 78,608 members / MNT 390bn (the baseline KPI of 100,000 members EXCEEDS the whole sector), regulator FRC (coops) + Bank of Mongolia (banks/e-money), Cyrillic-Mongolian language, MNT currency, Mongolia rails (ACH+/\u0411\u0430\u043d\u043a\u0441\u04af\u043b\u0436\u044d\u044d/NETC). HONESTY RULE (this is the #1 constraint \u2014 market research is where this project has fabricated before and had to retract): state ONLY what CLAUDE.md verifies as fact. Any other quantitative claim, competitor name, market size, or licensee MUST be marked [UNVERIFIED] or written qualitatively \u2014 do NOT invent Mongolian competitor names, stats, or figures. A gap marked 'unverified/not researched' is the correct answer; a confident invention is a rejection. REWRITE: (1) Target market \u2014 replace 'underserved by banks and neobanks' with the real Mongolia thesis (98.3% banked, over-credited/under-saved, Khan Bank dominance); the honest niche is the digitized SCC cooperative model + governance + savings, NOT neobank-for-the-underbanked. (2) Competitors \u2014 replace Alliant/Desjardins/Coop Pank/Monzo/Aspiration with the Mongolia landscape: Khan Bank (CLAUDE.md-verified facts only) and, for others (Golomt/TDB/State Bank/Xac/M Bank, the SCC sector, any e-money), name them ONLY if you can without inventing specifics \u2014 otherwise describe the category qualitatively and mark details UNVERIFIED. Keep the cooperative/analogue lens (Desjardins/Coop Pank may stay as INTERNATIONAL cooperative analogues, clearly labelled as such, not local competitors). (3) Differentiators \u2014 re-anchor to Mongolia (governance still differentiates; drop any 'neobank parity' claim). (4) Positioning \u2014 honest SCC-niche framing. Preserve the header block (update the Status/sourcing note to reflect the Mongolia rewrite + the honesty posture), the section numbering (1-5), and cross-doc consistency (SCC niche, the CLAUDE.md blocking questions \u2014 esp. common-bond may bound the addressable market). Currency MNT, Mongolia rails only, no US vendors, no first_name/last_name, no US-insurance framing. Run .softhouse/verify-docs.sh (HARD must be 0; rails/USD/vendor drift must not INCREASE \u2014 ideally 00's residual US-rail refs drop). Handoff: section-by-section what changed, every [UNVERIFIED] claim retained, and confirm no fabricated stat/competitor."
-    },
-    {
-      "id": "R1",
-      "title": "Independent review \u2014 00 Mongolia rewrite",
-      "agent_role": "reviewer",
-      "executor": "agent",
-      "model": "opus",
-      "target": "requirements",
-      "files_hint": [
-        "idea-lab/final_requirements/00_market_research.md"
-      ],
-      "dependencies": [
-        "T1"
-      ],
-      "status": "pending",
-      "attempts": 0,
-      "note": "",
-      "description": "INDEPENDENT adversarial review of T1's Mongolia rewrite of 00_market_research.md. You did NOT plan it; assume defects. Read CLAUDE.md, the handoff .softhouse/handoff/20260724-market-research-mn/T1.md, and `git diff main...<branch>` (three-dot). THE CRUX \u2014 FABRICATION (this project's characteristic failure): go claim by claim. Every quantitative figure, competitor name with specifics, market size, growth rate, or regulatory/licensee detail must be EITHER traceable to CLAUDE.md's verified facts OR explicitly marked [UNVERIFIED]/qualitative. Flag ANY confident Mongolian statistic or competitor detail that is neither in CLAUDE.md nor marked unverified \u2014 that is a REJECT-level fabrication. Do not accept a plausible-sounding number. Also check: (1) no US/EU framing remains as the PRIMARY lens (US credit unions / neobank-underbanked thesis gone; international cooperatives allowed only if clearly labelled analogues); (2) the thesis is honest (98.3% banked / no underbanked gap / Khan Bank parity acknowledged / KPI-100k-exceeds-sector tension surfaced); (3) internal consistency with 01-05 and the blocking questions (common bond may bound the market); (4) non-negotiables (MNT, Mongolia rails, no US vendors/insurance framing, three-part names); (5) verify-docs HARD not regressed. Report severity/location/what's wrong/fix. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED with specifics. If you find nothing fabricated, say so AND list which claims you traced to confirm."
-    },
-    {
-      "id": "V",
-      "title": "Verify docs gate",
-      "agent_role": "verifier",
-      "executor": "orchestrator",
-      "model": "sonnet",
-      "target": "requirements",
-      "files_hint": [
-        ".softhouse/verify-docs.sh"
-      ],
-      "dependencies": [
-        "R1"
-      ],
-      "status": "pending",
-      "attempts": 0,
-      "note": "",
-      "description": "After merge: run verify-docs.sh; HARD 5/5. rails/USD/vendor drift must not increase (00's US-rail refs should drop \u2014 re-baseline rails down if so). Record residual."
-    }
-  ]
+  "tasks": []
 }

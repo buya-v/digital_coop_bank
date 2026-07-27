@@ -59,6 +59,18 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-market-research-mn — rewrite 00 for Mongolia (2026-07-24)
+
+Rewrote the last wholesale US/EU-framed document (00_market_research.md) to Mongolia. 1 analyst + 1 independent fabrication-focused review + verifier. APPROVED, docs gate 5/5, rails re-baselined 20->15 (00's US rails removed).
+
+**What worked — fabrication control as the primary design constraint**
+- Market research is THIS project's characteristic failure (an agent previously invented a Mongolian e-money licensee list and had to retract). The task made "do not fabricate" the #1 rule and gave CLAUDE.md as the ONLY fact source; the reviewer's crux was a claim-by-claim audit classifying every figure as (a) CLAUDE.md-traceable, (b) explicitly [UNVERIFIED]/qualitative, or (c) unmarked-specific = REJECT. Zero (c) found.
+- The right honesty MOVE the writer made: §2.4 REFUSES to name e-money licensees, citing the prior retraction, rather than listing plausible ones. Naming a category qualitatively and marking specifics [UNVERIFIED] beats a confident invented roster. Secondary banks (Golomt/TDB/Xac/etc.) named as existing but with ALL specifics [UNVERIFIED] — class (b), acceptable.
+- The rewrite surfaced the honest, uncomfortable thesis instead of preserving the US one: 98.3% banked = NO underbanked gap; Khan Bank's super-app = 'neobank parity is table stakes, not a differentiator'; SCC-not-insured = 'a genuine competitive disadvantage'; the 78,608-sector-vs-100,000-KPI contradiction surfaced. A market-research rewrite's value is telling the truth about the market, not re-skinning the old pitch.
+- Cross-ref preservation: §2.5 (Aspiration/international analogues) retained BECAUSE 05 cross-references it — international cooperatives (Desjardins, Coop Pank) kept but explicitly RELABELLED as analogues, not local competitors. A reframe must keep the anchors other docs point at.
+
+**Verifier**: HARD 5/5 · rails 20->15 (re-baselined; 00 contributes only ACH+ now; residual = 06 deferred + the 01 DEC-6 retirement note) · USD 131 / vendor 6 unchanged.
+
 ### Run 20260724-code-sync — adopt migrated requirements names into backend (2026-07-24)
 
 Closed the doc<->code seam left by the currency/rails/vendor requirements runs: renamed backend ORM models + initial migration + OpenAPI source to the vendor-neutral / Mongolia-rail names. 2 coders + 2 reviews + verifier. ALL FOUR code gates PASS on merged main (check_models 60t/49 MoneyMinor, check_migration 139==139, openapi validate 192 ops, pytest 24). Backend residual old-names = 0; docs and code field names now AGREE.
