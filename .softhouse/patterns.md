@@ -59,6 +59,19 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-code-sync — adopt migrated requirements names into backend (2026-07-24)
+
+Closed the doc<->code seam left by the currency/rails/vendor requirements runs: renamed backend ORM models + initial migration + OpenAPI source to the vendor-neutral / Mongolia-rail names. 2 coders + 2 reviews + verifier. ALL FOUR code gates PASS on merged main (check_models 60t/49 MoneyMinor, check_migration 139==139, openapi validate 192 ops, pytest 24). Backend residual old-names = 0; docs and code field names now AGREE.
+
+**What worked**
+- Splitting by GATE BOUNDARY, not by rename: ORM+migration together (they are check_migration-coupled — a rename in only one side fails the gate) as one agent; OpenAPI (its own validate gate, disjoint dir) as another. Parallel, no merge conflict.
+- Reviewers RAN THE GATES THEMSELVES on the branch content (check_models/check_migration/pytest for the ORM branch; validate.py for OpenAPI) rather than trusting the handoff's pasted output. For code, re-running the gate is the review.
+
+**The scoping-literalism catch (reviewer earned its keep)**
+- The OpenAPI coder renamed everything in its explicit list but LEFT `plaid_item_ref` in the ExternalAccountLink schema, reasoning it was a 'column' owned by the ORM agent. But it is a live API-CONTRACT property; T1 had already renamed the ORM column to account_link_ref, so the contract now diverged from the model. The reviewer grepped, pinned all 4 occurrences with exact locations, and called MICRO-FIX. Orchestrator applied it (property key + 3 description notes), re-ran validate (PASS), residual=0. LESSON: a field rename spans model AND contract AND migration; 'that belongs to the other agent' is how a rename ends up half-applied across a boundary. The cross-cutting reviewer/orchestrator must own the seam.
+
+**Verifier**: check_models PASS · check_migration PASS (139==139) · openapi validate PASS (172 paths/192 ops/304 schemas) · pytest 24 · backend old-name grep = 0. Docs (01-05) and code now use identical names (kyc_inquiry_id, account_link_ref, INSTANT_LINK, ACH_PLUS|RTGS, /webhooks/{kyc,account-link,payments,card}).
+
 ### Run 20260724-vendor-removal — US vendors -> role-neutral (2026-07-24)
 
 Neutralized Stripe/Plaid/Lithic/Persona/Jumio across 01-05: prose -> role abstractions (payment processor / account-linking provider / eKYC provider / card issuer-processor), schema identifiers -> neutral names via a canonical rename table, DEC-5 amended. 5 applies + 5 reviews + verifier, all APPROVED. vendor DRIFT 83 -> 6 (residual entirely 06, deferred), re-baselined. Docs gate 5/5.
