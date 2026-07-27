@@ -59,6 +59,24 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-payment-rails — US rails -> Mongolia (2026-07-24)
+
+Migrated US payment-rail concepts (ACH/FedNow/SEPA/wire) across 01-05 to Mongolia's system: ACH+ (<=₮5m, 24/7), Banksüljee/RTGS (>₮5m), NETC (cards). 5 applies + 5 reviews + verifier, all APPROVED. rails DRIFT 56 -> 20, re-baselined. Docs gate 5/5 (incl. the HARD 3m-threshold check — never introduced).
+
+**What worked**
+- A mapping brief that carried the THRESHOLD ROUTING MODEL (>₮5m -> RTGS; <= -> ACH+), not just a term dictionary. The rail choice is amount-dependent, so a term-only brief would have produced contradictions.
+- The routing model exposed a latent defect: a scenario labelled a `2,500,000₮` transfer a "wire", but 2.5m is BELOW the ₮5m RTGS threshold, so under Mongolia's rules it is ACH+, not RTGS. The apply RE-DERIVED it to 6,500,000₮ (>5m) so the RTGS demo is genuine; the reviewer recomputed every US-4.2 amount against the threshold and confirmed no sub-5m amount is labelled RTGS. Same discipline as the currency ×1000 pass.
+- HONESTY on return codes: US NACHA codes (R01) removed, the human reason kept, and the return-code CATALOGUE marked "settlement operator's config, TBD pending BoM settlement-agent selection" — NOT a fabricated Mongolian code scheme. The brief mandated this and reviews enforced it.
+
+**Reviewer/judgment catches**
+- The canonical 04 apply also remapped the Transaction `type` enum (WIRE_OUT->RTGS_OUT, RTP_*->EXTERNAL_ACH_PLUS_*) — a WIRE_OUT type is contradictory once WIRE leaves the rail enum. The reviewer grepped ALL docs for the old enum members and confirmed zero dangling references before blessing it. A consequential enum rename must be dangling-ref-checked across the whole corpus, not just the edited file.
+- A doc correctly LEFT the DEC-6 "ACH/wire formats retired as market-invalid" sentence unchanged — migrating a sentence that EXPLAINS a retired rationale would resurrect it. Distinguish active references from historical/retirement notes.
+- Orchestrator caught a MISS the per-task reviews couldn't: 03:574 ("an ACH payee" in US-4.4) sat just past the US-4.2 range the 03 apply worked, so it survived. Found by inspecting the gate's residual per-doc BEFORE re-baselining. LESSON: before re-baselining a drift metric downward, enumerate the residual and confirm each item is legitimately-held vs a miss — do not bake a miss into the new baseline.
+
+**PO-flagged (backlog)**: (a) the Transaction `type` enum remap is [UNVERIFIED] pending PO/architecture confirm; (b) the enum has RTGS_OUT but no RTGS_IN (inbound large-value gap), faithfully carried from the baseline's WIRE_OUT-with-no-WIRE_IN — worth a PO decision, not a regression introduced here.
+
+**Verifier**: HARD 5/5 (3m-threshold clean) · rails 56 -> 20 (re-baselined; residual = 06+00 deferred + the 01 DEC-6 retirement note) · USD 131 / vendor 83 unchanged.
+
 ### Run 20260724-dec18-amendment — currency TYPE flip USD->MNT (2026-07-24)
 
 Amended DEC-18 (normative, 01 §6) and all doc-level "all amounts USD" declarations across 01-05 to MNT (ISO 4217 numeric 496), with a transitional-exceptions clause covering the bounded held-USD remainder. Also fixed minor-units par literals the amount pass had MISSED. 4 applies + 4 reviews + verifier, all APPROVED. Docs gate 5/5; zero currency-type USD declarations remain in 01-05.

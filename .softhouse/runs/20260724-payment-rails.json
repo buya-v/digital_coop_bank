@@ -1,0 +1,216 @@
+{
+  "run_id": "20260724-payment-rails",
+  "feature": "Payment rails \u2014 US rails -> Mongolia (Banks\u00fcljee/ACH+/NETC)",
+  "requirement": "Migrate US payment-rail concepts (ACH/FedNow/SEPA/wire) across 01-05 to Mongolia's system: ACH+ (<=\u20ae5m, 24/7), Banks\u00fcljee RTGS (>\u20ae5m), NETC (cards). Threshold is Governor's-order config (never 3m, never hard-coded). Rail enum -> INTERNAL_P2P|ACH_PLUS|RTGS. Return codes: US codes removed, catalogue marked TBD (honesty). Routing-driven amount re-derivation where a scenario's rail distinction needs it. 06/00 deferred; vendors next run.",
+  "status": "executing",
+  "backlog": [
+    "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
+    "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
+    "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
+    "Vendors: Stripe/Plaid/Lithic/Persona leaked into schema field names and error codes \u2014 removal is a requirements change.",
+    "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
+    "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
+    "00_market_research.md entirely US/EU-framed \u2014 rewrite against Mongolia.",
+    "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
+    "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling.",
+    "/ready malformed DATABASE_URL edge (LOW, T2 review): a non-empty-but-garbage URL passes engine_configured() then create_engine() raises ArgumentError during dependency resolution -> 500 instead of 503. Operator-misconfig edge; harden when auth/real-deploy lands.",
+    "DEC-18 currency-type amendment (surfaced by currency-apply agents): multiple docs now state amounts in \u20ae while the DEC-18 declaration + the doc-level 'all amounts USD' conventions (01:374/406, 02:11, 04:9/110/750) still say USD/ISO-4217 USD. Flipping DEC-18 to MNT/496 is a NORMATIVE currency-policy decision (01 \u00a76 owns it) \u2014 a user/coordinator amendment, not an amount pass. Do after the amount applies land.",
+    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
+    "Minor-unit TERM cleanup: 'cents' still used as the minor-unit name (04:9 gloss, 04:657 *_cents config keys, schema field names). MNT minor unit is m\u00f6ng\u00f6 (obsolete); the whole-t\u00f6gr\u00f6g convention means these should be reconciled in one terminology pass (rename/neutralize 'cents' -> 'minor units').",
+    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Rails in 04 (enum, API, return codes)",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/04_technical_architecture.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R1 APPROVED; enums migrated, no dangling refs, rails 56->43",
+      "description": "READ .softhouse/payment-rails-brief.md IN FULL first (mapping, canonical enum, routing rule, return-code honesty, out-of-scope). SCOPE 04 (21 refs, the canonical source): the `rail` enum (04:290, 04:814) -> INTERNAL_P2P|ACH_PLUS|RTGS; API rail params; return-code handling (remove R01, mark catalogue TBD/config); the sponsor-bank/BaaS rail column (04:29) and RESOLVE+REMOVE its `<!-- TODO(rails) -->` comment; S-4 service desc (04:46); the \u00a74.3 BaaS scope (04:1078-1080) incl. 'FedNow as available'->ACH+ and 'rail unavailable (FedNow)' fallback logic. Leave Lithic/Plaid/Stripe VENDOR names (next run) but map 'card network settlement' concept to NETC where it's a rail not a vendor. Apply BY CONTEXT (rail choice depends on amount vs the \u20ae5m config threshold). Do NOT touch vendor names (Stripe/Plaid/Lithic/Persona \u2014 next run), do NOT change amounts except the rail-driven re-derivation the brief specifies, never write '3m' as the threshold. Run .softhouse/verify-docs.sh (HARD stays 0; rails DRIFT should drop). Handoff lists every rail term changed (old->new+context), every amount re-derived for routing, every TBD/config note used instead of inventing a Mongolian specific."
+    },
+    {
+      "id": "T2",
+      "title": "Rails in 03 (scenarios + routing)",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R2 APPROVED; routing integrity verified; 6.5m re-derivation",
+      "description": "READ .softhouse/payment-rails-brief.md IN FULL first (mapping, canonical enum, routing rule, return-code honesty, out-of-scope). SCOPE 03 (13 refs): US-4.2 scenarios (516-572). Apply the ROUTING re-derivation \u2014 03:520 '500,000\u20ae outbound ACH'->'ACH+' (below threshold, stays); 03:527 '2,500,000\u20ae wire' is BELOW \u20ae5m so re-derive it ABOVE threshold (e.g. 6,500,000\u20ae) routed via Banks\u00fcljee (RTGS) to preserve the two-rail demo, flag as rail-driven re-derivation; 03:537-546 'ACH return'/'R01'->reason kept+code TBD, 'real-time rail (FedNow) unavailable'->ACH+ logic, 'offers wire'->'offers Banks\u00fcljee (RTGS) where eligible'. 03:177 'card embossing, ACH, statements'->ACH+. Keep step-up semantics. Apply BY CONTEXT (rail choice depends on amount vs the \u20ae5m config threshold). Do NOT touch vendor names (Stripe/Plaid/Lithic/Persona \u2014 next run), do NOT change amounts except the rail-driven re-derivation the brief specifies, never write '3m' as the threshold. Run .softhouse/verify-docs.sh (HARD stays 0; rails DRIFT should drop). Handoff lists every rail term changed (old->new+context), every amount re-derived for routing, every TBD/config note used instead of inventing a Mongolian specific."
+    },
+    {
+      "id": "T3",
+      "title": "Rails in 01",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/01_business_analysis.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R3 APPROVED; 2 edits; DEC-6 left",
+      "description": "READ .softhouse/payment-rails-brief.md IN FULL first (mapping, canonical enum, routing rule, return-code honesty, out-of-scope). SCOPE 01 (8 refs): CAP-4.2 (01:177) and F-113 (01:274) titles/descriptions '(ACH, wire; real-time: FedNow/SEPA)'->the Mongolia rails (ACH+ / Banks\u00fcljee RTGS); the capability tree. 01:362 DEC-6 already RETIRES the 'ACH/wire formats' rationale as market-invalid \u2014 leave that historical retirement note as-is (do not re-migrate a sentence that explains a retired rationale). Apply BY CONTEXT (rail choice depends on amount vs the \u20ae5m config threshold). Do NOT touch vendor names (Stripe/Plaid/Lithic/Persona \u2014 next run), do NOT change amounts except the rail-driven re-derivation the brief specifies, never write '3m' as the threshold. Run .softhouse/verify-docs.sh (HARD stays 0; rails DRIFT should drop). Handoff lists every rail term changed (old->new+context), every amount re-derived for routing, every TBD/config note used instead of inventing a Mongolian specific."
+    },
+    {
+      "id": "T4",
+      "title": "Rails in 02",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/02_user_stories.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R4 APPROVED; 3 edits",
+      "description": "READ .softhouse/payment-rails-brief.md IN FULL first (mapping, canonical enum, routing rule, return-code honesty, out-of-scope). SCOPE 02 (8 refs): US-4.2 title (02:179) and description (02:182) '(ACH, Wire, Real-Time Rails)'/'(FedNow / SEPA Instant as available)'->Mongolia rails; the INVEST note (02:186) 'split by rail (ACH first, then wire, then real-time)'->'(ACH+ first, then Banks\u00fcljee RTGS)'. Keep 'FX/multi-currency out of scope (MNT only, DEC-18)'. Apply BY CONTEXT (rail choice depends on amount vs the \u20ae5m config threshold). Do NOT touch vendor names (Stripe/Plaid/Lithic/Persona \u2014 next run), do NOT change amounts except the rail-driven re-derivation the brief specifies, never write '3m' as the threshold. Run .softhouse/verify-docs.sh (HARD stays 0; rails DRIFT should drop). Handoff lists every rail term changed (old->new+context), every amount re-derived for routing, every TBD/config note used instead of inventing a Mongolian specific."
+    },
+    {
+      "id": "T5",
+      "title": "Rails in 05",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R5 APPROVED; 4 edits",
+      "description": "READ .softhouse/payment-rails-brief.md IN FULL first (mapping, canonical enum, routing rule, return-code honesty, out-of-scope). SCOPE 05 (8 refs): the EP-4 requirement (05:65) 'external ACH/wire/real-time-rail'->Mongolia rails; US-4.2 row (05:236) 'External payments (ACH/wire/RTP)'->'(ACH+/RTGS)'; exit criteria (05:313) 'first ACH round-trip'->'first ACH+ round-trip'; R-2 risk (05:392) 'ACH/wire/FedNow'->Mongolia rails. 'Rail-by-rail split' note stays. Apply BY CONTEXT (rail choice depends on amount vs the \u20ae5m config threshold). Do NOT touch vendor names (Stripe/Plaid/Lithic/Persona \u2014 next run), do NOT change amounts except the rail-driven re-derivation the brief specifies, never write '3m' as the threshold. Run .softhouse/verify-docs.sh (HARD stays 0; rails DRIFT should drop). Handoff lists every rail term changed (old->new+context), every amount re-derived for routing, every TBD/config note used instead of inventing a Mongolian specific."
+    },
+    {
+      "id": "R1",
+      "title": "Review 04 rails",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/04_technical_architecture.md"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent ae47b2fb26b4bbc8a",
+      "description": "INDEPENDENT review of T1. Read .softhouse/payment-rails-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-payment-rails/T1.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every rail mapping correct by context (ACH->ACH+, wire/large->Banks\u00fcljee RTGS, FedNow/RTP->ACH+, SEPA removed, cards->NETC); (2) the rail ENUM is INTERNAL_P2P|ACH_PLUS|RTGS everywhere it appears; (3) ROUTING integrity \u2014 NO sub-\u20ae5m amount labelled RTGS/Banks\u00fcljee, and any amount re-derived to exceed \u20ae5m for an RTGS demo is internally consistent with its scenario; (4) NO '3m' threshold anywhere; threshold framed as config not literal; (5) return codes \u2014 US codes (R01) removed, reason kept, code catalogue marked TBD/config NOT invented; (6) NO vendor name changed, NO amount changed except sanctioned routing re-derivations; (7) scope = only the intended file(s)+handoff. Extra: verify the enum change is complete (no stray ACH|WIRE|RTP), the TODO(rails) comment is REMOVED, and return-code honesty (no invented Mongolian codes). Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute routing/amounts; don't trust the handoff."
+    },
+    {
+      "id": "R2",
+      "title": "Review 03 rails+routing",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/03_acceptance_criteria.md"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT review of T2. Read .softhouse/payment-rails-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-payment-rails/T2.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every rail mapping correct by context (ACH->ACH+, wire/large->Banks\u00fcljee RTGS, FedNow/RTP->ACH+, SEPA removed, cards->NETC); (2) the rail ENUM is INTERNAL_P2P|ACH_PLUS|RTGS everywhere it appears; (3) ROUTING integrity \u2014 NO sub-\u20ae5m amount labelled RTGS/Banks\u00fcljee, and any amount re-derived to exceed \u20ae5m for an RTGS demo is internally consistent with its scenario; (4) NO '3m' threshold anywhere; threshold framed as config not literal; (5) return codes \u2014 US codes (R01) removed, reason kept, code catalogue marked TBD/config NOT invented; (6) NO vendor name changed, NO amount changed except sanctioned routing re-derivations; (7) scope = only the intended file(s)+handoff. Extra: the ROUTING integrity check is the crux \u2014 recompute every scenario amount against the \u20ae5m threshold; a sub-5m amount routed via RTGS is a REJECT. Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute routing/amounts; don't trust the handoff."
+    },
+    {
+      "id": "R3",
+      "title": "Review 01 rails",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/01_business_analysis.md"
+      ],
+      "dependencies": [
+        "T3"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT review of T3. Read .softhouse/payment-rails-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-payment-rails/T3.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every rail mapping correct by context (ACH->ACH+, wire/large->Banks\u00fcljee RTGS, FedNow/RTP->ACH+, SEPA removed, cards->NETC); (2) the rail ENUM is INTERNAL_P2P|ACH_PLUS|RTGS everywhere it appears; (3) ROUTING integrity \u2014 NO sub-\u20ae5m amount labelled RTGS/Banks\u00fcljee, and any amount re-derived to exceed \u20ae5m for an RTGS demo is internally consistent with its scenario; (4) NO '3m' threshold anywhere; threshold framed as config not literal; (5) return codes \u2014 US codes (R01) removed, reason kept, code catalogue marked TBD/config NOT invented; (6) NO vendor name changed, NO amount changed except sanctioned routing re-derivations; (7) scope = only the intended file(s)+handoff.  Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute routing/amounts; don't trust the handoff."
+    },
+    {
+      "id": "R4",
+      "title": "Review 02 rails",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/02_user_stories.md"
+      ],
+      "dependencies": [
+        "T4"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a229ec5ac24c53c4f",
+      "description": "INDEPENDENT review of T4. Read .softhouse/payment-rails-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-payment-rails/T4.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every rail mapping correct by context (ACH->ACH+, wire/large->Banks\u00fcljee RTGS, FedNow/RTP->ACH+, SEPA removed, cards->NETC); (2) the rail ENUM is INTERNAL_P2P|ACH_PLUS|RTGS everywhere it appears; (3) ROUTING integrity \u2014 NO sub-\u20ae5m amount labelled RTGS/Banks\u00fcljee, and any amount re-derived to exceed \u20ae5m for an RTGS demo is internally consistent with its scenario; (4) NO '3m' threshold anywhere; threshold framed as config not literal; (5) return codes \u2014 US codes (R01) removed, reason kept, code catalogue marked TBD/config NOT invented; (6) NO vendor name changed, NO amount changed except sanctioned routing re-derivations; (7) scope = only the intended file(s)+handoff.  Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute routing/amounts; don't trust the handoff."
+    },
+    {
+      "id": "R5",
+      "title": "Review 05 rails",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [
+        "T5"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a8dd364ceb64ad96f",
+      "description": "INDEPENDENT review of T5. Read .softhouse/payment-rails-brief.md, CLAUDE.md, the handoff .softhouse/handoff/20260724-payment-rails/T5.md, and `git diff main...<branch>` (three-dot). CHECK: (1) every rail mapping correct by context (ACH->ACH+, wire/large->Banks\u00fcljee RTGS, FedNow/RTP->ACH+, SEPA removed, cards->NETC); (2) the rail ENUM is INTERNAL_P2P|ACH_PLUS|RTGS everywhere it appears; (3) ROUTING integrity \u2014 NO sub-\u20ae5m amount labelled RTGS/Banks\u00fcljee, and any amount re-derived to exceed \u20ae5m for an RTGS demo is internally consistent with its scenario; (4) NO '3m' threshold anywhere; threshold framed as config not literal; (5) return codes \u2014 US codes (R01) removed, reason kept, code catalogue marked TBD/config NOT invented; (6) NO vendor name changed, NO amount changed except sanctioned routing re-derivations; (7) scope = only the intended file(s)+handoff.  Verdict APPROVED / MICRO-FIX(<=10 lines) / REJECTED. Recompute routing/amounts; don't trust the handoff."
+    },
+    {
+      "id": "V",
+      "title": "Verify docs gate",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "requirements",
+      "files_hint": [
+        ".softhouse/verify-docs.sh"
+      ],
+      "dependencies": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "After merges: run verify-docs.sh; HARD 5/5 (esp. no 3m threshold). rails DRIFT drops from 56 to the residual (06+00 deferred). Re-baseline rails downward deliberately (verify-docs.sh --baseline) and record the new count + residual (06/00) in the postmortem."
+    }
+  ]
+}

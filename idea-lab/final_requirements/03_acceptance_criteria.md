@@ -571,7 +571,7 @@
 **Scenario 4 — Edge: schedule dated in the past or on a non-processing day**
 * **Given** Member A creates a one-off payment
 * **When** they select yesterday's date, the API rejects with `422 Unprocessable Content`
-* **And when** they select a date falling on a weekend/holiday for an ACH payee
+* **And when** they select a date falling on a weekend/holiday for an ACH+ payee
 * **Then** the UI discloses the adjusted processing date (next business day) before confirmation and stores it explicitly.
 
 ### US-4.4 — Expense Splitting & Payment Requests (M)
