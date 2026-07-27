@@ -174,7 +174,7 @@
 * **Given** Member A changes `etsgiin_ner` and `address_line_1`
 * **When** the change is submitted
 * **Then** the change is held pending re-verification (Persona re-check or US-12.1 admin review, per policy)
-* **And** the previous verified values remain in force for card embossing, ACH, and statements until the re-verification completes
+* **And** the previous verified values remain in force for card embossing, ACH+, and statements until the re-verification completes
 * **And** a consent-relevant change (e.g., withdrawing marketing consent) takes effect immediately and is recorded for US-13.6 enforcement.
 
 ---
@@ -513,19 +513,21 @@
 * **Then** P2P send is blocked with guidance to use internal account-to-account transfer instead
 * **And** no transfer record is created.
 
-### US-4.2 — External Payments (ACH, Wire, Real-Time Rails) (L)
+### US-4.2 — External Payments (ACH+ and Banksüljee/RTGS) (L)
 
-**Scenario 1 — Happy path: link external account and send outbound ACH**
+> **Routing rule:** External transfers route by amount against a configurable threshold (₮5,000,000, set by Governor's order; carried as configuration per US-12.5, never hard-coded): amount **> threshold → Banksüljee (RTGS)**; amount **≤ threshold → ACH+ (24/7)**. There is no separate real-time rail — ACH+ runs 24/7 and covers the instant retail case.
+
+**Scenario 1 — Happy path: link external account and send outbound ACH+**
 * **Given** Member A has linked and verified an external bank account
-* **When** they submit a 500,000₮ outbound ACH before the configured cut-off time
+* **When** they submit a 500,000₮ outbound ACH+ (below the ₮5,000,000 threshold) before the configured cut-off time
 * **Then** the payment is accepted with status "submitted", included in that day's batch, and status tracking progresses submitted → processing → completed
 * **And** any configured fee (US-12.5) is disclosed before confirmation and posted as a separate ledger line
 * **And** the payment is emitted to AML monitoring (US-13.1).
 
 **Scenario 2 — Happy path: step-up above the threshold**
 * **Given** the step-up threshold is 550,000₮ [PROPOSED seed value]
-* **When** Member A submits a 2,500,000₮ wire
-* **Then** step-up authentication (US-1.4) is required before the wire is accepted
+* **When** Member A submits a 6,500,000₮ transfer, which — being above the configurable ₮5,000,000 routing threshold (Governor's order; US-12.5) — routes via Banksüljee (RTGS)
+* **Then** step-up authentication (US-1.4) is required before the Banksüljee (RTGS) transfer is accepted
 * **And** without a fresh successful step-up, the API rejects the submission with `403 Forbidden` reason "step-up required".
 
 **Scenario 3 — Negative: unverified external account**
@@ -534,16 +536,16 @@
 * **Then** the request is rejected with "external account not yet verified" and verification instructions
 * **And** no payment is initiated.
 
-**Scenario 4 — Edge: ACH return after posting**
-* **Given** Member A's 500,000₮ inbound ACH was credited and 2 days later an R01 (insufficient funds) return arrives
+**Scenario 4 — Edge: ACH+ return after posting**
+* **Given** Member A's 500,000₮ inbound ACH+ was credited and 2 days later an insufficient-funds return arrives (the specific return-code catalogue is the settlement operator's, carried as configuration — TBD pending the Bank-of-Mongolia settlement-agent selection)
 * **When** the return is processed
 * **Then** the credit is reversed with a clearly labeled linked ledger entry, the payment status becomes "returned" with a member-readable reason
 * **And** the member is notified via US-11.1; if the reversal overdraws the account, the balance may go negative and collections/notification policy applies (no silent absorption).
 
 **Scenario 5 — Edge: cut-off boundary and rail fallback**
-* **Given** the same-day ACH cut-off is 16:00 and a real-time rail (FedNow) is unavailable for the recipient bank
+* **Given** the same-day ACH+ batch cut-off is 16:00 and ACH+ 24/7 processing is temporarily unavailable for the recipient bank
 * **When** Member A submits at 16:05 requesting the fastest option
-* **Then** the app shows the payment will process next business day (or offers wire where eligible), with the effective date displayed before confirmation
+* **Then** the app shows the payment will process next business day (or offers Banksüljee (RTGS) where eligible — amount over the ₮5,000,000 threshold), with the effective date displayed before confirmation
 * **And** the stored payment carries the correct effective date, not the submission date.
 
 ### US-4.3 — Bill Pay & Scheduled / Recurring Transfers (M)
