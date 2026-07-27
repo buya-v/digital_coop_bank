@@ -243,9 +243,10 @@
     tags: [EP-12]
     operationId: adminGetCaseEvidence
     summary: >-
-      Retrieve a case evidence pack — vendor evidence / transaction bundle / member
-      360 link (04 §3.12). Auth: staff COMPLIANCE_OFFICER. VENDOR ASSUMPTION: 04
-      names Persona; substitution is a pending requirements change (CLAUDE.md).
+      Retrieve a case evidence pack — eKYC-provider evidence / transaction bundle /
+      member 360 link (04 §3.12). Auth: staff COMPLIANCE_OFFICER. The eKYC
+      provider is a procurement decision (TBD); ХУР/XYP state-register lookup is
+      the compliant-alternative candidate (CLAUDE.md).
     security:
       - staffSSO: []
     parameters:

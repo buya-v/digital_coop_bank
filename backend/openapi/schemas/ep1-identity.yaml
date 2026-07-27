@@ -304,12 +304,13 @@ KycSessionResponse:
   type: object
   description: Response for `POST /onboarding/kyc/sessions` (04 §3.1; E-2 KycSubmission).
   properties:
-    persona_inquiry_id:
+    kyc_inquiry_id:
       type: string
       description: >-
-        Vendor KYC inquiry reference (E-2 `persona_inquiry_id`, DEC-5). The field
-        name is verbatim from 04; the concrete KYC vendor is market-dependent
-        (CLAUDE.md flags Persona as a US-market assumption).
+        eKYC-provider inquiry reference (E-2 `kyc_inquiry_id`, DEC-5; migrated
+        to match 04 / DEC-5 / vendor-removal run). The concrete eKYC provider is
+        a procurement decision (TBD); the compliant-alternative candidate is a
+        ХУР/XYP state-register lookup (CLAUDE.md blocking question 2).
     session_token:
       type: string
       description: Client session token for the vendor KYC flow. type inferred; 04 does not specify its format.

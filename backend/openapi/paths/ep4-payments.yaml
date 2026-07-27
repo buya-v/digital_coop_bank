@@ -127,17 +127,17 @@
     summary: >-
       Link and verify an external bank account (04 §3.4). Auth: Member (ACTIVE).
       Account linking (not a money movement) — no Idempotency-Key required.
-      VENDOR ASSUMPTION: 04 names Plaid; vendor substitution is a pending
-      requirements change (CLAUDE.md).
+      The account-linking provider is a procurement decision (TBD); migrated to
+      match 04 (DEC-5 / rails run).
     requestBody:
       required: true
       content:
         application/json:
           schema:
             type: object
-            description: One of `plaid_public_token` (instant) or `micro_deposit_details` (fallback) (04 §3.4).
+            description: One of `account_link_public_token` (instant) or `micro_deposit_details` (fallback) (04 §3.4).
             properties:
-              plaid_public_token:
+              account_link_public_token:
                 type: string
                 nullable: true
               micro_deposit_details:
@@ -164,9 +164,9 @@
               $ref: '#/components/schemas/Error'
       '502':
         description: >-
-          502 PLAID_UNAVAILABLE — upstream vendor unavailable (04 §3.4). The
-          vendor-named code is a known baseline leak (CLAUDE.md); pending Mongolia
-          migration.
+          502 ACCOUNT_LINK_PROVIDER_UNAVAILABLE — upstream account-linking
+          provider unavailable (04 §3.4). Migrated to match 04 (DEC-5 / rails
+          run); the concrete provider remains a procurement decision (TBD).
         content:
           application/json:
             schema:

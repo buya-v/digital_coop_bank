@@ -92,9 +92,9 @@ SharePurchaseRequest:
     payment_token:
       type: string
       description: >-
-        Payment-processor token (04 §3.2 names "Stripe"). The processor is
-        market-dependent (CLAUDE.md flags the Stripe assumption); the field name
-        is kept from 04. Present for card/wallet methods.
+        Payment-processor token (04 §3.2). The processor is a procurement
+        decision (TBD); the field name is kept from 04. Present for card/wallet
+        methods.
     external_account_link_id:
       type: string
       format: uuid

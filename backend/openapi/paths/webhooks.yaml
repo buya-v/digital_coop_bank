@@ -28,24 +28,25 @@
 #     operational, not request/response shape, so they are noted in prose only.
 #
 # ── VENDOR NAMES ──────────────────────────────────────────────────────────
-# Persona / Stripe / Lithic / Plaid appear verbatim in these paths per §3.14.
-# Each operation's description flags the vendor set as a PENDING Mongolia
-# requirements change (these US vendors are not the Mongolian market — CLAUDE.md).
+# eKYC-provider / payment-processor / card-issuer-processor / account-linking-
+# provider webhook paths, operationIds and schemas are migrated to role-neutral
+# names (DEC-5 / vendor-removal run). Each operation's description notes the
+# concrete provider remains a procurement decision (TBD).
 
-/api/v1/webhooks/persona:
+/api/v1/webhooks/kyc:
   post:
     tags: [webhooks]
-    operationId: personaWebhook
+    operationId: kycWebhook
     summary: >-
-      Inbound Persona eKYC webhook — inquiry outcome drives KycStatus
-      transitions; screening hits open a ComplianceCase (04 §3.14). Vendor-
+      Inbound eKYC-provider webhook — inquiry outcome drives KycStatus
+      transitions; screening hits open a ComplianceCase (04 §3.14). Provider-
       authenticated, NOT a member/staff endpoint.
     description: >-
       04 §3.14 row 1. The backend re-fetches full inquiry results server-to-
       server keyed on `inquiry_id` and never trusts the payload alone (04 §4.1).
-      PENDING Mongolia requirements change: Persona is the DEC-5 vendor recorded
-      verbatim but is not the Mongolian market — the compliant alternative is a
-      XYP/ХУР state-register lookup (CLAUDE.md).
+      Migrated to match 04 (DEC-5 / rails run): the eKYC provider is a
+      procurement decision (TBD); the compliant-alternative candidate is a
+      ХУР/XYP state-register lookup (CLAUDE.md).
     security: []
     x-webhook-verification: 'HMAC signature + replay window (04 §3.14)'
     requestBody:
@@ -53,7 +54,7 @@
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/PersonaInquiryWebhook'
+            $ref: '#/components/schemas/KycInquiryWebhook'
     responses:
       '200':
         description: Event accepted (idempotent ack; 04 §4 rule 1).
@@ -75,20 +76,20 @@
       '422':
         $ref: '#/components/responses/UnprocessableEntity'
 
-/api/v1/webhooks/stripe:
+/api/v1/webhooks/payments:
   post:
     tags: [webhooks]
-    operationId: stripeWebhook
+    operationId: paymentsWebhook
     summary: >-
-      Inbound Stripe webhook — share-purchase payment_intent settlement/failure
-      drives US-2.1 activation (04 §3.14). Vendor-authenticated, NOT a
-      member/staff endpoint.
+      Inbound payment-processor webhook — share-purchase payment_intent
+      settlement/failure drives US-2.1 activation (04 §3.14). Provider-
+      authenticated, NOT a member/staff endpoint.
     description: >-
       04 §3.14 row 2. On `payment_intent.succeeded` the ledger posts
       SHARE_SUBSCRIPTION and the member transitions to ACTIVE (04 §4.3); the
-      settled amount must equal the DEC-11 par value. PENDING Mongolia
-      requirements change: Stripe is recorded verbatim but is not the Mongolian
-      market (CLAUDE.md).
+      settled amount must equal the DEC-11 par value. Migrated to match 04
+      (DEC-5 / rails run): the payment processor is a procurement decision
+      (TBD).
     security: []
     x-webhook-verification: 'Signature header (04 §3.14)'
     requestBody:
@@ -96,7 +97,7 @@
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/StripePaymentIntentWebhook'
+            $ref: '#/components/schemas/PaymentProcessorPaymentIntentWebhook'
     responses:
       '200':
         description: Event accepted (idempotent ack; 04 §4 rule 1).
@@ -123,22 +124,22 @@
             schema:
               $ref: '#/components/schemas/Error'
 
-/api/v1/webhooks/lithic/authorization:
+/api/v1/webhooks/card/authorization:
   post:
     tags: [webhooks]
-    operationId: lithicAuthorizationWebhook
+    operationId: cardAuthorizationWebhook
     summary: >-
-      Inbound Lithic real-time authorization webhook — synchronous APPROVE/DECLINE
-      decision within a 200 ms ceiling (04 §3.14). Vendor-authenticated, NOT a
-      member/staff endpoint.
+      Inbound card issuer-processor real-time authorization webhook — synchronous
+      APPROVE/DECLINE decision within a 200 ms ceiling (04 §3.14). Provider-
+      authenticated, NOT a member/staff endpoint.
     description: >-
       04 §3.14 row 3. Unlike the other webhooks, the 2xx body is a DECISION, not
       a bare ack: the Card Service evaluates card status, member controls, and
       available balance and answers within the 200 ms hard ceiling; on timeout a
-      vendor-side stand-in rule applies (04 §4.4; §6 perf budget). PENDING
-      Mongolia requirements change: Lithic is recorded verbatim but is not the
-      Mongolian market — cards clear through NETC, and EP-5 Cards is entity-gated
-      / likely unlawful for an SCC (CLAUDE.md).
+      provider-side stand-in rule applies (04 §4.4; §6 perf budget). Migrated to
+      match 04 (DEC-5 / rails run): the card issuer-processor is a procurement
+      decision (TBD); cards clear through NETC in-market, and EP-5 Cards is
+      entity-gated / likely unlawful for an SCC (CLAUDE.md).
     security: []
     x-webhook-verification: 'mTLS + HMAC (04 §3.14)'
     requestBody:
@@ -146,14 +147,14 @@
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/LithicAuthorizationWebhook'
+            $ref: '#/components/schemas/CardAuthorizationWebhook'
     responses:
       '200':
         description: Authorization decision (APPROVE/DECLINE) returned within 200 ms (04 §4.4).
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LithicAuthorizationDecision'
+              $ref: '#/components/schemas/CardAuthorizationDecision'
       '401':
         description: >-
           401 SIGNATURE_INVALID — mTLS/HMAC verification failed (04 §3.14; §4
@@ -165,19 +166,19 @@
       '422':
         $ref: '#/components/responses/UnprocessableEntity'
 
-/api/v1/webhooks/lithic/events:
+/api/v1/webhooks/card/events:
   post:
     tags: [webhooks]
-    operationId: lithicEventsWebhook
+    operationId: cardEventsWebhook
     summary: >-
-      Inbound Lithic asynchronous events — settlements (-> Round-Up), card
-      lifecycle, and fulfilment updates (04 §3.14). Vendor-authenticated, NOT a
-      member/staff endpoint.
+      Inbound card issuer-processor asynchronous events — settlements (-> Round-Up),
+      card lifecycle, and fulfilment updates (04 §3.14). Provider-authenticated,
+      NOT a member/staff endpoint.
     description: >-
       04 §3.14 row 4. Settlements post Transactions and emit events consumed by
       the Round-Up Service; fulfilment webhooks update `fulfilment.stage` (04
-      §4.4). PENDING Mongolia requirements change: Lithic is recorded verbatim
-      but is not the Mongolian market; EP-10 Round-Ups is also entity-gated
+      §4.4). Migrated to match 04 (DEC-5 / rails run): the card issuer-processor
+      is a procurement decision (TBD); EP-10 Round-Ups is also entity-gated
       (CLAUDE.md).
     security: []
     x-webhook-verification: 'HMAC (04 §3.14)'
@@ -186,7 +187,7 @@
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/LithicEventWebhook'
+            $ref: '#/components/schemas/CardEventWebhook'
     responses:
       '200':
         description: Event accepted (idempotent ack; 04 §4 rule 1).
@@ -250,20 +251,21 @@
       '422':
         $ref: '#/components/responses/UnprocessableEntity'
 
-/api/v1/webhooks/plaid:
+/api/v1/webhooks/account-link:
   post:
     tags: [webhooks]
-    operationId: plaidWebhook
+    operationId: accountLinkWebhook
     summary: >-
-      Inbound Plaid webhook — item status (relink required) and transaction
-      refresh for underwriting (04 §3.14). Vendor-authenticated, NOT a
-      member/staff endpoint.
+      Inbound account-linking-provider webhook — item status (relink required)
+      and transaction refresh for underwriting (04 §3.14). Provider-
+      authenticated, NOT a member/staff endpoint.
     description: >-
       04 §3.14 row 6. Item-status events drive the E-14 `RELINK_REQUIRED` status
       (04 §3.4); transaction refresh feeds EP-6 underwriting (deferred —
-      CLAUDE.md). PENDING Mongolia requirements change: Plaid is recorded
-      verbatim but has no coverage in-market (CLAUDE.md); `item_id` corresponds
-      to the leaked `plaid_item_ref` field.
+      CLAUDE.md). Migrated to match 04 (DEC-5 / rails run): the account-linking
+      provider is a procurement decision (TBD); `item_id` corresponds to the
+      `plaid_item_ref` field (pending a follow-up rename to `account_link_ref`
+      — out of scope for this run).
     security: []
     x-webhook-verification: 'JWT verification (04 §3.14)'
     requestBody:
@@ -271,7 +273,7 @@
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/PlaidWebhook'
+            $ref: '#/components/schemas/AccountLinkWebhook'
     responses:
       '200':
         description: Event accepted (idempotent ack; 04 §4 rule 1).
