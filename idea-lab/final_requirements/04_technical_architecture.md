@@ -26,7 +26,7 @@ Digital Coop Bank is a purely digital cooperative banking platform: a mobile-fir
 | Back-office console (web) | All P-5 staff capabilities (EP-12, EP-13 staff views). Separate staff identity realm, maker-checker on every mutating action. |
 | **Persona** | eKYC vendor (DEC-5): document OCR, biometric selfie/liveness match, sanctions/PEP screening. Webhook-driven. |
 | **Plaid** | External bank account linking and verification; open-banking transaction data for underwriting (US-6.2). |
-| **Sponsor bank / BaaS provider** (entity and charter form is **pending counsel** — see `01` §6.3 item 3 and `05` OI-3 / R-1. The previous US deposit-insurance framing assumed a US sponsor-bank/BaaS structure that does not apply in Mongolia and is withdrawn with no replacement claim about final form. Whichever structure is confirmed, payment-rail settlement runs through a bank on the Bank of Mongolia settlement-agent register; final selection is a procurement decision, not a requirements change.) | FBO account structure, ACH origination/receipt, wire, real-time rails (FedNow), settlement of card network activity. <!-- TODO(rails): the US rails named in this column do not exist in Mongolia; it needs RTGS (Banksuljee), ACH+, and NETC card clearing. Separate backlog item — out of scope for the sponsor-bank correction. --> |
+| **Sponsor bank / BaaS provider** (entity and charter form is **pending counsel** — see `01` §6.3 item 3 and `05` OI-3 / R-1. The previous US deposit-insurance framing assumed a US sponsor-bank/BaaS structure that does not apply in Mongolia and is withdrawn with no replacement claim about final form. Whichever structure is confirmed, payment-rail settlement runs through a bank on the Bank of Mongolia settlement-agent register; final selection is a procurement decision, not a requirements change.) | FBO account structure, ACH+ origination/receipt (24/7), Banksüljee (RTGS) large-value settlement, NETC card-network settlement. |
 | **Stripe** | Card-payment capture for the one mandatory 10,000₮ (provisional, pending DEC-11 / legal) membership share purchase (US-2.1) and its refunds. |
 | **Lithic** (card issuer-processor) | Virtual and physical debit card issuance, PAN tokenization, Apple Pay / Google Pay provisioning, real-time authorization webhooks. |
 | **E-signature provider** (Dropbox Sign or DocuSign class) | Legally binding e-signature ceremonies for loan agreements and guarantee pledge agreements (US-6.6). |
@@ -43,7 +43,7 @@ A modular service architecture (deployable as a modular monolith at launch, serv
 | S-1 | Identity & Onboarding Service | EP-1 | Member (profile/KYC fields), KycSubmission, DeviceBinding, ConsentRecord | Persona integration; OAuth2/OIDC identity provider integration; step-up policy engine. |
 | S-2 | Membership & Share Registry Service | EP-2 | MembershipShare, membership status machine | Enforces DEC-4 transitions; produces EligibilitySnapshots for ballots; Stripe integration for share purchase. |
 | S-3 | Account & Ledger Service | EP-3 (core for all money epics) | Account, LedgerEntry, Transaction, SavingsGoal, GroupPot* entities; interest accrual engine | Double-entry, ACID, serializable isolation; source of truth for all balances; sponsor-bank reconciliation. |
-| S-4 | Payments Service | EP-4 | ExternalAccountLink, Payee, ScheduledPayment, PaymentRequest | P2P (internal ledger settlement), ACH/wire/FedNow via sponsor bank, Plaid linking, recipient lookup per DEC-3. |
+| S-4 | Payments Service | EP-4 | ExternalAccountLink, Payee, ScheduledPayment, PaymentRequest | P2P (internal ledger settlement), external transfers over Mongolia rails — ACH+ (24/7) and Banksüljee (RTGS) for large-value — via sponsor bank, Plaid linking, recipient lookup per DEC-3. |
 | S-5 | Card Service | EP-5 | Card (controls, wallet tokens) | Lithic integration; <200 ms authorization decisioning; emits settled-transaction events to Round-Up Service. |
 | S-6 | Lending Service | EP-6 | LoanProduct, LoanApplication, Loan, RepaymentSchedule, RepaymentInstallment, LoanCircle, LoanCircleInvitation, PeerGuarantee, PooledLoanCircle(+Participant), CollectionsCase, SignedDocument | Underwriting engine, e-sign integration, servicing (disbursement, autopay, payoff), arrears monitoring. |
 | S-7 | Dividend Service | EP-7 | PatronageFactorRecord, DividendDeclaration, DividendAllocation | Year-long factor accumulation; deterministic calculation runs; Dividend Estimator; statements. |
@@ -216,8 +216,8 @@ Immutable double-entry posting line. Every Transaction produces ≥2 entries tha
 The business-level money movement grouping its LedgerEntries; the member-visible history row (US-3.2).
 
 * `id` UUID PK; `idempotency_key` String UQ nullable — required for all money-movement API calls.
-* `type` Enum `P2P_INTERNAL | EXTERNAL_ACH_IN | EXTERNAL_ACH_OUT | WIRE_OUT | RTP_IN | RTP_OUT | CARD_PURCHASE | CARD_REFUND | SHARE_SUBSCRIPTION | SHARE_REDEMPTION | INTEREST_POSTING | ROUND_UP_TRANSFER | GOAL_TRANSFER | GROUP_POT_CONTRIBUTION | GROUP_POT_OUTBOUND | LOAN_DISBURSEMENT | LOAN_REPAYMENT | GUARANTEE_APPLICATION | POOLED_CIRCLE_CONTRIBUTION | POOLED_CIRCLE_PAYOUT | DIVIDEND_PAYOUT | PROJECT_BACKING | BACKING_REFUND | SURPLUS_MATCH_DISBURSEMENT | FEE | ADJUSTMENT`.
-* `status` Enum `PENDING | SETTLED | FAILED | CANCELLED | RETURNED`; `failure_reason?` String (e.g., ACH return code).
+* `type` Enum `P2P_INTERNAL | EXTERNAL_ACH_PLUS_IN | EXTERNAL_ACH_PLUS_OUT | RTGS_OUT | CARD_PURCHASE | CARD_REFUND | SHARE_SUBSCRIPTION | SHARE_REDEMPTION | INTEREST_POSTING | ROUND_UP_TRANSFER | GOAL_TRANSFER | GROUP_POT_CONTRIBUTION | GROUP_POT_OUTBOUND | LOAN_DISBURSEMENT | LOAN_REPAYMENT | GUARANTEE_APPLICATION | POOLED_CIRCLE_CONTRIBUTION | POOLED_CIRCLE_PAYOUT | DIVIDEND_PAYOUT | PROJECT_BACKING | BACKING_REFUND | SURPLUS_MATCH_DISBURSEMENT | FEE | ADJUSTMENT`.
+* `status` Enum `PENDING | SETTLED | FAILED | CANCELLED | RETURNED`; `failure_reason?` String (human-readable return reason, e.g. an insufficient-funds return; the specific return-code catalogue is the settlement operator's, carried as configuration — TBD pending Bank-of-Mongolia settlement-agent selection).
 * `amount` Money; `currency` `MNT`; `memo?` String(140).
 * `counterparty` JSON — recipient identifier type/display name (P2P), external account ref, merchant descriptor (card), etc.
 * `category?` String — automatic categorization (US-3.2); `receipt_ref?` String — WORM object-store URI of the shareable confirmation receipt.
@@ -287,7 +287,7 @@ Bill-pay payee managed by the member (US-4.3).
 Future-dated or recurring payment schedule over internal or external rails (US-4.3).
 
 * `id` UUID PK; `member_id` FK→Member; `source_account_id` FK→Account; `payee_id` FK→Payee.
-* `amount` Money; `rail` Enum `INTERNAL_P2P | ACH | WIRE | RTP`.
+* `amount` Money; `rail` Enum `INTERNAL_P2P | ACH_PLUS | RTGS` (external routing by amount against the configurable threshold — ₮5,000,000, set by Governor's order, US-12.5: `> threshold → RTGS (Banksüljee)`, `≤ threshold → ACH_PLUS (24/7)`; the former `RTP` real-time rail folds into `ACH_PLUS`).
 * `schedule` JSON `{type: ONE_OFF | RECURRING, start_date, frequency?, end_date?}`; `next_run_at` Timestamp.
 * `retry_policy` JSON — insufficient-funds retries with member notification (US-11.1).
 * `status` Enum `ACTIVE | PAUSED | COMPLETED | CANCELLED | FAILED`; `created_at`, `updated_at` Timestamps.
@@ -811,7 +811,7 @@ erDiagram
 | `POST /api/v1/payments/p2p` | Member (ACTIVE); Idempotency-Key; step-up above config limit | `source_account_id`, `recipient_ref`, `amount`, `memo?` | `transaction_id`, `status:"SETTLED"` (instant, 0₮ fee), `settled_at`, `receipt_url` | `422 INSUFFICIENT_FUNDS`; `422 LIMIT_EXCEEDED` (per-txn/velocity, config US-12.5); `409 RECIPIENT_NOT_ACTIVE` |
 | `POST /api/v1/external-accounts` | Member (ACTIVE) | `plaid_public_token` or `micro_deposit_details` | ExternalAccountLink per E-14 | `502 PLAID_UNAVAILABLE`; `422 VERIFICATION_FAILED` |
 | `GET /api/v1/external-accounts` / `DELETE /api/v1/external-accounts/{id}` | Member | — | `links[]` / `status:"REMOVED"` | `409 LINK_IN_USE` (active schedules) |
-| `POST /api/v1/payments/external` | Member (ACTIVE); Idempotency-Key; step-up above threshold | `direction` (`INBOUND\|OUTBOUND`), `rail` (`ACH\|WIRE\|RTP`), `source_account_id`/`external_account_link_id`, `amount`, `memo?` | `transaction_id`, `status:"PENDING"`, `expected_settlement`, `cutoff_notice?`, `fees` (config) | `422 LIMIT_EXCEEDED`; `422 RAIL_UNAVAILABLE`; `402 FEE_BALANCE_INSUFFICIENT` |
+| `POST /api/v1/payments/external` | Member (ACTIVE); Idempotency-Key; step-up above threshold | `direction` (`INBOUND\|OUTBOUND`), `rail` (`ACH_PLUS\|RTGS`; omit to auto-route by `amount` against the configured threshold), `source_account_id`/`external_account_link_id`, `amount`, `memo?` | `transaction_id`, `status:"PENDING"`, `expected_settlement`, `cutoff_notice?`, `fees` (config) | `422 LIMIT_EXCEEDED`; `422 RAIL_UNAVAILABLE`; `402 FEE_BALANCE_INSUFFICIENT` |
 | `GET /api/v1/payments/{transaction_id}` | Member (party) | — | Status tracking incl. `RETURNED` + `failure_reason` (return code) | — |
 | `POST /api/v1/payees` / `GET /api/v1/payees` / `PATCH /api/v1/payees/{id}` / `DELETE /api/v1/payees/{id}` | Member (ACTIVE) | `name`, `payee_type`, `target_ref` | Payee per E-15 | `409 PAYEE_IN_USE` |
 | `POST /api/v1/payments/schedules` | Member (ACTIVE); step-up for external | `source_account_id`, `payee_id`, `amount`, `rail`, `schedule{type, start_date, frequency?, end_date?}`, `retry_policy?` | ScheduledPayment per E-16, `next_run_at` | `422 PAST_START_DATE` |
@@ -977,7 +977,7 @@ Capture computation, accumulation, threshold-batched `ROUND_UP_TRANSFER` executi
 | `POST /api/v1/webhooks/stripe` | Stripe | Share-purchase payment_intent settlement/failure → US-2.1 activation | Signature header |
 | `POST /api/v1/webhooks/lithic/authorization` | Lithic | Real-time auth decisioning (≤ 200 ms response) | mTLS + HMAC |
 | `POST /api/v1/webhooks/lithic/events` | Lithic | Settlements (→ Round-Up), card lifecycle, fulfilment updates | HMAC |
-| `POST /api/v1/webhooks/baas` | Sponsor bank / BaaS | ACH/wire/RTP status, returns (with codes), inbound credits | mTLS + signature |
+| `POST /api/v1/webhooks/baas` | Sponsor bank / BaaS | ACH+/Banksüljee (RTGS) status, returns (with the settlement operator's return codes — config, TBD pending settlement-agent selection), inbound credits | mTLS + signature |
 | `POST /api/v1/webhooks/plaid` | Plaid | Item status (relink required), transaction refresh for underwriting | JWT verification |
 | `POST /api/v1/webhooks/esign` | E-signature provider | Envelope completed/declined → pledge lock, loan disbursement triggers | HMAC + envelope hash check |
 
@@ -1075,9 +1075,9 @@ Vendor selections follow the decision log where one exists (Persona per DEC-5); 
 
 ### 4.3 Sponsor Bank / BaaS — Money Rails (US-2.1 bank-transfer leg, US-4.2, US-4.3, US-7.2)
 
-**Scope:** FBO account structure mirroring the platform ledger, ACH origination/receipt, outbound wire, FedNow as available, settlement of Lithic network activity.
-**Flow (outbound ACH example):** member request passes limits/step-up → Transaction `PENDING` + ledger hold → payment instruction to BaaS with the platform `Idempotency-Key` → BaaS webhooks (`sent`, `settled`, `returned`) drive Transaction status; returns post reversing ledger entries with the return code in `failure_reason` and notify the member with retry options (US-4.3 policy).
-**Failure handling:** cut-off calendars enforced pre-submission; daily three-way reconciliation (platform ledger ↔ BaaS FBO report ↔ card-network settlement) with any break opening a `HIGH` ComplianceCase; duplicate-webhook tolerance via external_ref idempotency; rail unavailable (e.g., FedNow) ⇒ offer ACH fallback explicitly, never silent downgrade.
+**Scope:** FBO account structure mirroring the platform ledger, ACH+ origination/receipt (24/7, covering the real-time retail case), outbound Banksüljee (RTGS) for large-value transfers, settlement of card-network activity via NETC (Lithic-issued cards).
+**Flow (outbound ACH+ example):** member request passes limits/step-up → Transaction `PENDING` + ledger hold → payment instruction to BaaS with the platform `Idempotency-Key` → BaaS webhooks (`sent`, `settled`, `returned`) drive Transaction status; returns post reversing ledger entries with the settlement operator's return code (config, TBD pending settlement-agent selection) in `failure_reason` and notify the member with retry options (US-4.3 policy).
+**Failure handling:** cut-off calendars enforced pre-submission; daily three-way reconciliation (platform ledger ↔ BaaS FBO report ↔ NETC card-network settlement) with any break opening a `HIGH` ComplianceCase; duplicate-webhook tolerance via external_ref idempotency; where a chosen rail is unavailable the constraint is surfaced explicitly, never a silent downgrade — a below-threshold transfer stays on ACH+ (24/7), and an above-threshold transfer requires Banksüljee (RTGS) and is queued to the next settlement window rather than downgraded.
 
 ### 4.4 Stripe — Membership Share Purchase (US-2.1)
 
