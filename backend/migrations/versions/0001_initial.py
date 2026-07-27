@@ -53,6 +53,7 @@ _UP = [
     """CREATE TYPE device_status AS ENUM ('ACTIVE', 'REVOKED')""",
     """CREATE TYPE consent_type AS ENUM ('TERMS_AND_BYLAWS', 'PRIVACY_POLICY', 'E_SIGN_DISCLOSURE', 'MARKETING', 'DATA_SHARING_OPEN_BANKING', 'IMPACT_SPOTLIGHT')""",
     """CREATE TYPE consent_action AS ENUM ('GRANTED', 'WITHDRAWN')""",
+    """CREATE TYPE onboarding_application_status AS ENUM ('DRAFT', 'SUBMITTED')""",
     """CREATE TYPE account_type AS ENUM ('MEMBERSHIP_SHARE', 'PRIMARY_SAVINGS', 'TRANSACTION', 'GROUP_POT', 'SYSTEM')""",
     """CREATE TYPE ledger_direction AS ENUM ('DEBIT', 'CREDIT')""",
     """CREATE TYPE loan_product_type AS ENUM ('PERSONAL', 'MICRO_BUSINESS')""",
@@ -182,6 +183,31 @@ _UP = [
 	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL, 
 	CONSTRAINT pk_member PRIMARY KEY (id), 
 	CONSTRAINT uq_member_registration_number UNIQUE (registration_number)
+)""",
+    """CREATE TABLE onboarding_application (
+	email VARCHAR(320) NOT NULL,
+	phone_number VARCHAR(32) NOT NULL,
+	resume_token_hash VARCHAR(128) NOT NULL,
+	ovog VARCHAR(120),
+	etsgiin_ner VARCHAR(120),
+	ner VARCHAR(120),
+	mrz_name_latin VARCHAR(120),
+	registration_number VARCHAR(10),
+	address_line_1 VARCHAR(255),
+	address_line_2 VARCHAR(255),
+	city VARCHAR(120),
+	region VARCHAR(120),
+	postal_code VARCHAR(32),
+	country VARCHAR(120),
+	date_of_birth DATE,
+	status onboarding_application_status NOT NULL,
+	onboarding_state JSON,
+	id UUID NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+	CONSTRAINT pk_onboarding_application PRIMARY KEY (id),
+	CONSTRAINT uq_onboarding_application_resume_token_hash UNIQUE (resume_token_hash),
+	CONSTRAINT uq_onboarding_application_registration_number UNIQUE (registration_number)
 )""",
     """CREATE TABLE notification_event_type (
 	event_key VARCHAR(128) NOT NULL, 
@@ -1147,6 +1173,7 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS device_binding CASCADE")
     op.execute("DROP TABLE IF EXISTS data_subject_request CASCADE")
     op.execute("DROP TABLE IF EXISTS consent_record CASCADE")
+    op.execute("DROP TABLE IF EXISTS onboarding_application CASCADE")
     op.execute("DROP TABLE IF EXISTS compliance_case CASCADE")
     op.execute("DROP TABLE IF EXISTS community_project CASCADE")
     op.execute("DROP TABLE IF EXISTS account CASCADE")
@@ -1198,6 +1225,7 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS device_status")
     op.execute("DROP TYPE IF EXISTS consent_type")
     op.execute("DROP TYPE IF EXISTS consent_action")
+    op.execute("DROP TYPE IF EXISTS onboarding_application_status")
     op.execute("DROP TYPE IF EXISTS account_type")
     op.execute("DROP TYPE IF EXISTS ledger_direction")
     op.execute("DROP TYPE IF EXISTS loan_product_type")
