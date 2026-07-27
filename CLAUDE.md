@@ -4,7 +4,7 @@
 
 A requirements baseline for a digital cooperative banking platform. **Primary market: Mongolia.**
 
-**The application is at the SCAFFOLD stage.** As of 2026-07-22 a backend skeleton exists at `backend/` — FastAPI + Postgres, a `/health` and `/ready` endpoint, and the money non-negotiable encoded and tested (`backend/app/money.py`). **No feature endpoints exist yet** — no member, account, ledger, payment or governance routes. The OpenAPI contract and the ORM schema (derived from `04_technical_architecture.md`) are not built. Stack decision: `docs/adr/0001-technology-stack.md`.
+**The application is at the SCAFFOLD stage.** As of 2026-07-22 a backend skeleton exists at `backend/` — FastAPI + Postgres, a `/health` and `/ready` endpoint, and the money non-negotiable encoded and tested (`backend/app/money.py`). **First feature vertical exists (EP-1 onboarding draft):** `POST/GET/PATCH /api/v1/onboarding/applications` (create/resume a pre-auth draft) with a persistence→service→router foundation (repositories/, services/, api/routers/). Still NO money/account/ledger/payment/governance/KYC routes — onboarding stops before share purchase (needs the ledger) and before KYC (ХУР/XYP, a later slice). The OpenAPI contract and the ORM schema (derived from `04_technical_architecture.md`) are not built. Stack decision: `docs/adr/0001-technology-stack.md`.
 
 An agent asked to build a FEATURE (an endpoint, a table, a flow) should confirm the OpenAPI contract and schema for it exist first, and that the epic is not entity-gated (Cards/EP-5, Round-Ups/EP-10, Lending/EP-6 are unlawful-until-the-entity-decision — do not build them). Health/scaffold work is fine; feature work needs its contract and its legal clearance.
 

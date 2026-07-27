@@ -59,6 +59,26 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260724-onboarding-slice1 — first feature vertical (EP-1 onboarding draft) (2026-07-24)
+
+Turned the scaffold into a running feature: the resumable onboarding-application draft (create/get/update) + the persistence->service->router FOUNDATION every future endpoint will follow. 2 coders (serial) + 2 reviews + verifier. All 4 code gates PASS on merged main (check_models 61t, check_migration 141==141, openapi validate 192 ops, pytest 30). Blocker-free: no money/ledger/ХУР/KYC/eligibility.
+
+**Unblocked by PO direction, built to the blocker-free edge**
+- This was buildable ONLY after the PO gave direction on the legal blockers (common bond=defined-SCC, eKYC=ХУР/XYP, self-host, e-votes count, tax=dividends). The slice deliberately stops at the two lines that still need humans: the share-purchase step (needs the LEDGER) and the KYC step (needs the ХУР integration + is a later slice). Build to the edge of the blockers, not past them.
+
+**Data-model judgment (the coder reasoned, didn't just follow the suggestion)**
+- Onboarding modelled as a DISTINCT pre-auth `onboarding_application` draft, not Member-in-PENDING_KYC — because the contract mints application_id+resume_token BEFORE any Member exists, and a Member-at-bootstrap would violate DEC-4 (no member record in a rejected status). Justified against 04 (which carries onboarding_state on Member only post-auth) AND the contract AND a ratified DEC. The reviewer verified there's no live column conflict yet and flagged the promotion-time concern for later.
+
+**Reviewer caught a griefing vector a gate can't**
+- The draft's registration_number had unique=True. On a PROVISIONAL, applicant-entered draft that's a DoS: a throwaway draft pre-claims a real applicant's national ID and blocks their onboarding. Authoritative uniqueness belongs on Member, not the draft. Gates all passed — this is a security/abuse property no gate checks. Fixed in-schema (model+migration lockstep) before building on it.
+
+**Foundation patterns set for the whole app**
+- BaseRepository = get/add/flush, NEVER commits (request is the transaction boundary; the router commits on successful mutation, get_session rolls back uncommitted work on close). Logic in the service, not the router. Bootstrap token = opaque secrets.token_urlsafe, only its SHA-256 hash stored, honestly documented as NOT full auth. registration_number = STRUCTURAL regex only (^[Cyrillic]{2}[0-9]{8}$), never an invented check-digit. Tests use in-memory SQLite + StaticPool with get_session overridden — no real DB; production stays Postgres.
+- Contract-fidelity even on error codes: GET->404 vs PATCH->401 for a non-resolving token is NOT an inconsistency — it faithfully mirrors each operation's DECLARED error set (PATCH has no 404). Conform to the contract, don't 'tidy' it.
+
+**Verifier**: check_models PASS (61t/49 money) · check_migration PASS (141==141) · openapi validate PASS · pytest 30 · router wired · zero money/ledger/ХУР code.
+**Backlog (slice 2)**: checkOnboardingEligibility (config-driven common_bond_rules), ХУР/XYP KYC (createKycSession/getKycStatus behind a provider port + mock), the draft->Member promotion (+ reconcile onboarding_state duplication), the 409 REGISTRATION_NUMBER_MISMATCH code at the SUBMITTED transition, and the 2 untested error branches (PATCH non-resolving token, create CHANNEL_UNVERIFIED).
+
 ### Run 20260724-market-research-mn — rewrite 00 for Mongolia (2026-07-24)
 
 Rewrote the last wholesale US/EU-framed document (00_market_research.md) to Mongolia. 1 analyst + 1 independent fabrication-focused review + verifier. APPROVED, docs gate 5/5, rails re-baselined 20->15 (00's US rails removed).
