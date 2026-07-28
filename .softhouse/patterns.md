@@ -59,6 +59,25 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260728-auth-profile — member auth foundation + profile self-service (2026-07-28)
+
+Added the member-authentication foundation (verify external-IdP RS256 Bearer JWTs -> get_current_member) and the first post-auth endpoints (getMyProfile/updateMyProfile), extending Member for the profile. 2 coders (serial) + 2 reviews (one a dedicated SECURITY review) + verifier. All 4 gates PASS on merged main (82 tests). No money/ledger. A member can now onboard -> KYC -> promote -> AUTHENTICATE -> manage their profile.
+
+**Auth: verify, don't issue — behind a port + dev signer**
+- The contract's memberOAuth2 is an EXTERNAL operator-chosen IdP (self-host/data-residency). So the backend VERIFIES RS256 Bearer JWTs; it does not run an authorization server. Built a verifier PORT + a DEV/TEST-ONLY RS signer (ephemeral, refuses production) so the suite can mint tokens without a real IdP — the same port+mock pattern used for ХУР KYC. This is how you build + test auth against an unavailable external IdP.
+
+**The security review was an EXPLOIT ATTEMPT, not a read**
+- JWT verification is attacker-facing; a permissive verifier is a full auth bypass. The reviewer independently FORGED 13 attack tokens and ran them against the verifier: alg:none, HS256 key-confusion (RSA public key as the HMAC secret, both PEM and DER), RS384/PS256/ES256 substitution, expired, no-exp, bad-sig, nbf, wrong/missing iss/aud, unconfigured-key. ALL rejected; only well-formed RS256 accepted. For security-critical code, the bar is 'the reviewer wrote a working exploit attempt and it failed', not 'tests exist'. Key controls confirmed: RS256 pinned as a non-configurable constant + passed explicitly to decode (header can't choose alg/key), signature actually verified (no unverified-decode trust path), fails closed, sub resolved to a DB row (no claim trusted as a member fact).
+
+**IDOR excluded by construction, not by a check**
+- getMyProfile/updateMyProfile take identity ONLY from get_current_member (the token sub); NO member id is read from path or body. So cross-member access is structurally impossible, not check-dependent. The reviewer confirmed with non-vacuous A<->B isolation tests (distinct seeded members; patch A, assert B unchanged). The right shape for a 'my resource' endpoint: the row is the caller's identity, never an addressable parameter.
+
+**Contract-vs-non-negotiable adjudication**: the profile PATCH schema LISTS registration_number, but DEC-6(d) makes the KYC-verified national ID authoritative. Returning 422 (a casual profile edit must not overwrite the identity key; changing it is a future step-up re-KYC flow) is CORRECT enforcement, not a conformance violation — listing a field in an input schema doesn't obligate unconditional acceptance when the contract's own text conditions it on a capability (step-up) this slice doesn't ship. The reviewer adjudicated this rather than mechanically flagging it.
+
+**Orchestration lesson (own it)**: the merged-main gate run initially showed '5 errors' — NOT a code defect: T1 added PyJWT[crypto] to pyproject, the worker/reviewer venvs had it, but the ORCHESTRATOR's gate-runner environment did not, so app.auth failed to import. Diagnosed, installed the dep, re-ran -> 82 passed. LESSON: when a new run adds a dependency, the orchestrator's own verification env must install it before trusting a gate run; a bare ModuleNotFoundError at collection is an env gap, not a regression. Confirmed CI installs it (`pip install -e .[dev]` reads pyproject).
+
+**Verifier**: check_models PASS (61t/49 money) · check_migration PASS (142==142) · openapi validate PASS · pytest 82 · DEC-4/IDOR/auth-attack tests green · no money/ledger in auth+profile code.
+
 ### Run 20260728-onboarding-slice2 — eligibility + ХУР KYC + draft->Member promotion (2026-07-28)
 
 Completed the EP-1 onboarding vertical up to the ledger boundary: common-bond eligibility (config-driven), ХУР/XYP KYC behind a port+mock, and draft->Member promotion on KYC approval (PENDING_PAYMENT). 2 coders (serial) + 2 reviews + verifier. All 4 code gates PASS on merged main (58 tests). Stops before share purchase (needs the ledger). No money/ledger.

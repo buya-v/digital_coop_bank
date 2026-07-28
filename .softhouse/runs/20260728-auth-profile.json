@@ -1,0 +1,130 @@
+{
+  "run_id": "20260728-auth-profile",
+  "feature": "Member auth foundation (verify Bearer JWT) + profile self-service (EP-1)",
+  "requirement": "Build the member-auth foundation (verify external-IdP RS256 Bearer JWTs -> get_current_member, security-hardened against alg:none/HS256-confusion/expiry) and the getMyProfile/updateMyProfile endpoints (extend Member for the profile fields, wire promotion, legal_name derived). Unblocks post-auth member features. No money/ledger. All 4 gates pass.",
+  "status": "executing",
+  "backlog": [
+    "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
+    "Auth: add a membership-status/revocation gate at auth time \u2014 get_current_member currently resolves ANY Member row regardless of membership_status (a SUSPENDED/CLOSED member with a still-valid token authenticates). Add for the actions/money slices (profile read may be fine; money-movement must gate). Also: token revocation on device unbind.",
+    "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
+    "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
+    "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
+    "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
+    "Vendors: Stripe/Plaid/Lithic/Persona leaked into schema field names and error codes \u2014 removal is a requirements change.",
+    "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
+    "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
+    "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
+    "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling.",
+    "/ready malformed DATABASE_URL edge (LOW, T2 review): a non-empty-but-garbage URL passes engine_configured() then create_engine() raises ArgumentError during dependency resolution -> 500 instead of 503. Operator-misconfig edge; harden when auth/real-deploy lands.",
+    "DEC-18 currency-type amendment (surfaced by currency-apply agents): multiple docs now state amounts in \u20ae while the DEC-18 declaration + the doc-level 'all amounts USD' conventions (01:374/406, 02:11, 04:9/110/750) still say USD/ISO-4217 USD. Flipping DEC-18 to MNT/496 is a NORMATIVE currency-policy decision (01 \u00a76 owns it) \u2014 a user/coordinator amendment, not an amount pass. Do after the amount applies land.",
+    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
+    "Minor-unit TERM cleanup: 'cents' still used as the minor-unit name (04:9 gloss, 04:657 *_cents config keys, schema field names). MNT minor unit is m\u00f6ng\u00f6 (obsolete); the whole-t\u00f6gr\u00f6g convention means these should be reconciled in one terminology pass (rename/neutralize 'cents' -> 'minor units').",
+    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
+    "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
+    "Other-vendor abstraction completeness: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) providers are `-class` abstractions but could get the same 'provider TBD/procurement' treatment as the five main vendors."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Member auth foundation (verify Bearer JWT)",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/auth/",
+        "backend/app/api/deps.py",
+        "backend/pyproject.toml",
+        "backend/tests/test_auth.py"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R1 security review APPROVED (13 forged tokens all rejected); auth foundation",
+      "description": "READ .softhouse/auth-profile-brief.md IN FULL (esp. the SECURITY REQUIREMENTS) + root.yaml memberOAuth2 + app/api/deps.py (existing get_session + bootstrap-token dep). Build the member-auth FOUNDATION: a JWT VERIFIER behind a port (verify an RS256 Bearer JWT against the IdP public key/JWKS) + a DEV/TEST RS signer (test-only keypair to mint tokens for the suite; clearly marked dev-only, never a prod secret). A FastAPI dependency `get_current_member(session)` that: extracts the Bearer token, verifies signature with the configured PUBLIC key, ACCEPTS ONLY alg=RS256 (REJECT alg:none and HS256 \u2014 no header-chosen alg/key), enforces exp/nbf and iss/aud where configured, resolves the token `sub` to a Member row (401 missing/invalid token; 401/403 unknown subject), and returns the Member. Add the JWT dep to pyproject (PyJWT[crypto] or equiv \u2014 do NOT hand-roll crypto). NO endpoint yet beyond what proves the dep (a tiny protected probe is fine, or leave the endpoint to T2). Tests backend/tests/test_auth.py: valid token -> member; expired -> 401; bad signature -> 401; alg:none -> 401; HS256-signed-with-pubkey-as-secret -> 401 (algorithm confusion); unknown sub -> 401/403. NO money/ledger. GATES from backend/ ALL PASS: check_models, check_migration, openapi/validate.py, pytest; ruff+mypy strict clean on new files. Handoff: the verifier design, the EXACT algorithm+claim checks and which attacks are rejected, the dev-signer approach, gate outputs."
+    },
+    {
+      "id": "T2",
+      "title": "Member profile extension + getMyProfile/updateMyProfile",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/models/membership.py",
+        "backend/migrations/versions/0001_initial.py",
+        "backend/app/services/kyc.py",
+        "backend/app/services/profile.py",
+        "backend/app/api/routers/members.py",
+        "backend/app/main.py",
+        "backend/tests/test_profile.py"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "branch softhouse/T2-profile; Member ext (member_id/address/contact/lang) lockstep, promotion wiring, getMyProfile/updateMyProfile IDOR-safe; 82 tests all gates PASS; review R2 aabbdbc54104326b8 running (IDOR + reg-number-422)",
+      "description": "READ .softhouse/auth-profile-brief.md IN FULL. Forks from main AFTER T1 (uses get_current_member). (a) EXTEND the Member model (app/models/membership.py) with the contract-required MemberProfile fields reconciled with 04 \u00a72.2 E-1: public member_id (non-guessable, e.g. DCB-XXXXXXXX, DEC-28, unique), structured address (address_line_1/2, city, region, postal_code, country), email, phone_number, preferred_language (Cyrillic-Mongolian default). legal_name is DERIVED read-only (NOT a stored editable column). Add the same to migrations/versions/0001_initial.py IN LOCKSTEP (check_migration must PASS). Do NOT invent fields the schema/04 don't define. (b) WIRE promotion (services/kyc.py _promote) to populate the new Member fields from the draft (email/phone/address) and generate the public member_id \u2014 keep the DEC-4 guarantee (no Member on reject) intact and re-run its test. (c) Implement getMyProfile (GET /api/v1/members/me, 200 MemberProfile, legal_name derived) + updateMyProfile (PATCH, 200) using Depends(get_current_member); editing legal_name/mrz_name_latin/registration_number/member_id -> 422. New app/services/profile.py + app/api/routers/members.py wired into main. (d) Tests backend/tests/test_profile.py (mint a token via T1's dev signer; get_session overridden): GET returns the profile incl. derived legal_name; PATCH an editable field persists; PATCH a read-only field -> 422; no-token -> 401. Reuse slice-1/2 foundation. NO money/ledger. GATES from backend/ ALL PASS: check_models, check_migration (lockstep), openapi/validate.py, pytest; ruff+mypy strict clean on new files. Handoff: the Member extension + promotion wiring + DEC-4-still-holds note, endpoint conformance, gate outputs."
+    },
+    {
+      "id": "R1",
+      "title": "Security review \u2014 auth foundation",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/auth/",
+        "backend/app/api/deps.py",
+        "backend/tests/test_auth.py"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a0a44e51cc79329a3",
+      "description": "INDEPENDENT SECURITY review of T1 (JWT verification is attacker-facing \u2014 be adversarial). In your worktree `git checkout` the branch, `cd backend`, RUN all 4 gates yourself (paste verdicts). Read .softhouse/auth-profile-brief.md, root.yaml memberOAuth2, the handoff .softhouse/handoff/20260728-auth-profile/T1.md, `git diff main...<branch>`, and the verifier source. ATTACK IT: (1) is the signature ACTUALLY verified (not decode-without-verify)? (2) is the algorithm PINNED to RS256 server-side \u2014 does an `alg:none` token pass? does an HS256 token signed with the RS public key as the HMAC secret pass (the classic key-confusion)? does the code EVER read the algorithm from the token header to choose the key? Any yes = REJECT. (3) exp enforced? nbf? iss/aud validated where configured? (4) is `sub` resolved to a DB Member (not trusted as a member fact from the claim)? (5) any token/claim/secret logged? is the dev/test keypair clearly test-only and not a usable prod secret? (6) does the test suite actually exercise alg:none + HS256-confusion + expired + bad-sig + unknown-sub, and would those tests FAIL if the verifier were permissive (non-vacuous)? Confirm ruff+mypy clean on new files. Verdict APPROVED/MICRO-FIX/REJECTED with the specific attack that succeeds if any."
+    },
+    {
+      "id": "R2",
+      "title": "Review profile + Member extension",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/",
+        "backend/tests/test_profile.py",
+        "backend/migrations/versions/0001_initial.py"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "agent aabbdbc54104326b8",
+      "description": "INDEPENDENT review of T2. In your worktree `git checkout` the branch, `cd backend`, RUN all 4 gates yourself (paste verdicts; check_migration proves the Member extension is lockstep). Read the brief, the MemberProfile/ProfileUpdate contract schemas, the handoff .softhouse/handoff/20260728-auth-profile/T2.md, `git diff main...<branch>`. CHECK: (1) getMyProfile/updateMyProfile conform to the contract schemas (fields, required, 200; legal_name DERIVED not stored; editing legal_name/mrz_name_latin/registration_number/member_id -> 422); (2) Member extension model+migration lockstep; fields traceable to the schema/04, not invented; member_id public id is non-guessable (DEC-28) and unique; (3) promotion still holds DEC-4 (no Member on reject \u2014 re-run that test) and now populates the new fields + member_id; (4) uses get_current_member (no auth bypass; a member can only read/write THEIR OWN profile \u2014 check for IDOR: can a token for member A read/patch member B?); (5) non-negotiables (three-part name, structural reg-number, no float, Cyrillic-Mongolian default, no tz hardcode); (6) reuses foundation, repos flush-not-commit; ruff+mypy clean. Verdict APPROVED/MICRO-FIX/REJECTED with gate outputs + the IDOR check result."
+    },
+    {
+      "id": "V",
+      "title": "Full gate run on merged main",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "backend",
+      "files_hint": [
+        "backend/"
+      ],
+      "dependencies": [
+        "R1",
+        "R2"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "After merges: from backend/ run all 4 gates PASS; confirm /members/me wired + get_current_member enforced; re-confirm the DEC-4 test passes; grep for money/ledger in new code (none); confirm no real IdP secret/prod key committed (only a marked dev/test key). Record in postmortem + update CLAUDE.md."
+    }
+  ]
+}
