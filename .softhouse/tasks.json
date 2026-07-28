@@ -2,9 +2,10 @@
   "run_id": "20260728-auth-profile",
   "feature": "Member auth foundation (verify Bearer JWT) + profile self-service (EP-1)",
   "requirement": "Build the member-auth foundation (verify external-IdP RS256 Bearer JWTs -> get_current_member, security-hardened against alg:none/HS256-confusion/expiry) and the getMyProfile/updateMyProfile endpoints (extend Member for the profile fields, wire promotion, legal_name derived). Unblocks post-auth member features. No money/ledger. All 4 gates pass.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
+    "Auth: add a membership-status/revocation gate at auth time \u2014 get_current_member currently resolves ANY Member row regardless of membership_status (a SUSPENDED/CLOSED member with a still-valid token authenticates). Add for the actions/money slices (profile read may be fine; money-movement must gate). Also: token revocation on device unbind.",
     "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
     "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
     "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
@@ -37,9 +38,9 @@
         "backend/tests/test_auth.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "merged; R1 security review APPROVED (13 forged tokens all rejected); auth foundation",
       "description": "READ .softhouse/auth-profile-brief.md IN FULL (esp. the SECURITY REQUIREMENTS) + root.yaml memberOAuth2 + app/api/deps.py (existing get_session + bootstrap-token dep). Build the member-auth FOUNDATION: a JWT VERIFIER behind a port (verify an RS256 Bearer JWT against the IdP public key/JWKS) + a DEV/TEST RS signer (test-only keypair to mint tokens for the suite; clearly marked dev-only, never a prod secret). A FastAPI dependency `get_current_member(session)` that: extracts the Bearer token, verifies signature with the configured PUBLIC key, ACCEPTS ONLY alg=RS256 (REJECT alg:none and HS256 \u2014 no header-chosen alg/key), enforces exp/nbf and iss/aud where configured, resolves the token `sub` to a Member row (401 missing/invalid token; 401/403 unknown subject), and returns the Member. Add the JWT dep to pyproject (PyJWT[crypto] or equiv \u2014 do NOT hand-roll crypto). NO endpoint yet beyond what proves the dep (a tiny protected probe is fine, or leave the endpoint to T2). Tests backend/tests/test_auth.py: valid token -> member; expired -> 401; bad signature -> 401; alg:none -> 401; HS256-signed-with-pubkey-as-secret -> 401 (algorithm confusion); unknown sub -> 401/403. NO money/ledger. GATES from backend/ ALL PASS: check_models, check_migration, openapi/validate.py, pytest; ruff+mypy strict clean on new files. Handoff: the verifier design, the EXACT algorithm+claim checks and which attacks are rejected, the dev-signer approach, gate outputs."
     },
     {
@@ -81,9 +82,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent a0a44e51cc79329a3",
       "description": "INDEPENDENT SECURITY review of T1 (JWT verification is attacker-facing \u2014 be adversarial). In your worktree `git checkout` the branch, `cd backend`, RUN all 4 gates yourself (paste verdicts). Read .softhouse/auth-profile-brief.md, root.yaml memberOAuth2, the handoff .softhouse/handoff/20260728-auth-profile/T1.md, `git diff main...<branch>`, and the verifier source. ATTACK IT: (1) is the signature ACTUALLY verified (not decode-without-verify)? (2) is the algorithm PINNED to RS256 server-side \u2014 does an `alg:none` token pass? does an HS256 token signed with the RS public key as the HMAC secret pass (the classic key-confusion)? does the code EVER read the algorithm from the token header to choose the key? Any yes = REJECT. (3) exp enforced? nbf? iss/aud validated where configured? (4) is `sub` resolved to a DB Member (not trusted as a member fact from the claim)? (5) any token/claim/secret logged? is the dev/test keypair clearly test-only and not a usable prod secret? (6) does the test suite actually exercise alg:none + HS256-confusion + expired + bad-sig + unknown-sub, and would those tests FAIL if the verifier were permissive (non-vacuous)? Confirm ruff+mypy clean on new files. Verdict APPROVED/MICRO-FIX/REJECTED with the specific attack that succeeds if any."
     },
     {
