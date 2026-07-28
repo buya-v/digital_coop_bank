@@ -86,6 +86,19 @@ class ApplicationNotDraft(OnboardingError):
     """A non-DRAFT application cannot accept step edits (maps to 409)."""
 
 
+class RegistrationNumberMismatch(OnboardingError):
+    """A PATCH supplied a provisional registration_number that conflicts with the
+    KYC-verified value already recorded on the draft (maps to 409
+    REGISTRATION_NUMBER_MISMATCH; DEC-6(d) — the verified value is authoritative).
+    """
+
+    def __init__(self, verified: str) -> None:
+        super().__init__(
+            "registration_number conflicts with the KYC-verified value"
+        )
+        self.verified = verified
+
+
 def _hash_token(raw_token: str) -> str:
     """SHA-256 hex of the bootstrap token.
 
@@ -158,7 +171,23 @@ class OnboardingService:
         if isinstance(reg, str) and _REGISTRATION_NUMBER_RE.match(reg) is None:
             raise RegistrationNumberInvalid()
 
+        # DEC-6(d): once KYC has verified a registration number (recorded on the
+        # draft when a KYC session resolves), a PATCH may not overwrite it with a
+        # conflicting provisional value -> 409 REGISTRATION_NUMBER_MISMATCH.
         state = dict(application.onboarding_state or {})
+        kyc_state = state.get("kyc")
+        verified = (
+            kyc_state.get("verified_registration_number")
+            if isinstance(kyc_state, dict)
+            else None
+        )
+        if (
+            isinstance(reg, str)
+            and isinstance(verified, str)
+            and reg != verified
+        ):
+            raise RegistrationNumberMismatch(verified)
+
         saved: dict[str, object] = dict(state.get("saved_data") or {})
         for field in _PATCHABLE_FIELDS:
             if field in patch:

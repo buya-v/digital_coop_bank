@@ -49,6 +49,7 @@ _UP = [
     """CREATE TYPE kyc_document_type AS ENUM ('PASSPORT', 'DRIVERS_LICENSE', 'NATIONAL_ID')""",
     """CREATE TYPE kyc_screening_result AS ENUM ('CLEAR', 'POTENTIAL_MATCH', 'MATCH')""",
     """CREATE TYPE kyc_result AS ENUM ('PASSED', 'NEEDS_REVIEW', 'FAILED')""",
+    """CREATE TYPE kyc_status AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'PENDING_REVIEW', 'APPROVED', 'REJECTED')""",
     """CREATE TYPE device_platform AS ENUM ('IOS', 'ANDROID', 'WEB')""",
     """CREATE TYPE device_status AS ENUM ('ACTIVE', 'REVOKED')""",
     """CREATE TYPE consent_type AS ENUM ('TERMS_AND_BYLAWS', 'PRIVACY_POLICY', 'E_SIGN_DISCLOSURE', 'MARKETING', 'DATA_SHARING_OPEN_BANKING', 'IMPACT_SPOTLIGHT')""",
@@ -202,11 +203,14 @@ _UP = [
 	date_of_birth DATE,
 	status onboarding_application_status NOT NULL,
 	onboarding_state JSON,
+	kyc_inquiry_id VARCHAR(128),
+	kyc_status kyc_status,
 	id UUID NOT NULL,
 	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	CONSTRAINT pk_onboarding_application PRIMARY KEY (id),
-	CONSTRAINT uq_onboarding_application_resume_token_hash UNIQUE (resume_token_hash)
+	CONSTRAINT uq_onboarding_application_resume_token_hash UNIQUE (resume_token_hash),
+	CONSTRAINT uq_onboarding_application_kyc_inquiry_id UNIQUE (kyc_inquiry_id)
 )""",
     """CREATE TABLE notification_event_type (
 	event_key VARCHAR(128) NOT NULL, 
@@ -1220,6 +1224,7 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS kyc_document_type")
     op.execute("DROP TYPE IF EXISTS kyc_screening_result")
     op.execute("DROP TYPE IF EXISTS kyc_result")
+    op.execute("DROP TYPE IF EXISTS kyc_status")
     op.execute("DROP TYPE IF EXISTS device_platform")
     op.execute("DROP TYPE IF EXISTS device_status")
     op.execute("DROP TYPE IF EXISTS consent_type")

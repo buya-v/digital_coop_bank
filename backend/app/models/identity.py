@@ -51,6 +51,25 @@ class KycResult(enum.Enum):
     FAILED = "FAILED"
 
 
+class KycStatus(enum.Enum):
+    """KYC lifecycle status (04 §2.2 E-1 `kyc_status`, DEC-19).
+
+    Value set verbatim from 04 / the OpenAPI `KycStatus` schema. This is the
+    IN-FLIGHT status carried on the pre-auth onboarding DRAFT while the ХУР/XYP
+    state-register lookup runs — BEFORE any E-1 Member exists (DEC-4). It is the
+    contract vocabulary returned by createKycSession / getKycStatus. NULL on the
+    draft column means the applicant has NOT started KYC (surfaced as
+    NOT_STARTED); the enum still lists NOT_STARTED so a caller may set it
+    explicitly and so the migration type matches the contract enum exactly.
+    """
+
+    NOT_STARTED = "NOT_STARTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class DevicePlatform(enum.Enum):
     """E-3 platform. Values verbatim from 04 §2."""
 
@@ -169,6 +188,24 @@ class OnboardingApplication(Base, UUIDPrimaryKey, Timestamps):
     # E-1 `onboarding_state` JSON (04 §2.2); backs the Current response's
     # current_step / saved_data / progress_pct / kpi_timestamps views.
     onboarding_state: Mapped[Optional[dict]] = mapped_column(JSON)
+
+    # --- In-flight KYC state (T2) --------------------------------------------
+    # WHY these are real columns (not `onboarding_state` JSON): the OpenAPI
+    # contract RETURNS both — createKycSession returns `kyc_inquiry_id` and
+    # getKycStatus/createKycSession return `kyc_status`. `kyc_inquiry_id` must be
+    # UNIQUE (it is the eKYC-provider inquiry reference and the E-2 KycSubmission
+    # join key at promotion), and `kyc_status` gates the create/promote state
+    # machine (409 KYC_ALREADY_APPROVED; idempotent promotion) — both want
+    # first-class column semantics (a UNIQUE constraint, an ENUM type), which a
+    # JSON blob cannot express. The KYC RESULT/evidence still lands on the
+    # member-linked E-2 KycSubmission row created AT PROMOTION (04 §2.2), when a
+    # Member finally exists (DEC-4); only the in-flight handle lives here.
+    # NULL kyc_status == NOT_STARTED (no session yet). Both Optional because the
+    # draft is created pre-KYC.
+    kyc_inquiry_id: Mapped[Optional[str]] = mapped_column(String(128), unique=True)
+    kyc_status: Mapped[Optional[KycStatus]] = mapped_column(
+        Enum(KycStatus, name="kyc_status")
+    )
 
 
 class KycSubmission(Base, UUIDPrimaryKey, Timestamps):
