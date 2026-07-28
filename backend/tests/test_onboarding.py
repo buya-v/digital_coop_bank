@@ -135,3 +135,28 @@ def test_invalid_registration_number_shape_is_422(client: TestClient) -> None:
     )
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_patch_non_resolving_token_is_401(client: TestClient) -> None:
+    # A well-formed bearer token that resolves to no draft is an unauthenticated
+    # applicant on PATCH (the contract gives PATCH no 404).
+    r = client.patch(
+        _CURRENT, headers=_auth("well-formed-but-unknown-token"), json={"ner": "Болд"}
+    )
+    assert r.status_code == 401
+    assert r.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+def test_create_with_blank_channel_code_is_422_channel_unverified(
+    client: TestClient,
+) -> None:
+    r = client.post(
+        _APPLICATIONS,
+        json={
+            "email": "applicant@example.mn",
+            "phone_number": "+97688112233",
+            "channel_verification_code": "   ",  # present but blank -> not verified
+        },
+    )
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "CHANNEL_UNVERIFIED"

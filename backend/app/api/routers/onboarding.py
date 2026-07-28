@@ -6,14 +6,23 @@ Implements the following operations against the existing OpenAPI contract:
 - getCurrentOnboardingApplication  GET  /api/v1/onboarding/applications/current -> 200
 - updateCurrentOnboardingApplication  PATCH /api/v1/onboarding/applications/current -> 200
 - checkOnboardingEligibility  POST  /api/v1/onboarding/eligibility-check       -> 200
+- createKycSession  POST  /api/v1/onboarding/kyc/sessions                      -> 201
+- getKycStatus      GET   /api/v1/onboarding/kyc/status                        -> 200
 
 `checkOnboardingEligibility` (US-1.3) runs the CONFIG-DRIVEN common-bond
 eligibility engine (`app.services.eligibility`) for the applicant behind the
 bootstrap token and records the outcome on the draft. It does NOT choose a bond —
 the rule set lives in configuration (`eligibility.common_bond_rules`).
 
-Deferred (NOT built here): KYC, promotion, MFA/step-up, devices, profile,
-consents.
+`createKycSession` / `getKycStatus` (T2) run the ХУР/XYP state-register KYC flow
+behind the eKYC PORT (`app.adapters.ekyc`, `app.services.kyc`): create stores the
+inquiry id + IN_PROGRESS on the draft; status re-polls and, on APPROVED, PROMOTES
+the draft to an E-1 Member (PENDING_PAYMENT) + a member-linked KycSubmission. A
+REJECTED result NEVER creates a Member (DEC-4). The flow STOPS at PENDING_PAYMENT
+(no share purchase / ledger / money).
+
+Deferred (NOT built here): MFA/step-up, devices, profile, consents, share
+purchase.
 
 Pydantic models mirror the OpenAPI OnboardingApplication* schemas EXACTLY
 (property names, required fields, enums). The pinned literals are honoured:
@@ -36,18 +45,26 @@ from fastapi import APIRouter, Depends, Header, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.adapters.ekyc import EkycProvider, MockEkycProvider
 from app.api.deps import get_session
 from app.api.errors import ApiError
+from app.models.identity import KycStatus
 from app.services.eligibility import (
     EligibilityAlreadyPassed,
     EligibilityAnswersInvalid,
     EligibilityService,
+)
+from app.services.kyc import (
+    KycAlreadyApproved,
+    KycProviderUnavailable,
+    KycService,
 )
 from app.services.onboarding import (
     ApplicationNotDraft,
     ChannelUnverified,
     OnboardingService,
     RegistrationNumberInvalid,
+    RegistrationNumberMismatch,
 )
 
 router = APIRouter(prefix="/api/v1/onboarding", tags=["EP-1"])
@@ -119,6 +136,22 @@ class EligibilityCheckResponse(BaseModel):
     remediation: list[str]
 
 
+class KycSessionResponse(BaseModel):
+    # Mirrors openapi KycSessionResponse. `kyc_status` is the contract-pinned
+    # literal "IN_PROGRESS" for this response.
+    kyc_inquiry_id: str
+    session_token: str
+    kyc_status: Literal["IN_PROGRESS"] = "IN_PROGRESS"
+
+
+class KycStatusResponse(BaseModel):
+    # Mirrors openapi KycStatusResponse. `retry_guidance` is optional capture
+    # guidance; `pending_review` is True while awaiting manual review.
+    kyc_status: str
+    retry_guidance: Optional[str] = None  # noqa: UP045
+    pending_review: bool = False
+
+
 # --- Pre-auth bootstrap-token dependency -------------------------------------
 
 
@@ -138,6 +171,17 @@ def resume_token(
             "(expected 'Authorization: Bearer <resume_token>').",
         )
     return token.strip()
+
+
+def get_ekyc_provider() -> EkycProvider:
+    """Provide the eKYC (ХУР/XYP state-register) provider.
+
+    The concrete provider is a procurement decision (TBD); this slice returns the
+    deterministic no-network `MockEkycProvider`. This is the single seam a real
+    ХУР/XYP client swaps into, and the seam tests override
+    (`app.dependency_overrides[get_ekyc_provider]`) to drive each KYC outcome.
+    """
+    return MockEkycProvider()
 
 
 # --- Routes ------------------------------------------------------------------
@@ -229,6 +273,13 @@ def update_current_onboarding_application(
                 }
             ],
         ) from exc
+    except RegistrationNumberMismatch as exc:
+        raise ApiError(
+            status.HTTP_409_CONFLICT,
+            "REGISTRATION_NUMBER_MISMATCH",
+            "The provisional registration number conflicts with the "
+            "KYC-verified value (DEC-6(d)).",
+        ) from exc
     except ApplicationNotDraft as exc:
         raise ApiError(
             status.HTTP_409_CONFLICT,
@@ -300,3 +351,84 @@ def check_onboarding_eligibility(
         failed_criteria=outcome.failed_criteria,
         remediation=outcome.remediation,
     )
+
+
+@router.post(
+    "/kyc/sessions",
+    status_code=status.HTTP_201_CREATED,
+    response_model=KycSessionResponse,
+    summary="Start a KYC verification session (ХУР/XYP state-register lookup).",
+)
+def create_kyc_session(
+    token: str = Depends(resume_token),
+    session: Session = Depends(get_session),
+    provider: EkycProvider = Depends(get_ekyc_provider),
+) -> KycSessionResponse:
+    service = KycService(session, provider)
+    try:
+        result = service.create_session(token)
+    except KycAlreadyApproved as exc:
+        raise ApiError(
+            status.HTTP_409_CONFLICT,
+            "KYC_ALREADY_APPROVED",
+            "KYC is already approved for this applicant.",
+        ) from exc
+    except KycProviderUnavailable as exc:
+        raise ApiError(
+            status.HTTP_502_BAD_GATEWAY,
+            "VENDOR_UNAVAILABLE",
+            "The eKYC provider (state register) is unavailable. Please retry.",
+        ) from exc
+    if result is None:
+        raise ApiError(
+            status.HTTP_401_UNAUTHORIZED,
+            "UNAUTHENTICATED",
+            "The resume token does not match an in-progress application.",
+        )
+    session.commit()
+    return KycSessionResponse(
+        kyc_inquiry_id=result.kyc_inquiry_id,
+        session_token=result.session_token,
+        kyc_status="IN_PROGRESS",
+    )
+
+
+@router.get(
+    "/kyc/status",
+    response_model=KycStatusResponse,
+    summary="Poll KYC status; promote to a Member on approval.",
+)
+def get_kyc_status(
+    token: str = Depends(resume_token),
+    session: Session = Depends(get_session),
+    provider: EkycProvider = Depends(get_ekyc_provider),
+) -> KycStatusResponse:
+    service = KycService(session, provider)
+    try:
+        result = service.get_status(token)
+    except KycProviderUnavailable as exc:
+        raise ApiError(
+            status.HTTP_502_BAD_GATEWAY,
+            "VENDOR_UNAVAILABLE",
+            "The eKYC provider (state register) is unavailable. Please retry.",
+        ) from exc
+    if result is None:
+        raise ApiError(
+            status.HTTP_401_UNAUTHORIZED,
+            "UNAUTHENTICATED",
+            "The resume token does not match an in-progress application.",
+        )
+    # getKycStatus re-polls the provider and may promote (create a Member +
+    # KycSubmission) or advance the draft — a mutation — so commit like the other
+    # onboarding mutations (slice-1 convention: routers own the transaction).
+    session.commit()
+    return KycStatusResponse(
+        kyc_status=_kyc_status_value(result.kyc_status),
+        retry_guidance=result.retry_guidance,
+        pending_review=result.pending_review,
+    )
+
+
+def _kyc_status_value(kyc_status: KycStatus) -> str:
+    """The enum's contract string value (e.g. KycStatus.IN_PROGRESS -> 'IN_PROGRESS')."""
+    return kyc_status.value
