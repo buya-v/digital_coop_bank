@@ -23,13 +23,15 @@ def test_ready_reports_mnt():
 
 
 def test_only_expected_feature_routes():
-    # EP-1 onboarding (slice 1) is the FIRST feature. Guard against any OTHER
+    # EP-1 onboarding is the current feature surface. Guard against any OTHER
     # feature endpoint being wired in without its contract/legal clearance.
+    # Slice 2 (T1) adds the US-1.3 config-driven common-bond eligibility check.
     paths = {route.path for route in app.routes}
     assert paths >= {"/health", "/ready"}
     feature_ish = {p for p in paths if p.startswith("/api/")}
     expected = {
         "/api/v1/onboarding/applications",
         "/api/v1/onboarding/applications/current",
+        "/api/v1/onboarding/eligibility-check",
     }
     assert feature_ish == expected, f"unexpected feature routes: {feature_ish - expected}"
