@@ -10,6 +10,10 @@ dependencies = [
     "alembic>=1.13",
     "psycopg[binary]>=3.1",
     "pydantic>=2.6",
+    # Member-auth: RS256 Bearer JWT verification (external operator-chosen IdP).
+    # The `crypto` extra pulls `cryptography` for RSA — crypto is delegated to a
+    # well-known library, never hand-rolled (see app/auth/verifier.py).
+    "PyJWT[crypto]>=2.8",
 ]
 
 [project.optional-dependencies]
