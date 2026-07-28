@@ -59,6 +59,24 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260728-onboarding-slice2 — eligibility + ХУР KYC + draft->Member promotion (2026-07-28)
+
+Completed the EP-1 onboarding vertical up to the ledger boundary: common-bond eligibility (config-driven), ХУР/XYP KYC behind a port+mock, and draft->Member promotion on KYC approval (PENDING_PAYMENT). 2 coders (serial) + 2 reviews + verifier. All 4 code gates PASS on merged main (58 tests). Stops before share purchase (needs the ledger). No money/ledger.
+
+**What worked**
+- Config-driven eligibility with a BOND-NEUTRAL default rule set: narrowing to the chosen common bond (employer/association/aimag) is a config edit, not a code change — correct given the PO hasn't picked the specific bond. Don't hard-code a policy value the decision-owner hasn't decided.
+- KYC-before-Member reconciliation: KycSubmission has a NOT-NULL member_id FK, but KYC runs pre-auth (DEC-4: no Member until approval). Resolved by carrying in-flight KYC state (kyc_inquiry_id unique + kyc_status) on the DRAFT and creating the member-linked KycSubmission only at promotion. The FK shape forced the design; the coder reasoned it out against 04+contract rather than jamming a Member in early.
+- eKYC as a PORT + deterministic MOCK (no real ХУР API in dev): the mock's outcome is a construction-time toggle so tests drive every branch (APPROVED/REJECTED/PENDING_REVIEW/IN_PROGRESS) by overriding the provider dependency. This is how you build a feature that depends on an unavailable external integration — behind an interface, with a scripted double.
+
+**The DEC-4 review (the crux, and how it was verified)**
+- A non-negotiable invariant ('no member record ever in a rejected status') is only as good as the proof it holds. The reviewer traced EVERY Member-construction path (grep: Member( appears once, in MemberRepository.create; called once, in _promote; called once, under `if APPROVED`) and confirmed the mandatory test is NON-VACUOUS (it uses a COMPLETE identity that WOULD promote if the code wrongly fired on reject, so member_count()==0 genuinely proves it). Also checked idempotency (a re-polled getKycStatus can't double-promote — _RECORDED_FINAL short-circuits). For a safety invariant, 'trace every path + prove the test would fail if violated' is the bar, not 'a test exists'.
+- Reviewer nits fixed as micro-fixes: getKycStatus could emit an UNDECLARED 502 (added to the contract); _promote could create a Member with a NULL registration_number (added a guard). Both small, both real.
+
+**Foundation reuse held**: slice-2 added eligibility.py, kyc.py, adapters/ekyc/ on the slice-1 repo/service/router/Error/bootstrap-token pattern with no duplication. Repos flush-not-commit; routers commit on mutation. The pattern is proving reusable across features — the point of investing in it in slice 1.
+
+**Verifier**: check_models PASS (61t/49 money) · check_migration PASS (142==142) · openapi validate PASS · pytest 58 · EP-1 routes wired · zero money/ledger in onboarding+kyc code.
+**Backlog (slice 3+ / blocked)**: share purchase (US-2.1) — BLOCKED on the ledger; a concurrency row-lock on promotion (two concurrent getKycStatus polls, currently backstopped by DB uniqueness -> 500 not graceful); MFA/step-up, devices, profile, consents CRUD; the specific common-bond choice to pin the eligibility config.
+
 ### Run 20260724-onboarding-slice1 — first feature vertical (EP-1 onboarding draft) (2026-07-24)
 
 Turned the scaffold into a running feature: the resumable onboarding-application draft (create/get/update) + the persistence->service->router FOUNDATION every future endpoint will follow. 2 coders (serial) + 2 reviews + verifier. All 4 code gates PASS on merged main (check_models 61t, check_migration 141==141, openapi validate 192 ops, pytest 30). Blocker-free: no money/ledger/ХУР/KYC/eligibility.
