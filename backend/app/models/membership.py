@@ -45,7 +45,14 @@ class ShareStatus(enum.Enum):
 class Member(Base, UUIDPrimaryKey, Timestamps):
     """E-1 Member. Name model per the AMENDED DEC-6: three Mongolian name parts,
     Cyrillic canonical, plus the verbatim MRZ Latin string and the registration
-    number as the identity key. No first_name/last_name (a non-negotiable)."""
+    number as the identity key. No first_name/last_name (a non-negotiable).
+
+    Profile extension (T2): the member-facing `member_id` (non-guessable public
+    id, DEC-28), a structured postal address, contact channels, and the preferred
+    language. `legal_name` is DERIVED read-only (a Python property below), NEVER a
+    stored editable column — editing it is rejected (422). These populate at KYC
+    promotion (services/kyc.py `_promote`); a Member never exists before then
+    (DEC-4)."""
 
     __tablename__ = "member"
 
@@ -63,6 +70,36 @@ class Member(Base, UUIDPrimaryKey, Timestamps):
     membership_status: Mapped[MembershipStatus] = mapped_column(
         Enum(MembershipStatus, name="membership_status")
     )
+
+    # Member-facing non-guessable public id (E-1 `member_id`, DEC-28), e.g.
+    # `DCB-8K4W2M9X`. UNIQUE, system-owned (generated at promotion, never member-
+    # editable). Distinct from the UUID PK, which is internal.
+    member_id: Mapped[str] = mapped_column(String(16), unique=True)
+
+    # DEC-6 structured postal address (E-1; member-editable).
+    address_line_1: Mapped[Optional[str]] = mapped_column(String(255))
+    address_line_2: Mapped[Optional[str]] = mapped_column(String(255))
+    city: Mapped[Optional[str]] = mapped_column(String(120))
+    region: Mapped[Optional[str]] = mapped_column(String(120))  # aimag
+    postal_code: Mapped[Optional[str]] = mapped_column(String(32))
+    country: Mapped[Optional[str]] = mapped_column(String(120))
+
+    # Contact channels / P2P identifiers (E-1, DEC-3). Populated from the draft at
+    # promotion (the draft requires both at bootstrap), so NOT NULL here.
+    email: Mapped[str] = mapped_column(String(320))
+    phone_number: Mapped[str] = mapped_column(String(32))  # E.164
+
+    # Preferred UI language (E-1). Default Cyrillic-Mongolian (`mn`) per CLAUDE.md.
+    preferred_language: Mapped[str] = mapped_column(String(35), default="mn")
+
+    @property
+    def legal_name(self) -> str:
+        """DERIVED read-only legal name (E-1, DEC-6): the three Cyrillic name parts
+        in Mongolian order — optional ovog (clan), patronymic, given name — joined
+        with spaces. NEVER stored; editing it yields 422 LEGAL_NAME_NOT_EDITABLE."""
+        return " ".join(
+            part for part in (self.ovog, self.etsgiin_ner, self.ner) if part
+        )
 
 
 class MembershipShare(Base, UUIDPrimaryKey, Timestamps):

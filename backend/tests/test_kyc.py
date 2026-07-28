@@ -228,6 +228,18 @@ def test_status_approved_promotes_to_pending_payment_member(h: Harness) -> None:
     assert member.ovog == "Бат"
     assert member.registration_number == "УБ12345678"
 
+    # Promotion wiring (T2 profile): the public non-guessable member_id is minted
+    # (DCB- + 8 unambiguous chars), and the contact channels + structured address
+    # are carried over from the draft.
+    assert member.member_id.startswith("DCB-")
+    assert len(member.member_id) == len("DCB-") + 8
+    assert set(member.member_id[4:]) <= set("23456789ABCDEFGHJKMNPQRSTVWXYZ")
+    assert member.email == "applicant@example.mn"
+    assert member.phone_number == "+97688112233"
+    assert member.address_line_1 == "1-р хороо"
+    assert member.city == "Улаанбаатар"
+    assert member.preferred_language == "mn"  # Cyrillic-Mongolian default
+
     # A member-linked KycSubmission carries the evidence/result.
     assert h.kyc_submission_count() == 1
     submission = h.only_submission()

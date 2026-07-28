@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import secrets
 
 from sqlalchemy.orm import Session
 
@@ -49,6 +50,13 @@ from app.services.onboarding import _hash_token, _now_iso
 # no-Member outcome the applicant would restart with a new session). PENDING_REVIEW
 # is intentionally NOT here — it keeps polling until manual review resolves it.
 _RECORDED_FINAL = frozenset({KycStatus.APPROVED, KycStatus.REJECTED})
+
+# Public member_id (DEC-28): `DCB-` + 8 chars from an unambiguous alphabet
+# (Crockford-style: no 0/O/1/I/L/U to avoid transcription errors). Drawn from
+# `secrets` so it is non-guessable — NEVER a sequence, and never derived from the
+# UUID PK or any personal data.
+_MEMBER_ID_ALPHABET = "23456789ABCDEFGHJKMNPQRSTVWXYZ"
+_MEMBER_ID_LENGTH = 8
 
 
 class KycError(Exception):
@@ -215,12 +223,24 @@ class KycService:
         # PENDING_KYC before approval — DEC-4 — so the transient state never
         # persists to a rejected outcome.)
         member = self._members.create(
+            member_id=self._generate_member_id(),
             ovog=draft.ovog,
             etsgiin_ner=draft.etsgiin_ner,
             ner=draft.ner,
             mrz_name_latin=draft.mrz_name_latin,
             registration_number=verified_reg,
             membership_status=MembershipStatus.PENDING_KYC,
+            # Contact channels + structured address carried over from the draft
+            # (email/phone were required at bootstrap; address is captured during
+            # the identity step). preferred_language defaults to Cyrillic-Mongolian.
+            email=draft.email,
+            phone_number=draft.phone_number,
+            address_line_1=draft.address_line_1,
+            address_line_2=draft.address_line_2,
+            city=draft.city,
+            region=draft.region,
+            postal_code=draft.postal_code,
+            country=draft.country,
         )
         member.membership_status = MembershipStatus.PENDING_PAYMENT
 
@@ -246,6 +266,21 @@ class KycService:
         return member
 
     # --- helpers -------------------------------------------------------------
+
+    def _generate_member_id(self) -> str:
+        """Mint a unique non-guessable public member_id (`DCB-XXXXXXXX`, DEC-28).
+
+        Retries on the (astronomically unlikely) collision against an existing
+        row so the UNIQUE constraint is never the thing that surfaces it."""
+        for _ in range(10):
+            candidate = "DCB-" + "".join(
+                secrets.choice(_MEMBER_ID_ALPHABET) for _ in range(_MEMBER_ID_LENGTH)
+            )
+            if self._members.get_by_member_id(candidate) is None:
+                return candidate
+        # 30^8 space makes 10 straight collisions effectively impossible; fail
+        # loudly rather than loop unboundedly if it somehow happens.
+        raise KycPromotionIncomplete()
 
     @staticmethod
     def _applicant(draft: OnboardingApplication) -> EkycApplicant:
