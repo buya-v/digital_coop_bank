@@ -103,12 +103,15 @@ def ctx() -> Iterator[SimpleNamespace]:
 
     seed = test_session()
     member = Member(
+        member_id="DCB-2K4W9MX7",
         ovog="Бат",
         etsgiin_ner="Болд",
         ner="Түвшин",
         mrz_name_latin=None,
         registration_number="УБ12345678",
         membership_status=MembershipStatus.ACTIVE,
+        email="tuvshin@example.mn",
+        phone_number="+97688110011",
     )
     seed.add(member)
     seed.commit()
