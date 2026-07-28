@@ -1,8 +1,8 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
+  "run_id": "20260728-onboarding-slice2",
+  "feature": "Onboarding slice 2 \u2014 eligibility + \u0425\u0423\u0420 KYC (port+mock) + draft->Member promotion",
+  "requirement": "Add the config-driven common-bond eligibility check, \u0425\u0423\u0420/XYP KYC behind a provider port+mock (createKycSession/getKycStatus), and the draft->Member promotion on KYC approval (PENDING_PAYMENT, DEC-4: no Member on reject), plus slice-1 leftover 409 code + tests. Stops before share purchase (ledger). All 4 code gates must pass.",
+  "status": "planning",
   "backlog": [
     "EP-1 onboarding SLICE 2 (next feature): checkOnboardingEligibility (config-driven common_bond_rules per the defined-bond PO direction); \u0425\u0423\u0420/XYP KYC (createKycSession/getKycStatus) behind a provider PORT + mock (no real state-register API in dev); draft->Member promotion on KYC approval (reconcile the onboarding_state duplication); the 409 REGISTRATION_NUMBER_MISMATCH code + PATCH non-resolving-token & create CHANNEL_UNVERIFIED tests. Still stops before share purchase (ledger).",
     "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
@@ -22,5 +22,107 @@
     "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
     "Other-vendor abstraction completeness: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) providers are `-class` abstractions but could get the same 'provider TBD/procurement' treatment as the five main vendors."
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Eligibility check (config-driven common-bond)",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/services/eligibility.py",
+        "backend/app/api/routers/onboarding.py",
+        "backend/app/config.py",
+        "backend/tests/test_eligibility.py"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "READ .softhouse/onboarding-slice2-brief.md IN FULL, plus slice-1's app/services/onboarding.py + app/api/routers/onboarding.py + the contract (ep1-identity.yaml checkOnboardingEligibility + schemas EligibilityCheckRequest/Response). Implement checkOnboardingEligibility (POST /onboarding/applications/eligibility, 200): a config-driven eligibility ENGINE evaluating the request answers against `eligibility.common_bond_rules` with a sensible DEFAULT rule set (the specific bond is NOT chosen \u2014 keep it config, do not hard-code a bond). Return EligibilityCheckResponse (eligible/ineligible + reasons per contract). Record the outcome on the draft. Reuse the slice-1 foundation (repo/service/router/Error envelope/bootstrap-token dep) \u2014 do NOT re-invent. Add app/services/eligibility.py, wire the route into the existing onboarding router, config source in app/config.py (default rules; NO US-12.5 admin CRUD). Tests in backend/tests/test_eligibility.py (TestClient, get_session overridden): eligible + ineligible + malformed answers. GATES from backend/ ALL PASS: check_models, check_migration, openapi/validate.py, pytest; ruff+mypy strict clean on new files. Handoff: the rule engine + default rules, endpoint conformance, gate outputs."
+    },
+    {
+      "id": "T2",
+      "title": "\u0425\u0423\u0420 KYC (port+mock) + draft->Member promotion",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/models/identity.py",
+        "backend/migrations/versions/0001_initial.py",
+        "backend/app/adapters/",
+        "backend/app/services/kyc.py",
+        "backend/app/services/onboarding.py",
+        "backend/app/api/routers/onboarding.py",
+        "backend/tests/test_kyc.py"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "READ .softhouse/onboarding-slice2-brief.md IN FULL (esp. the KYC-before-Member reconciliation + DEC-4). Forks from main AFTER T1 merges. Implement: (a) an eKYC PROVIDER PORT + MOCK under app/adapters/ekyc/ (\u0425\u0423\u0420/XYP state-register lookup, NOT biometric; mock drives NOT_STARTED->IN_PROGRESS->APPROVED/PENDING_REVIEW/REJECTED deterministically for tests). (b) createKycSession (POST \u2026/kyc/sessions, 201) + getKycStatus (GET \u2026/kyc/status, 200) per the contract; in-flight KYC state (kyc_inquiry_id unique, kyc_status) lives on the onboarding_application DRAFT \u2014 extend the draft model + 0001 migration in LOCKSTEP (justify columns vs onboarding_state JSON). (c) PROMOTION on APPROVED: create a Member from the draft (DEC-6 name + registration_number), membership_status PENDING_KYC->PENDING_PAYMENT, and create the member-linked KycSubmission with result/evidence; NEVER create a Member on REJECTED (DEC-4); STOP at PENDING_PAYMENT (no share purchase/ledger). (d) slice-1 leftovers: the 409 REGISTRATION_NUMBER_MISMATCH code at the SUBMITTED transition + tests for PATCH non-resolving-token (401) and create CHANNEL_UNVERIFIED (422). Reuse slice-1 foundation. Tests backend/tests/test_kyc.py: session->status through EVERY mock outcome; promotion creates PENDING_PAYMENT Member + KycSubmission on APPROVED and NO Member on REJECTED. GATES from backend/ ALL PASS: check_models, check_migration (lockstep), openapi/validate.py, pytest; ruff+mypy strict on new files. Handoff: the KYC-before-Member decision + 04 reconciliation, port/mock design, promotion + DEC-4 guarantee, gate outputs."
+    },
+    {
+      "id": "R1",
+      "title": "Review eligibility",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/services/eligibility.py",
+        "backend/app/api/routers/onboarding.py"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT review of T1. In your worktree `git checkout` the branch, `cd backend`, RUN all 4 gates yourself (check_models, check_migration, openapi/validate.py, pytest) \u2014 paste verdicts. Read .softhouse/onboarding-slice2-brief.md, the contract, the handoff .softhouse/handoff/20260728-onboarding-slice2/T1.md, `git diff main...<branch>`. CHECK: eligibility conforms to EligibilityCheckRequest/Response; the engine is genuinely CONFIG-DRIVEN (no hard-coded specific bond); default rules sensible; reuses slice-1 foundation (no duplication); scope = only eligibility (no KYC/promotion/money leaked); non-negotiables; ruff+mypy clean on new files. Verdict APPROVED/MICRO-FIX/REJECTED with gate outputs."
+    },
+    {
+      "id": "R2",
+      "title": "Review KYC + promotion",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/",
+        "backend/tests/test_kyc.py",
+        "backend/migrations/versions/0001_initial.py"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT review of T2 \u2014 the highest-risk slice (state machine + promotion + DEC-4). In your worktree `git checkout` the branch, `cd backend`, RUN all 4 gates yourself \u2014 paste verdicts (check_migration proves the draft schema extension is in lockstep). Read the brief, contract, handoff .softhouse/handoff/20260728-onboarding-slice2/T2.md, `git diff main...<branch>`. CHECK: (1) THE DEC-4 GUARANTEE \u2014 trace the code + tests: a REJECTED KYC result creates NO Member row (this is the crux \u2014 if a Member can be created for a rejected/abandoned application, REJECT); (2) KYC-before-Member design sound (in-flight state on the draft, KycSubmission created only at promotion when member_id exists); (3) createKycSession/getKycStatus conform to the contract (201/200, KycStatus enum); the mock drives every outcome and tests exercise them; (4) promotion sets PENDING_PAYMENT and STOPS (no share purchase/MoneyMinor/ledger/float \u2014 grep to confirm); (5) eKYC is the state-register PORT, not biometric, no real API call, no invented \u0425\u0423\u0420 response fields; (6) draft schema extension model+migration lockstep; (7) non-negotiables (three-part name, structural reg-number, no float, no tz hardcode); ruff+mypy clean. Verdict APPROVED/MICRO-FIX/REJECTED with gate outputs + the DEC-4 trace."
+    },
+    {
+      "id": "V",
+      "title": "Full gate run on merged main",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "backend",
+      "files_hint": [
+        "backend/"
+      ],
+      "dependencies": [
+        "R1",
+        "R2"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "After merges: from backend/ run all 4 gates PASS; grep app/ for money/ledger/MoneyMinor/float in the new onboarding/kyc code (expect none); confirm the eligibility + KYC routes wired and a REJECTED KYC creates no Member (spot-check the test). Record in postmortem."
+    }
+  ]
 }
