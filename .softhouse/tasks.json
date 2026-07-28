@@ -2,7 +2,7 @@
   "run_id": "20260728-onboarding-slice2",
   "feature": "Onboarding slice 2 \u2014 eligibility + \u0425\u0423\u0420 KYC (port+mock) + draft->Member promotion",
   "requirement": "Add the config-driven common-bond eligibility check, \u0425\u0423\u0420/XYP KYC behind a provider port+mock (createKycSession/getKycStatus), and the draft->Member promotion on KYC approval (PENDING_PAYMENT, DEC-4: no Member on reject), plus slice-1 leftover 409 code + tests. Stops before share purchase (ledger). All 4 code gates must pass.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "EP-1 onboarding SLICE 2 (next feature): checkOnboardingEligibility (config-driven common_bond_rules per the defined-bond PO direction); \u0425\u0423\u0420/XYP KYC (createKycSession/getKycStatus) behind a provider PORT + mock (no real state-register API in dev); draft->Member promotion on KYC approval (reconcile the onboarding_state duplication); the 409 REGISTRATION_NUMBER_MISMATCH code + PATCH non-resolving-token & create CHANNEL_UNVERIFIED tests. Still stops before share purchase (ledger).",
     "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
@@ -37,9 +37,9 @@
         "backend/tests/test_eligibility.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "merged; R1 APPROVED (gates re-run); bond-neutral config eligibility",
       "description": "READ .softhouse/onboarding-slice2-brief.md IN FULL, plus slice-1's app/services/onboarding.py + app/api/routers/onboarding.py + the contract (ep1-identity.yaml checkOnboardingEligibility + schemas EligibilityCheckRequest/Response). Implement checkOnboardingEligibility (POST /onboarding/applications/eligibility, 200): a config-driven eligibility ENGINE evaluating the request answers against `eligibility.common_bond_rules` with a sensible DEFAULT rule set (the specific bond is NOT chosen \u2014 keep it config, do not hard-code a bond). Return EligibilityCheckResponse (eligible/ineligible + reasons per contract). Record the outcome on the draft. Reuse the slice-1 foundation (repo/service/router/Error envelope/bootstrap-token dep) \u2014 do NOT re-invent. Add app/services/eligibility.py, wire the route into the existing onboarding router, config source in app/config.py (default rules; NO US-12.5 admin CRUD). Tests in backend/tests/test_eligibility.py (TestClient, get_session overridden): eligible + ineligible + malformed answers. GATES from backend/ ALL PASS: check_models, check_migration, openapi/validate.py, pytest; ruff+mypy strict clean on new files. Handoff: the rule engine + default rules, endpoint conformance, gate outputs."
     },
     {
@@ -80,9 +80,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent ab38ae89f1638ef16",
       "description": "INDEPENDENT review of T1. In your worktree `git checkout` the branch, `cd backend`, RUN all 4 gates yourself (check_models, check_migration, openapi/validate.py, pytest) \u2014 paste verdicts. Read .softhouse/onboarding-slice2-brief.md, the contract, the handoff .softhouse/handoff/20260728-onboarding-slice2/T1.md, `git diff main...<branch>`. CHECK: eligibility conforms to EligibilityCheckRequest/Response; the engine is genuinely CONFIG-DRIVEN (no hard-coded specific bond); default rules sensible; reuses slice-1 foundation (no duplication); scope = only eligibility (no KYC/promotion/money leaked); non-negotiables; ruff+mypy clean on new files. Verdict APPROVED/MICRO-FIX/REJECTED with gate outputs."
     },
     {
