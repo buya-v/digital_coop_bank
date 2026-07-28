@@ -180,6 +180,12 @@
         $ref: '#/components/responses/Unauthorized'
       '429':
         $ref: '#/components/responses/TooManyRequests'
+      '502':
+        description: eKYC provider (state register) unavailable during the status poll — retry.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
 
 /api/v1/auth/mfa/enrollments:
   post:

@@ -61,9 +61,9 @@
       "dependencies": [
         "T1"
       ],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "merged; R2 APPROVED (DEC-4 traced airtight); micro-fixes: getKycStatus 502 declared in contract + _promote reg-number guard",
       "description": "READ .softhouse/onboarding-slice2-brief.md IN FULL (esp. the KYC-before-Member reconciliation + DEC-4). Forks from main AFTER T1 merges. Implement: (a) an eKYC PROVIDER PORT + MOCK under app/adapters/ekyc/ (\u0425\u0423\u0420/XYP state-register lookup, NOT biometric; mock drives NOT_STARTED->IN_PROGRESS->APPROVED/PENDING_REVIEW/REJECTED deterministically for tests). (b) createKycSession (POST \u2026/kyc/sessions, 201) + getKycStatus (GET \u2026/kyc/status, 200) per the contract; in-flight KYC state (kyc_inquiry_id unique, kyc_status) lives on the onboarding_application DRAFT \u2014 extend the draft model + 0001 migration in LOCKSTEP (justify columns vs onboarding_state JSON). (c) PROMOTION on APPROVED: create a Member from the draft (DEC-6 name + registration_number), membership_status PENDING_KYC->PENDING_PAYMENT, and create the member-linked KycSubmission with result/evidence; NEVER create a Member on REJECTED (DEC-4); STOP at PENDING_PAYMENT (no share purchase/ledger). (d) slice-1 leftovers: the 409 REGISTRATION_NUMBER_MISMATCH code at the SUBMITTED transition + tests for PATCH non-resolving-token (401) and create CHANNEL_UNVERIFIED (422). Reuse slice-1 foundation. Tests backend/tests/test_kyc.py: session->status through EVERY mock outcome; promotion creates PENDING_PAYMENT Member + KycSubmission on APPROVED and NO Member on REJECTED. GATES from backend/ ALL PASS: check_models, check_migration (lockstep), openapi/validate.py, pytest; ruff+mypy strict on new files. Handoff: the KYC-before-Member decision + 04 reconciliation, port/mock design, promotion + DEC-4 guarantee, gate outputs."
     },
     {
@@ -100,9 +100,9 @@
       "dependencies": [
         "T2"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent a08db0f26db7de664",
       "description": "INDEPENDENT review of T2 \u2014 the highest-risk slice (state machine + promotion + DEC-4). In your worktree `git checkout` the branch, `cd backend`, RUN all 4 gates yourself \u2014 paste verdicts (check_migration proves the draft schema extension is in lockstep). Read the brief, contract, handoff .softhouse/handoff/20260728-onboarding-slice2/T2.md, `git diff main...<branch>`. CHECK: (1) THE DEC-4 GUARANTEE \u2014 trace the code + tests: a REJECTED KYC result creates NO Member row (this is the crux \u2014 if a Member can be created for a rejected/abandoned application, REJECT); (2) KYC-before-Member design sound (in-flight state on the draft, KycSubmission created only at promotion when member_id exists); (3) createKycSession/getKycStatus conform to the contract (201/200, KycStatus enum); the mock drives every outcome and tests exercise them; (4) promotion sets PENDING_PAYMENT and STOPS (no share purchase/MoneyMinor/ledger/float \u2014 grep to confirm); (5) eKYC is the state-register PORT, not biometric, no real API call, no invented \u0425\u0423\u0420 response fields; (6) draft schema extension model+migration lockstep; (7) non-negotiables (three-part name, structural reg-number, no float, no tz hardcode); ruff+mypy clean. Verdict APPROVED/MICRO-FIX/REJECTED with gate outputs + the DEC-4 trace."
     },
     {

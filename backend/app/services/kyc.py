@@ -204,6 +204,11 @@ class KycService:
         verified_reg = (
             result.verified_registration_number or draft.registration_number
         )
+        if not verified_reg:
+            # Never create a Member without its sole identity key (the registration
+            # number). A state-register approval always echoes one; guard anyway so a
+            # NULL key can never reach the member table.
+            raise KycPromotionIncomplete()
 
         # PENDING_KYC -> PENDING_PAYMENT: the member is born the instant KYC is
         # approved and immediately advances past KYC. (No member exists at
