@@ -12,8 +12,12 @@ dependencies = [
     "pydantic>=2.6",
     # Member-auth: RS256 Bearer JWT verification (external operator-chosen IdP).
     # The `crypto` extra pulls `cryptography` for RSA — crypto is delegated to a
-    # well-known library, never hand-rolled (see app/auth/verifier.py).
+    # well-known library, never hand-rolled (see app/auth/verifier.py). `cryptography`
+    # (pulled by the crypto extra) is also used for MFA secret-at-rest encryption
+    # (Fernet authenticated encryption; see app/auth/mfa.py).
     "PyJWT[crypto]>=2.8",
+    # MFA: RFC-6238 TOTP is delegated to pyotp — never hand-rolled (app/auth/mfa.py).
+    "pyotp>=2.9",
 ]
 
 [project.optional-dependencies]
