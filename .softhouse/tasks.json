@@ -1,8 +1,8 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
+  "run_id": "20260729-consents-devices",
+  "feature": "EP-1 consents + device-listing self-service (memberOAuth2)",
+  "requirement": "Implement listMyConsents/upsertMyConsent/listDevices to the existing contract on get_current_member (IDOR-safe, existing models, no schema change). Defer revokeDevice + any stepUpAssertion-gated op to the MFA/step-up slice. No money/ledger. All 4 gates pass.",
+  "status": "planning",
   "backlog": [
     "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
     "Auth: add a membership-status/revocation gate at auth time \u2014 get_current_member currently resolves ANY Member row regardless of membership_status (a SUSPENDED/CLOSED member with a still-valid token authenticates). Add for the actions/money slices (profile read may be fine; money-movement must gate). Also: token revocation on device unbind.",
@@ -24,5 +24,66 @@
     "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
     "Other-vendor abstraction completeness: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) providers are `-class` abstractions but could get the same 'provider TBD/procurement' treatment as the five main vendors."
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Consents + device-listing self-service (EP-1)",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/repositories/identity.py",
+        "backend/app/services/identity.py",
+        "backend/app/api/routers/members.py",
+        "backend/app/api/routers/devices.py",
+        "backend/app/main.py",
+        "backend/tests/test_consents.py",
+        "backend/tests/test_devices.py"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Build the memberOAuth2-secured self-service endpoints for consents + device LISTING, reusing the auth foundation (Depends(get_current_member)) and the slice-1/2 repo/service/router/Error patterns. NO schema change (ConsentRecord + DeviceBinding models already exist). NO money/ledger.\nREAD: CLAUDE.md; the CONTRACT backend/openapi/paths/ep1-identity.yaml (listMyConsents, upsertMyConsent, listDevices) + schemas/ep1-identity.yaml (ConsentListResponse, ConsentUpsertRequest, ConsentRecord, ConsentType/Action, DeviceListResponse, Device, DevicePlatform); app/auth/deps.py (get_current_member); app/api/routers/members.py + app/services/profile.py (the established self-service pattern); app/models/identity.py (ConsentRecord, DeviceBinding + their enums).\nIMPLEMENT to the EXACT contract schemas:\n- listMyConsents (GET, 200 ConsentListResponse): the CURRENT member's consents only.\n- upsertMyConsent (the contract's verb/path, ConsentUpsertRequest -> ConsentRecord): record a GRANTED/WITHDRAWN consent (consent_type, version, channel) for the CURRENT member; append-or-update per the contract's semantics (a ConsentRecord is an append-only audit row unless the schema says otherwise \u2014 follow the contract).\n- listDevices (GET /api/v1/auth/devices, 200 DeviceListResponse): the CURRENT member's DeviceBindings only.\nIDOR (the crux): identity comes ONLY from get_current_member; every query/mutation is filtered by the current member's id. NO member id from path/body. A member can never see or affect another member's consents/devices.\nSTEP-UP: check each operation's security in the contract. If an operation requires `stepUpAssertion` (e.g. revokeDevice \u2014 DELETE /auth/devices/{id}), DO NOT build it \u2014 step-up is a deferred slice. Build ONLY the memberOAuth2-only operations; note the deferred ones in the handoff. If upsertMyConsent requires step-up per the contract, defer it too and say so.\nNew app/repositories/identity.py (ConsentRepository, DeviceBindingRepository \u2014 get_by_member), app/services/identity.py (or per-domain services), routers wired into app/main.py. Repos flush-not-commit; router commits on mutation. Cyrillic-safe; no float; no first/last name.\nTests (TestClient, DevRsaSigner tokens for a seeded member, get_session overridden, no real DB): list returns only the caller's rows; upsert records for the caller and reflects on list; IDOR \u2014 a token for member A never returns/affects member B's consents or devices; no-token -> 401.\nGATES from backend/ ALL PASS (paste in handoff): check_models, check_migration, openapi/validate.py, pytest; ruff+mypy strict clean on new files. Handoff: each endpoint's contract-conformance, the IDOR safeguard, which ops were DEFERRED for step-up and why, gate outputs verbatim."
+    },
+    {
+      "id": "R1",
+      "title": "Review consents+devices (IDOR-focused)",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/",
+        "backend/tests/test_consents.py",
+        "backend/tests/test_devices.py"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "INDEPENDENT review of T1. In your worktree `git checkout` the branch, `cd backend` (a gitignored venv with PyJWT[crypto] installed is fine; do NOT commit it), RUN all 4 gates yourself (paste verdicts): check_models, check_migration, openapi/validate.py, pytest. ruff+mypy on new files.\nCHECK: (1) IDOR (crux): every consents/devices query + mutation is filtered by get_current_member's id; NO member id is read from path/body to select rows. Reason/probe: can a token for member A list or mutate member B's consents/devices? Confirm the A<->B isolation tests are NON-VACUOUS (B seeded with distinct rows; A's action never touches them). Any cross-member access = REJECT. (2) CONTRACT conformance: listMyConsents/upsertMyConsent/listDevices match the schemas (fields, enums, 200); consent audit semantics per the contract. (3) STEP-UP: confirm the author correctly DEFERRED any stepUpAssertion-gated op (revokeDevice at minimum) rather than building it without step-up \u2014 building a step-up-gated op without enforcing step-up is a security finding. (4) non-negotiables (no money/ledger/float, no first/last name, Cyrillic-safe); reuses foundation; repos flush-not-commit. Verdict APPROVED/MICRO-FIX/REJECTED with gate verdicts + the IDOR result + which ops were deferred."
+    },
+    {
+      "id": "V",
+      "title": "Full gate run on merged main",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "backend",
+      "files_hint": [
+        "backend/"
+      ],
+      "dependencies": [
+        "R1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "After merge: install any new dep in the gate env first (learned lesson), then from backend/ run all 4 gates PASS; confirm consents/device-list routes wired + get_current_member enforced; grep for money/ledger in new code (none); confirm revokeDevice (step-up) was NOT built. Record in postmortem + update CLAUDE.md."
+    }
+  ]
 }
