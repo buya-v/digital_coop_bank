@@ -30,8 +30,10 @@ def test_only_expected_feature_routes():
     # session/status endpoints; the profile slice (T2) adds getMyProfile /
     # updateMyProfile (the first post-auth endpoints). The consents+devices
     # slice (T1) adds listMyConsents / upsertMyConsent (member consent history)
-    # and listDevices (trusted-device listing) — all memberOAuth2-only;
-    # revokeDevice is DEFERRED (step-up) and intentionally NOT mounted.
+    # and listDevices (trusted-device listing) — all memberOAuth2-only. The MFA
+    # step-up slice (T2) adds createMfaEnrollment, createStepUpToken
+    # (POST /auth/step-up) and, now unblocked by step-up, revokeDevice
+    # (DELETE /auth/devices/{id}) — expected here.
     paths = {route.path for route in app.routes}
     assert paths >= {"/health", "/ready"}
     feature_ish = {p for p in paths if p.startswith("/api/")}
@@ -46,6 +48,8 @@ def test_only_expected_feature_routes():
         "/api/v1/members/me/consents",
         "/api/v1/members/me/consents/{consent_type}",
         "/api/v1/auth/devices",
+        "/api/v1/auth/devices/{id}",
         "/api/v1/auth/mfa/enrollments",
+        "/api/v1/auth/step-up",
     }
     assert feature_ish == expected, f"unexpected feature routes: {feature_ish - expected}"

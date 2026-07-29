@@ -396,12 +396,27 @@ _UP = [
 	status mfa_factor_status NOT NULL,
 	secret_ciphertext VARCHAR(512),
 	confirmed_at TIMESTAMP WITHOUT TIME ZONE,
+	failed_attempts INTEGER DEFAULT '0' NOT NULL,
+	locked_at TIMESTAMP WITHOUT TIME ZONE,
 	id UUID NOT NULL,
 	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	CONSTRAINT pk_mfa_factor PRIMARY KEY (id),
 	CONSTRAINT uq_mfa_factor_member_factor_type UNIQUE (member_id, factor_type),
 	CONSTRAINT fk_mfa_factor_member_id_member FOREIGN KEY(member_id) REFERENCES member (id)
+)""",
+    """CREATE TABLE step_up_token (
+	member_id UUID NOT NULL,
+	token_hash VARCHAR(128) NOT NULL,
+	requested_action VARCHAR(128),
+	expires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	consumed_at TIMESTAMP WITHOUT TIME ZONE,
+	id UUID NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+	CONSTRAINT pk_step_up_token PRIMARY KEY (id),
+	CONSTRAINT fk_step_up_token_member_id_member FOREIGN KEY(member_id) REFERENCES member (id),
+	CONSTRAINT uq_step_up_token_token_hash UNIQUE (token_hash)
 )""",
     """CREATE TABLE account (
 	owner_member_id UUID, 
@@ -1199,6 +1214,7 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS loan_circle CASCADE")
     op.execute("DROP TABLE IF EXISTS kyc_submission CASCADE")
     op.execute("DROP TABLE IF EXISTS external_account_link CASCADE")
+    op.execute("DROP TABLE IF EXISTS step_up_token CASCADE")
     op.execute("DROP TABLE IF EXISTS mfa_factor CASCADE")
     op.execute("DROP TABLE IF EXISTS device_binding CASCADE")
     op.execute("DROP TABLE IF EXISTS data_subject_request CASCADE")

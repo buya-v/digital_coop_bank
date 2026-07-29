@@ -36,6 +36,7 @@ from app.models.identity import (
     ConsentRecord,
     ConsentType,
     DeviceBinding,
+    DeviceStatus,
 )
 from app.repositories.identity import ConsentRepository, DeviceBindingRepository
 from app.repositories.membership import utc_now
@@ -101,6 +102,18 @@ class UnknownConsentAction(IdentityServiceError):
         super().__init__(
             422, "VALIDATION_FAILED", f"Unknown consent action '{value}'."
         )
+
+
+class DeviceNotFound(IdentityServiceError):
+    """The device id is unknown OR belongs to another member (maps to 404).
+
+    The two cases are deliberately INDISTINGUISHABLE: revealing that a device id
+    exists but belongs to someone else would be a cross-member information leak, so
+    an IDOR attempt and a genuinely-missing device both surface as the same 404.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(404, "NOT_FOUND", "No such device for this member.")
 
 
 class ConsentRequiredForService(IdentityServiceError):
@@ -263,6 +276,26 @@ class DeviceService:
                 devices=page, next_cursor=_encode_cursor(last.bound_at, last.id)
             )
         return DevicePage(devices=rows, next_cursor=None)
+
+    def revoke_device(
+        self, member_id: uuid.UUID, device_id: uuid.UUID
+    ) -> DeviceBinding:
+        """Revoke the member's OWN device by id (step-up-gated at the router).
+
+        IDOR: the lookup is scoped to `(member_id, id)`, so another member's device
+        id raises `DeviceNotFound` (404) — a member can never revoke, or even probe,
+        a device that is not theirs. Idempotent: revoking an already-REVOKED device
+        returns it unchanged (200), since the contract defines no distinct
+        already-revoked error and the terminal state is the same either way.
+        """
+        device = self._repo.get_owned(member_id, device_id)
+        if device is None:
+            raise DeviceNotFound()
+        if device.status is DeviceStatus.ACTIVE:
+            device.status = DeviceStatus.REVOKED
+            device.revoked_at = utc_now()
+            self._repo.flush()
+        return device
 
 
 def _paginate(rows: list[ConsentRecord], page_size: int) -> Page:

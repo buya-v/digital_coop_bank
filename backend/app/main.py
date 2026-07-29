@@ -24,6 +24,7 @@ from app.api.routers.devices import router as devices_router
 from app.api.routers.members import router as members_router
 from app.api.routers.mfa import router as mfa_router
 from app.api.routers.onboarding import router as onboarding_router
+from app.api.routers.stepup import router as stepup_router
 from app.auth.mfa import MfaCryptoNotConfigured
 from app.config import get_settings
 from app.db.session import engine_configured
@@ -49,6 +50,7 @@ app.include_router(members_router)
 app.include_router(consents_router)
 app.include_router(devices_router)
 app.include_router(mfa_router)
+app.include_router(stepup_router)
 
 
 async def _mfa_crypto_unavailable_handler(
