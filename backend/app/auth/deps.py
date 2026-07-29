@@ -40,7 +40,10 @@ from app.models.identity import StepUpToken
 from app.models.membership import Member
 from app.repositories.identity import StepUpTokenRepository
 from app.repositories.membership import MemberRepository
-from app.services.stepup import hash_step_up_token
+# NOTE: `hash_step_up_token` is imported lazily inside `_require_step_up` (below)
+# rather than at module top level: a top-level import here forms a cycle
+# (auth.deps -> services.stepup -> auth.mfa -> auth/__init__ -> auth.deps) that,
+# while it resolves in the running app, breaks importing services.stepup first.
 
 
 def bearer_token(
@@ -165,6 +168,8 @@ def require_step_up(action: str | None = None) -> Callable[..., StepUpToken]:
                 "STEP_UP_REQUIRED",
                 "This action requires a step-up assertion (X-Step-Up-Token).",
             )
+        from app.services.stepup import hash_step_up_token  # lazy: see note at top
+
         repo = StepUpTokenRepository(session)
         token = repo.get_by_hash(hash_step_up_token(presented))
         now = _utc_now()
