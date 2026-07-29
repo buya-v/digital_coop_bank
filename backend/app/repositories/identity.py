@@ -35,6 +35,9 @@ from app.models.identity import (
     KycResult,
     KycScreeningResult,
     KycSubmission,
+    MfaFactor,
+    MfaFactorStatus,
+    MfaFactorType,
 )
 from app.repositories.base import BaseRepository
 
@@ -156,6 +159,52 @@ class ConsentRepository(BaseRepository[ConsentRecord]):
         self.add(record)
         self.flush()
         return record
+
+
+class MfaFactorRepository(BaseRepository[MfaFactor]):
+    """E-identity `mfa_factor` access, scoped to one member (US-1.4).
+
+    STRICTLY member-scoped: `member_id` is a required argument on every entry
+    point and comes from `get_current_member`, never from a path or body — the
+    IDOR class is excluded by construction, matching the consent/device repos.
+    The secret is ALWAYS handed in already-encrypted (the service owns the
+    plaintext boundary); this layer never sees or logs a plaintext secret. Flush,
+    never commit — the router owns the transaction.
+    """
+
+    model = MfaFactor
+
+    def get_for_member_and_type(
+        self, member_id: uuid.UUID, factor_type: MfaFactorType
+    ) -> MfaFactor | None:
+        """Return the member's factor of this type, or None (uniqueness is per-type)."""
+        stmt = select(MfaFactor).where(
+            MfaFactor.member_id == member_id,
+            MfaFactor.factor_type == factor_type,
+        )
+        return self.session.execute(stmt).scalar_one_or_none()
+
+    def create_pending(
+        self,
+        *,
+        member_id: uuid.UUID,
+        factor_type: MfaFactorType,
+        secret_ciphertext: str | None,
+    ) -> MfaFactor:
+        """Insert a new PENDING factor and flush so its UUID PK populates.
+
+        `secret_ciphertext` is the already-encrypted TOTP seed (NULL for SMS).
+        """
+        factor = MfaFactor(
+            member_id=member_id,
+            factor_type=factor_type,
+            status=MfaFactorStatus.PENDING,
+            secret_ciphertext=secret_ciphertext,
+            confirmed_at=None,
+        )
+        self.add(factor)
+        self.flush()
+        return factor
 
 
 class DeviceBindingRepository(BaseRepository[DeviceBinding]):

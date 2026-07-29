@@ -54,6 +54,8 @@ _UP = [
     """CREATE TYPE device_status AS ENUM ('ACTIVE', 'REVOKED')""",
     """CREATE TYPE consent_type AS ENUM ('TERMS_AND_BYLAWS', 'PRIVACY_POLICY', 'E_SIGN_DISCLOSURE', 'MARKETING', 'DATA_SHARING_OPEN_BANKING', 'IMPACT_SPOTLIGHT')""",
     """CREATE TYPE consent_action AS ENUM ('GRANTED', 'WITHDRAWN')""",
+    """CREATE TYPE mfa_factor_type AS ENUM ('TOTP', 'SMS')""",
+    """CREATE TYPE mfa_factor_status AS ENUM ('PENDING', 'ACTIVE')""",
     """CREATE TYPE onboarding_application_status AS ENUM ('DRAFT', 'SUBMITTED')""",
     """CREATE TYPE account_type AS ENUM ('MEMBERSHIP_SHARE', 'PRIMARY_SAVINGS', 'TRANSACTION', 'GROUP_POT', 'SYSTEM')""",
     """CREATE TYPE ledger_direction AS ENUM ('DEBIT', 'CREDIT')""",
@@ -385,8 +387,21 @@ _UP = [
 	recorded_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
 	channel VARCHAR(64) NOT NULL, 
 	id UUID NOT NULL, 
-	CONSTRAINT pk_consent_record PRIMARY KEY (id), 
+	CONSTRAINT pk_consent_record PRIMARY KEY (id),
 	CONSTRAINT fk_consent_record_member_id_member FOREIGN KEY(member_id) REFERENCES member (id)
+)""",
+    """CREATE TABLE mfa_factor (
+	member_id UUID NOT NULL,
+	factor_type mfa_factor_type NOT NULL,
+	status mfa_factor_status NOT NULL,
+	secret_ciphertext VARCHAR(512),
+	confirmed_at TIMESTAMP WITHOUT TIME ZONE,
+	id UUID NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+	CONSTRAINT pk_mfa_factor PRIMARY KEY (id),
+	CONSTRAINT uq_mfa_factor_member_factor_type UNIQUE (member_id, factor_type),
+	CONSTRAINT fk_mfa_factor_member_id_member FOREIGN KEY(member_id) REFERENCES member (id)
 )""",
     """CREATE TABLE account (
 	owner_member_id UUID, 
@@ -1184,6 +1199,7 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS loan_circle CASCADE")
     op.execute("DROP TABLE IF EXISTS kyc_submission CASCADE")
     op.execute("DROP TABLE IF EXISTS external_account_link CASCADE")
+    op.execute("DROP TABLE IF EXISTS mfa_factor CASCADE")
     op.execute("DROP TABLE IF EXISTS device_binding CASCADE")
     op.execute("DROP TABLE IF EXISTS data_subject_request CASCADE")
     op.execute("DROP TABLE IF EXISTS consent_record CASCADE")
@@ -1240,6 +1256,8 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS device_status")
     op.execute("DROP TYPE IF EXISTS consent_type")
     op.execute("DROP TYPE IF EXISTS consent_action")
+    op.execute("DROP TYPE IF EXISTS mfa_factor_type")
+    op.execute("DROP TYPE IF EXISTS mfa_factor_status")
     op.execute("DROP TYPE IF EXISTS onboarding_application_status")
     op.execute("DROP TYPE IF EXISTS account_type")
     op.execute("DROP TYPE IF EXISTS ledger_direction")

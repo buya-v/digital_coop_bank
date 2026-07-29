@@ -3,9 +3,9 @@ import pytest
 
 pytest.importorskip("fastapi", reason="fastapi not installed on this machine; CI runs it")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.main import app  # noqa: E402
+from app.main import app
 
 client = TestClient(app)
 
@@ -46,5 +46,6 @@ def test_only_expected_feature_routes():
         "/api/v1/members/me/consents",
         "/api/v1/members/me/consents/{consent_type}",
         "/api/v1/auth/devices",
+        "/api/v1/auth/mfa/enrollments",
     }
     assert feature_ish == expected, f"unexpected feature routes: {feature_ish - expected}"

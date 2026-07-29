@@ -20,7 +20,7 @@ import enum
 import uuid
 from typing import Optional
 
-from sqlalchemy import JSON, Date, Enum, ForeignKey, String
+from sqlalchemy import JSON, Date, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -83,6 +83,39 @@ class DeviceStatus(enum.Enum):
 
     ACTIVE = "ACTIVE"
     REVOKED = "REVOKED"
+
+
+class MfaFactorType(enum.Enum):
+    """Persisted MFA factor type for the `mfa_factor` table.
+
+    04 §2.2 does NOT model a standalone MFA-factor entity — it carries only
+    `DeviceBinding.biometric_enabled` (a boolean) for on-device biometrics. The
+    OpenAPI `MfaFactorType` schema lists TOTP / SMS / BIOMETRIC, but this table
+    persists only the two factors the enrollment feature actually implements and
+    stores state for: TOTP (an app-generated seed, encrypted at rest) and SMS (an
+    out-of-band code delivered via a port). BIOMETRIC is NOT a server-stored
+    secret — it is device-local (already covered by `DeviceBinding`) — so it is
+    rejected at the API boundary (422) and never reaches this column. Constraining
+    the persisted value set to the supported factors keeps the DB enum honest
+    about what the system can actually verify.
+    """
+
+    TOTP = "TOTP"
+    SMS = "SMS"
+
+
+class MfaFactorStatus(enum.Enum):
+    """Lifecycle of an `mfa_factor` row.
+
+    A factor is created PENDING at enrollment and becomes ACTIVE only after the
+    member proves a correct code (the binding step / first successful step-up,
+    enforced by the step-up slice). A PENDING (never-confirmed) factor must never
+    authorize a step-up — the two-state machine makes "confirmed" a first-class,
+    queryable fact rather than an implicit flag.
+    """
+
+    PENDING = "PENDING"
+    ACTIVE = "ACTIVE"
 
 
 class ConsentType(enum.Enum):
@@ -262,6 +295,53 @@ class DeviceBinding(Base, UUIDPrimaryKey, Timestamps):
     bound_at: Mapped[datetime.datetime]
     last_seen_at: Mapped[datetime.datetime]
     revoked_at: Mapped[Optional[datetime.datetime]]
+
+
+class MfaFactor(Base, UUIDPrimaryKey, Timestamps):
+    """An enrolled multi-factor authentication factor for a member (US-1.4).
+
+    NEW entity (not in 04 §2.2): the enrollment feature needs first-class,
+    per-factor lifecycle state that `DeviceBinding.biometric_enabled` (a boolean)
+    cannot express — a PENDING vs ACTIVE binding status, and, for TOTP, a stored
+    shared secret. It backs `POST /auth/mfa/enrollments` and is the credential the
+    step-up slice verifies against.
+
+    SECURITY — secret at rest:
+    - `secret_ciphertext` holds the TOTP shared secret AFTER app-level
+      authenticated encryption (Fernet / AES-GCM via `cryptography`; see
+      `app.auth.mfa`). The PLAINTEXT seed is NEVER stored, logged, or returned
+      after the one-time enrollment binding challenge. It is decrypted only
+      in-memory to verify a submitted code.
+    - The column is Optional: an SMS factor has no server-stored TOTP seed (its
+      one-time code is delivered out-of-band through the SMS port and is a
+      transient verification concern, not persisted at rest here).
+
+    Uniqueness: at most one factor per (member, factor_type). A member re-enrolling
+    a still-PENDING factor re-issues the challenge on the same row; a duplicate of
+    an already-ACTIVE factor is refused (409 FACTOR_EXISTS).
+    """
+
+    __tablename__ = "mfa_factor"
+    __table_args__ = (
+        UniqueConstraint(
+            "member_id", "factor_type", name="uq_mfa_factor_member_factor_type"
+        ),
+    )
+
+    member_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("member.id")
+    )
+    factor_type: Mapped[MfaFactorType] = mapped_column(
+        Enum(MfaFactorType, name="mfa_factor_type")
+    )
+    status: Mapped[MfaFactorStatus] = mapped_column(
+        Enum(MfaFactorStatus, name="mfa_factor_status")
+    )
+    # Encrypted TOTP shared secret (CIPHERTEXT ONLY). NULL for SMS. Never plaintext.
+    secret_ciphertext: Mapped[Optional[str]] = mapped_column(String(512))
+    # Set when the factor is proven and promoted PENDING -> ACTIVE (the step-up
+    # slice performs the binding); NULL while PENDING.
+    confirmed_at: Mapped[Optional[datetime.datetime]]
 
 
 class ConsentRecord(Base, UUIDPrimaryKey):

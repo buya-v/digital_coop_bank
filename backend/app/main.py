@@ -8,10 +8,12 @@ questions in CLAUDE.md are resolved for each epic.
 """
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterator
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Response, status
+from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -20,7 +22,9 @@ from app.api.errors import register_error_handlers
 from app.api.routers.consents import router as consents_router
 from app.api.routers.devices import router as devices_router
 from app.api.routers.members import router as members_router
+from app.api.routers.mfa import router as mfa_router
 from app.api.routers.onboarding import router as onboarding_router
+from app.auth.mfa import MfaCryptoNotConfigured
 from app.config import get_settings
 from app.db.session import engine_configured
 from app.money import CURRENCY_CODE
@@ -44,6 +48,33 @@ app.include_router(onboarding_router)
 app.include_router(members_router)
 app.include_router(consents_router)
 app.include_router(devices_router)
+app.include_router(mfa_router)
+
+
+async def _mfa_crypto_unavailable_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    """Fail closed when the MFA encryption key is missing/malformed.
+
+    Returns the uniform Error envelope with a GENERIC message — the exception's
+    text (which references configuration, never key material) is not leaked to the
+    client. This makes a misconfigured key a clean "MFA unavailable", never a
+    partial enrollment that stores an unprotected secret.
+    """
+    assert isinstance(exc, MfaCryptoNotConfigured)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": "MFA_UNAVAILABLE",
+                "message": "MFA enrollment is temporarily unavailable.",
+                "correlation_id": str(uuid.uuid4()),
+            }
+        },
+    )
+
+
+app.add_exception_handler(MfaCryptoNotConfigured, _mfa_crypto_unavailable_handler)
 
 
 @app.get("/health", tags=["ops"], summary="Liveness probe")
