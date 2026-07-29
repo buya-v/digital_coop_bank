@@ -60,10 +60,12 @@ SERVICE_REQUIRED_CONSENTS: frozenset[ConsentType] = frozenset(
 
 # Channel recorded when the request does not carry one. The ConsentUpsertRequest
 # contract schema does not include `channel`, but the ConsentRecord audit row
-# requires it (E-4, NOT NULL); a mobile-first member app is the default capture
-# channel. A caller MAY still supply `channel` explicitly (the request schema does
-# not forbid it); an explicit value wins.
-DEFAULT_CONSENT_CHANNEL = "MOBILE_APP"
+# requires it (E-4, NOT NULL). Since we genuinely do not know the capture channel
+# when the caller omits it, we record a neutral sentinel rather than assert a
+# specific channel (e.g. "MOBILE_APP") that could be false on a legally-meaningful
+# consent audit row. A caller MAY still supply `channel` explicitly; an explicit
+# value wins.
+DEFAULT_CONSENT_CHANNEL = "UNKNOWN"
 
 
 class IdentityServiceError(Exception):

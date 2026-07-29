@@ -223,14 +223,15 @@ def test_upsert_appends_and_reflects_on_list(ctx: SimpleNamespace) -> None:
     assert r.status_code == 200, r.text
     types_after = [x["consent_type"] for x in r.json()["consent_records"]]
     assert "DATA_SHARING_OPEN_BANKING" in types_after
-    # A default channel is stamped when the request omits one.
+    # A neutral sentinel channel is stamped when the request omits one (we do not
+    # fabricate a specific capture channel on a consent audit row).
     new = next(
         x
         for x in r.json()["consent_records"]
         if x["consent_type"] == "DATA_SHARING_OPEN_BANKING"
     )
     assert new["action"] == "GRANTED"
-    assert new["channel"] == "MOBILE_APP"
+    assert new["channel"] == "UNKNOWN"
 
     # A fresh GET (new request-scoped session) reflects the committed append.
     again = ctx.client.get(
