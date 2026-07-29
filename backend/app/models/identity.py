@@ -342,6 +342,66 @@ class MfaFactor(Base, UUIDPrimaryKey, Timestamps):
     # Set when the factor is proven and promoted PENDING -> ACTIVE (the step-up
     # slice performs the binding); NULL while PENDING.
     confirmed_at: Mapped[Optional[datetime.datetime]]
+    # --- Step-up brute-force lockout counters (the step-up slice, US-1.4) -----
+    # Consecutive failed step-up `factor_response` attempts against this factor.
+    # Reset to 0 on a correct code. When it reaches the service threshold the
+    # factor LOCKS (createStepUpToken -> 423) — the DB fact behind "never unlimited
+    # TOTP guessing". Server default 0 so pre-existing rows and inserts that omit
+    # it are well-defined.
+    failed_attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    # When the factor last locked. A lockout auto-expires after a fixed window
+    # (see the step-up service) so a member is never permanently locked out with no
+    # unlock path; NULL while not locked.
+    locked_at: Mapped[Optional[datetime.datetime]]
+
+
+class StepUpToken(Base, UUIDPrimaryKey, Timestamps):
+    """A single-use, short-lived step-up assertion issued to a member (US-1.4).
+
+    NEW entity (not in 04 §2.2): the backend ISSUES a security credential — the
+    step-up token the `stepUpAssertion` scheme (root.yaml) requires on sensitive
+    operations (revokeDevice, and later card reveal / vote / external payment).
+    Minted by `POST /auth/step-up` AFTER the member proves an MFA `factor_response`;
+    consumed exactly once by `require_step_up`.
+
+    SECURITY — this is a bearer credential, so it is stored the way a credential
+    must be:
+    - **Hash only.** `token_hash` is the SHA-256 of the opaque random token; the
+      plaintext token is returned to the client exactly once and is NEVER stored,
+      logged, or recoverable from this row. A leaked DB row therefore yields no
+      usable token (same posture as `onboarding_application.resume_token_hash`).
+    - **Single-use.** `consumed_at` is set the first (and only) time the token is
+      accepted; a replay finds it already consumed and is refused. Consumption is a
+      DB fact (a conditional UPDATE guarded by `consumed_at IS NULL`), not a
+      stateless-JWT JTI dance.
+    - **Short-lived.** `expires_at` is a few minutes out; an expired token is
+      refused even if never consumed.
+    - **Member-bound.** `member_id` is the minting member; `require_step_up`
+      rejects a token presented by any other member — a token minted for A can
+      never authorize an action for B.
+    - **Optionally action-bound.** `requested_action` (nullable) pins the token to
+      one sensitive operation when set; a general token (NULL) is accepted by any
+      step-up-gated operation.
+
+    `created_at`/`updated_at` come from the Timestamps mixin (`created_at` is the
+    mint time). No money / ledger.
+    """
+
+    __tablename__ = "step_up_token"
+
+    member_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("member.id")
+    )
+    # SHA-256 hex of the opaque token (64 chars); UNIQUE so a presented token maps
+    # to at most one row. The plaintext is NEVER stored.
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+    # The sensitive action this token authorizes, when scoped (e.g. "revokeDevice");
+    # NULL means a general step-up assertion accepted by any gated operation.
+    requested_action: Mapped[Optional[str]] = mapped_column(String(128))
+    # Short expiry (a few minutes); an expired token is refused.
+    expires_at: Mapped[datetime.datetime]
+    # Set once, atomically, when the token is spent; NULL while unused (single-use).
+    consumed_at: Mapped[Optional[datetime.datetime]]
 
 
 class ConsentRecord(Base, UUIDPrimaryKey):

@@ -22,8 +22,9 @@ from __future__ import annotations
 
 import datetime
 import uuid
+from typing import Any, cast
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import CursorResult, and_, or_, select, update
 
 from app.models.identity import (
     ConsentAction,
@@ -38,6 +39,7 @@ from app.models.identity import (
     MfaFactor,
     MfaFactorStatus,
     MfaFactorType,
+    StepUpToken,
 )
 from app.repositories.base import BaseRepository
 
@@ -207,6 +209,75 @@ class MfaFactorRepository(BaseRepository[MfaFactor]):
         return factor
 
 
+class StepUpTokenRepository(BaseRepository[StepUpToken]):
+    """`step_up_token` access — the issued single-use step-up credential (US-1.4).
+
+    STORES ONLY HASHES: `create` takes an already-computed `token_hash` (the
+    service owns the plaintext boundary) and `get_by_hash` looks a presented token
+    up by its hash — this layer never sees, stores, or logs a plaintext token.
+    `consume` is the ATOMIC single-use guard: a conditional UPDATE that spends the
+    token only if it is still unconsumed, so a concurrent replay cannot double-spend
+    it. Flush, never commit — the router/dependency owns the transaction.
+    """
+
+    model = StepUpToken
+
+    def create(
+        self,
+        *,
+        member_id: uuid.UUID,
+        token_hash: str,
+        requested_action: str | None,
+        expires_at: datetime.datetime,
+    ) -> StepUpToken:
+        """Insert a new (unconsumed) step-up token and flush so its PK populates.
+
+        `token_hash` is the SHA-256 of the opaque token; the plaintext is NEVER
+        handed to this layer.
+        """
+        token = StepUpToken(
+            member_id=member_id,
+            token_hash=token_hash,
+            requested_action=requested_action,
+            expires_at=expires_at,
+            consumed_at=None,
+        )
+        self.add(token)
+        self.flush()
+        return token
+
+    def get_by_hash(self, token_hash: str) -> StepUpToken | None:
+        """Return the token row for a presented token's hash, or None."""
+        stmt = select(StepUpToken).where(StepUpToken.token_hash == token_hash)
+        return self.session.execute(stmt).scalar_one_or_none()
+
+    def consume(
+        self, token_id: uuid.UUID, member_id: uuid.UUID, *, now: datetime.datetime
+    ) -> bool:
+        """Atomically spend the token; return True iff THIS call consumed it.
+
+        The UPDATE fires only while the row is unconsumed, unexpired, AND owned by
+        `member_id` — so consumption, single-use, expiry and member-binding are all
+        enforced in one guarded statement. A replay (or a cross-member presentation)
+        matches zero rows and returns False. The caller must still validate up front
+        to choose the right error code; this is the race-safe final gate.
+        """
+        stmt = (
+            update(StepUpToken)
+            .where(
+                StepUpToken.id == token_id,
+                StepUpToken.member_id == member_id,
+                StepUpToken.consumed_at.is_(None),
+                StepUpToken.expires_at > now,
+            )
+            .values(consumed_at=now)
+        )
+        # `execute` is typed as `Result`; a Core UPDATE returns a `CursorResult`,
+        # which is where `rowcount` lives.
+        result = cast("CursorResult[Any]", self.session.execute(stmt))
+        return bool(result.rowcount == 1)
+
+
 class DeviceBindingRepository(BaseRepository[DeviceBinding]):
     """E-3 DeviceBinding access, scoped to one member (US-1.4).
 
@@ -248,3 +319,20 @@ class DeviceBindingRepository(BaseRepository[DeviceBinding]):
             )
         stmt = stmt.order_by(DeviceBinding.bound_at, DeviceBinding.id).limit(limit)
         return list(self.session.execute(stmt).scalars().all())
+
+    def get_owned(
+        self, member_id: uuid.UUID, device_id: uuid.UUID
+    ) -> DeviceBinding | None:
+        """Return the member's OWN device by id (any status), or None.
+
+        The lookup is scoped by BOTH `member_id` AND `id`, so another member's
+        device id resolves to None here — the router renders that as a 404 and the
+        IDOR class is excluded by construction (never a cross-member reveal). Not
+        filtered by status, so an already-revoked device is found (idempotent
+        revoke), never leaked as a spurious 404.
+        """
+        stmt = select(DeviceBinding).where(
+            DeviceBinding.member_id == member_id,
+            DeviceBinding.id == device_id,
+        )
+        return self.session.execute(stmt).scalar_one_or_none()

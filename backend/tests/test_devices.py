@@ -13,8 +13,9 @@ Covered:
 - No / malformed token -> 401.
 - IDOR (NON-VACUOUS): B is seeded with a distinct device; A's token never returns
   B's device, and vice versa.
-- revokeDevice (DELETE /auth/devices/{id}) is DEFERRED (step-up) — the route is
-  not mounted in this slice, so it does not resolve to a 2xx.
+- revokeDevice (DELETE /auth/devices/{id}) is now mounted and step-up-gated: with
+  no X-Step-Up-Token it is refused (never a 2xx). The full step-up happy-path /
+  single-use / IDOR coverage lives in test_stepup.py.
 """
 from __future__ import annotations
 
@@ -234,14 +235,16 @@ def test_list_is_scoped_per_member(ctx: SimpleNamespace) -> None:
     assert b[0]["id"] not in a_ids
 
 
-# --- revokeDevice is DEFERRED (step-up) --------------------------------------
+# --- revokeDevice is step-up-gated -------------------------------------------
 
 
-def test_revoke_device_is_not_implemented_here(ctx: SimpleNamespace) -> None:
-    # revokeDevice requires a stepUpAssertion (a later slice); the DELETE route
-    # is intentionally NOT mounted, so it never resolves to a 2xx.
+def test_revoke_device_requires_step_up(ctx: SimpleNamespace) -> None:
+    # revokeDevice is mounted but requires a stepUpAssertion: with no
+    # X-Step-Up-Token the request is refused (401 STEP_UP_REQUIRED) and never
+    # resolves to a 2xx. (Happy-path revoke is covered in test_stepup.py.)
     r = ctx.client.delete(
         f"/api/v1/auth/devices/{ctx.a_id}", headers=_auth(ctx.token_a)
     )
-    assert r.status_code in (404, 405)
+    assert r.status_code in (401, 403)
     assert not (200 <= r.status_code < 300)
+    assert r.json()["error"]["code"] == "STEP_UP_REQUIRED"
