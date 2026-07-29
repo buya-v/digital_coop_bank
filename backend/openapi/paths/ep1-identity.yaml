@@ -219,6 +219,12 @@
         $ref: '#/components/responses/UnprocessableEntity'
       '429':
         $ref: '#/components/responses/TooManyRequests'
+      '502':
+        description: 502 SMS_DELIVERY_FAILED — the SMS provider could not deliver the enrollment code (SMS factor only).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
 
 /api/v1/auth/step-up:
   post:
