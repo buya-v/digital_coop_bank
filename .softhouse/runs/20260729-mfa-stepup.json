@@ -1,0 +1,140 @@
+{
+  "run_id": "20260729-mfa-stepup",
+  "feature": "MFA enrollment + step-up (EP-1, security-critical) + revokeDevice",
+  "requirement": "Build MFA enrollment (TOTP real via pyotp with the secret ENCRYPTED at rest; SMS behind a mock port) and step-up (verify factor -> mint single-use, short-lived, member-bound step_up_token; require_step_up dependency; 423 lockout), then wire the now-unblocked revokeDevice (memberOAuth2 + step-up, IDOR-safe). Two dedicated security reviews. No money/ledger. All 4 gates pass.",
+  "status": "executing",
+  "backlog": [
+    "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
+    "Auth: add a membership-status/revocation gate at auth time \u2014 get_current_member currently resolves ANY Member row regardless of membership_status (a SUSPENDED/CLOSED member with a still-valid token authenticates). Add for the actions/money slices (profile read may be fine; money-movement must gate). Also: token revocation on device unbind.",
+    "EP-1 remaining: MFA enrollment (createMfaEnrollment) + step-up token (createStepUpToken) \u2014 the security-sensitive slice that unblocks revokeDevice, the profile registration_number edit, and any step-up-gated action; interacts with the external IdP (backend issues/verifies a short-lived step-up assertion). preferred_language read/update is a small profile gap.",
+    "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
+    "LEDGER (standing, needs a human controller): account/ledger_entry/transaction are structure-only. The posting logic, chart of accounts, entry_type/transaction_type enum values, balance derivation, and the hold formula are HELD on a corrected ledger design (NOT 06's defects). Highest-value next architecture piece and the one requiring a controller, not an LLM pass.",
+    "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
+    "Payment rails: 56 ACH/FedNow/SEPA -> Banksuljee (RTGS >MNT 5m) / ACH+ / NETC. Threshold is Governor's-order config, not a literal.",
+    "Vendors: Stripe/Plaid/Lithic/Persona leaked into schema field names and error codes \u2014 removal is a requirements change.",
+    "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
+    "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
+    "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
+    "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling.",
+    "/ready malformed DATABASE_URL edge (LOW, T2 review): a non-empty-but-garbage URL passes engine_configured() then create_engine() raises ArgumentError during dependency resolution -> 500 instead of 503. Operator-misconfig edge; harden when auth/real-deploy lands.",
+    "DEC-18 currency-type amendment (surfaced by currency-apply agents): multiple docs now state amounts in \u20ae while the DEC-18 declaration + the doc-level 'all amounts USD' conventions (01:374/406, 02:11, 04:9/110/750) still say USD/ISO-4217 USD. Flipping DEC-18 to MNT/496 is a NORMATIVE currency-policy decision (01 \u00a76 owns it) \u2014 a user/coordinator amendment, not an amount pass. Do after the amount applies land.",
+    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
+    "Minor-unit TERM cleanup: 'cents' still used as the minor-unit name (04:9 gloss, 04:657 *_cents config keys, schema field names). MNT minor unit is m\u00f6ng\u00f6 (obsolete); the whole-t\u00f6gr\u00f6g convention means these should be reconciled in one terminology pass (rename/neutralize 'cents' -> 'minor units').",
+    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
+    "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
+    "Other-vendor abstraction completeness: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) providers are `-class` abstractions but could get the same 'provider TBD/procurement' treatment as the five main vendors."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "MFA factor model + enrollment (TOTP + SMS-mock)",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/models/identity.py",
+        "backend/migrations/versions/0001_initial.py",
+        "backend/app/adapters/sms/",
+        "backend/app/auth/mfa.py",
+        "backend/app/services/mfa.py",
+        "backend/app/api/routers/mfa.py",
+        "backend/app/main.py",
+        "backend/pyproject.toml",
+        "backend/tests/test_mfa_enrollment.py"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R1 security APPROVED (raw column = Fernet ciphertext, fail-closed verified); micro-fix: declared 502 SMS_DELIVERY_FAILED in contract",
+      "description": "READ .softhouse/mfa-stepup-brief.md IN FULL (SECURITY REQUIREMENTS). Read the contract (ep1-identity.yaml createMfaEnrollment + schemas MfaFactorType/MfaEnrollmentRequest/MfaEnrollmentResponse), app/auth/deps.py (get_current_member), app/models/identity.py, the slice foundation. Build MFA ENROLLMENT: (a) new `mfa_factor` model + 0001 migration IN LOCKSTEP (member_id, factor_type TOTP/SMS, status PENDING/ACTIVE, encrypted secret, timestamps; per-(member,type) uniqueness). (b) The TOTP secret ENCRYPTED AT REST via app-level authenticated encryption (Fernet/AES-GCM from `cryptography`) with a config/env key \u2014 NEVER plaintext, never logged; document the KMS caveat. Add `pyotp` to pyproject; do NOT hand-roll TOTP. (c) createMfaEnrollment (POST /auth/mfa/enrollments, 201) on get_current_member: create a PENDING factor, return the binding_challenge (TOTP: otpauth URI/secret to bind; SMS: send a code via an SMS PORT + deterministic MOCK). 409 duplicate active factor. (d) Enrollment binding: a PENDING factor becomes ACTIVE only after a correct code is proven \u2014 decide+document the confirm mechanism against the contract; a never-confirmed factor must NOT authorize step-up (T2 enforces). NO money/ledger. Tests backend/tests/test_mfa_enrollment.py (get_session overridden; DevRsaSigner token for a seeded member): TOTP enroll returns a binding challenge + persists an ENCRYPTED secret (assert the stored column is NOT the plaintext secret); duplicate \u2192 409; SMS enroll drives the mock. GATES from backend/ ALL PASS (paste): check_models, check_migration (lockstep), openapi/validate.py, pytest; ruff+mypy strict clean on new files. Handoff: the model + encryption approach + KMS caveat, the binding mechanism, gate outputs."
+    },
+    {
+      "id": "T2",
+      "title": "Step-up token issue+verify + wire revokeDevice",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/models/identity.py",
+        "backend/migrations/versions/0001_initial.py",
+        "backend/app/auth/stepup.py",
+        "backend/app/auth/deps.py",
+        "backend/app/services/stepup.py",
+        "backend/app/api/routers/mfa.py",
+        "backend/app/api/routers/devices.py",
+        "backend/tests/test_stepup.py"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R2 security APPROVED (6 attacks probed+blocked); micro-fix: broke latent import cycle (lazy hash import). 116 tests all gates PASS",
+      "description": "READ .softhouse/mfa-stepup-brief.md IN FULL. Forks from main AFTER T1 (uses the mfa_factor model + TOTP verify). Build STEP-UP (highest risk \u2014 the backend issues a credential): (a) new `step_up_token` model + 0001 migration LOCKSTEP (token_hash, member_id, requested_action nullable, expires_at, consumed_at nullable). (b) createStepUpToken (POST /auth/step-up, 200 StepUpResponse{step_up_token, expires_at}) on get_current_member: verify `factor_response` (TOTP code, \u00b11 step window only, constant-time) against the member's ACTIVE factor; on success mint an OPAQUE random step_up_token (store only its HASH), short-lived (few min), bound to the member (+ requested_action if given); on repeated failure LOCKOUT -> 423. Also activate a PENDING factor on first correct code if that is the chosen binding (per T1). (c) `require_step_up` FastAPI dependency: read X-Step-Up-Token, verify (exists + unexpired + NOT consumed + belongs to get_current_member; requested_action matches if set) then CONSUME it (single-use \u2014 a replay fails), else 401/403. (d) WIRE revokeDevice (DELETE /auth/devices/{id}, memberOAuth2 + require_step_up): mount it, IDOR-safe (a member revokes only THEIR device \u2014 404 for another member's id, never by-id cross-member), and ADD it to the test_health route allowlist (now expected). NO money/ledger. Tests backend/tests/test_stepup.py: enroll->confirm->step-up happy path; wrong code -> rejected; N failures -> 423 lockout; step-up token SINGLE-USE (2nd use fails); EXPIRED token rejected; token for A rejected for B (binding); revokeDevice WITHOUT step-up -> 401/403, WITH -> 200; revokeDevice IDOR (A can't revoke B's device). GATES from backend/ ALL PASS (paste): check_models, check_migration (lockstep), openapi/validate.py, pytest; ruff+mypy strict clean. Handoff: the step-up token design (single-use/expiry/binding/lockout), the TOTP window, require_step_up, the revokeDevice wiring+IDOR, which attack each test proves, gate outputs."
+    },
+    {
+      "id": "R1",
+      "title": "Security review \u2014 MFA enrollment + secret",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/models/identity.py",
+        "backend/app/services/mfa.py",
+        "backend/app/auth/mfa.py",
+        "backend/tests/test_mfa_enrollment.py"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a72f50f3db80d69cd",
+      "description": "INDEPENDENT SECURITY review of T1 (MFA enrollment + secret storage). In your worktree `git checkout` the branch, `cd backend`, make a gitignored venv and install deps (incl. pyotp + PyJWT[crypto]); RUN all 4 gates (paste verdicts). Read the brief, contract, handoff .softhouse/handoff/20260729-mfa-stepup/T1.md, `git diff main...<branch>`, and the source. ATTACK: (1) SECRET AT REST \u2014 is the TOTP secret stored ENCRYPTED (authenticated encryption, config/env key), never plaintext? Grep the migration/model + assert a test proves the stored column != the plaintext secret. Is the key ever committed/logged? Is the secret ever logged or returned except as the enrollment binding_challenge? (2) TOTP not hand-rolled (pyotp or equiv). (3) model+migration lockstep (check_migration); per-(member,type) uniqueness; 409 on duplicate. (4) a never-confirmed PENDING factor cannot be trusted (binding mechanism sound). (5) IDOR \u2014 enrollment is for the current member only. (6) non-negotiables; ruff+mypy clean on new files. Verdict APPROVED/MICRO-FIX/REJECTED with gate verdicts + the secret-at-rest evidence."
+    },
+    {
+      "id": "R2",
+      "title": "Security review \u2014 step-up issuance + revokeDevice",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/auth/stepup.py",
+        "backend/app/auth/deps.py",
+        "backend/app/services/stepup.py",
+        "backend/app/api/routers/devices.py",
+        "backend/tests/test_stepup.py"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a8e9954d900c16662",
+      "description": "INDEPENDENT SECURITY review of T2 \u2014 the backend ISSUES a step-up credential; be adversarial, assume a bypass exists. In your worktree `git checkout` the branch, `cd backend`, gitignored venv + install deps; RUN all 4 gates (paste verdicts). Read the brief, contract, handoff .softhouse/handoff/20260729-mfa-stepup/T2.md, `git diff main...<branch>`, source. ATTACK, and where feasible write a throwaway probe: (1) SINGLE-USE \u2014 can a step_up_token be used TWICE (replay)? Is consumption atomic (consumed_at set before the action, no TOCTOU)? (2) EXPIRY enforced (expired token rejected)? (3) MEMBER BINDING \u2014 can a token minted for A authorize a step-up action as B? (4) TOTP verify: narrow window (\u00b11 step, not wide drift)? constant-time-ish? LOCKOUT after N failures -> 423 (no unlimited guessing)? (5) is only the token HASH stored (not the token)? any token/secret logged? (6) revokeDevice: gated by BOTH get_current_member AND require_step_up (no step-up => 401/403)? IDOR \u2014 can A revoke B's device by id (must be 404, never cross-member)? mounted + in the route allowlist? (7) do the tests prove single-use/expiry/binding/lockout/IDOR NON-VACUOUSLY (would fail if the control were removed)? (8) non-negotiables; ruff+mypy clean. Verdict APPROVED/MICRO-FIX/REJECTED with the specific attack that succeeds if any + gate verdicts."
+    },
+    {
+      "id": "V",
+      "title": "Full gate run on merged main",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "backend",
+      "files_hint": [
+        "backend/"
+      ],
+      "dependencies": [
+        "R1",
+        "R2"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Install new deps (pyotp) in the gate env FIRST (learned: a new dep breaks the orchestrator gate run otherwise). Then from backend/ run all 4 gates PASS; confirm mfa/step-up/revokeDevice routes wired; grep that the TOTP secret is not stored plaintext (encrypted) and no token/key committed; grep money/ledger (none); confirm revokeDevice requires step-up. Record in postmortem + update CLAUDE.md."
+    }
+  ]
+}

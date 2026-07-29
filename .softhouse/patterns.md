@@ -59,6 +59,22 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260729-mfa-stepup — MFA enrollment + step-up (security-critical) + revokeDevice (2026-07-29)
+
+Completed the EP-1 identity epic: MFA enrollment (TOTP, secret ENCRYPTED at rest; SMS mock port), step-up (mint a single-use member-bound step_up_token), and the now-unblocked revokeDevice (session + step-up). 2 coders (serial) + 2 DEDICATED SECURITY reviews + verifier. All 4 gates PASS (116 tests). No money/ledger. The member journey is now complete up to the ledger: onboard -> KYC -> promote -> authenticate -> profile/consents/devices -> MFA -> step-up-gated sensitive actions.
+
+**Two security-critical components, two adversarial reviews that PROBED not read**
+- Secret at rest (enrollment): the reviewer BYPASSED the ORM and read the raw secret_ciphertext column after a real enrollment — confirmed it is a Fernet token, NOT the base32 seed (seed not even a substring), decrypts only with the key, fails closed with no key. Proved the guarding test non-vacuous by swapping in a plaintext 'cipher' and watching the test fail. 'Encrypted at rest' is only credible when someone looked at the bytes on disk.
+- Step-up credential (issuance): the reviewer independently probed 6 attacks — replay/single-use, expiry, cross-member binding, hash-only storage/entropy, lockout persistence, revokeDevice IDOR — all blocked. The keystone design: single-use is an ATOMIC conditional UPDATE (`SET consumed_at WHERE consumed_at IS NULL AND member_id=:caller AND expires_at>now`) acted on by rowcount==1 — no TOCTOU, member-binding and expiry folded into the same guarded write, consumed-and-committed BEFORE the route body so there's no reuse-on-failure. This is the correct shape for a single-use server-issued credential; a stateless-JWT-with-JTI-blocklist would have been more code and more foot-guns.
+
+**A subtle bug the coder caught themselves**: lockout counters must be committed on the ERROR path — a failed step-up rolls back the session by default, which would roll back the failed-attempt increment and make lockout a no-op. The router commits the increment in its except block; a test proves it (the override session only closes, so an uncommitted increment would never reach the threshold).
+
+**Two micro-fixes at merge**: declared the reachable 502 SMS_DELIVERY_FAILED in the contract (consistency); broke a latent import cycle (auth.deps <-> services.stepup) with a lazy import — it worked in the running app but broke importing the service standalone (a trap for a future worker/script). Neither security.
+
+**Dependency-in-gate-env lesson recurred and was handled**: T1 added pyotp; the orchestrator's gate run showed import errors until pyotp was installed in the gate env. When a run adds a dep, install it before trusting the gate (CI covers it via `pip install -e .[dev]`).
+
+**Verifier**: check_models PASS (63t/49 money) · check_migration PASS (146==146) · openapi validate PASS · pytest 116 · TOTP secret ciphertext / step-up hash-only / revokeDevice step-up-gated / IDOR-404 · no money/ledger.
+
 ### Run 20260729-consents-devices — EP-1 consents + device-listing self-service (2026-07-29)
 
 Added the memberOAuth2-only self-service endpoints (listMyConsents / upsertMyConsent / listDevices) on the auth foundation. 1 coder + 1 IDOR-focused review + verifier. All 4 gates PASS (98 tests). No schema change, no money/ledger.
