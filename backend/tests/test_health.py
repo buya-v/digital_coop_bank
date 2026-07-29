@@ -28,7 +28,10 @@ def test_only_expected_feature_routes():
     # contract/legal clearance. Slice 2 (T1) adds the US-1.3 config-driven
     # common-bond eligibility check; slice 2 (T2) adds the ХУР/XYP KYC
     # session/status endpoints; the profile slice (T2) adds getMyProfile /
-    # updateMyProfile (the first post-auth endpoints).
+    # updateMyProfile (the first post-auth endpoints). The consents+devices
+    # slice (T1) adds listMyConsents / upsertMyConsent (member consent history)
+    # and listDevices (trusted-device listing) — all memberOAuth2-only;
+    # revokeDevice is DEFERRED (step-up) and intentionally NOT mounted.
     paths = {route.path for route in app.routes}
     assert paths >= {"/health", "/ready"}
     feature_ish = {p for p in paths if p.startswith("/api/")}
@@ -40,5 +43,8 @@ def test_only_expected_feature_routes():
         "/api/v1/onboarding/kyc/status",
         "/api/v1/members/me",
         "/api/v1/members/me/profile",
+        "/api/v1/members/me/consents",
+        "/api/v1/members/me/consents/{consent_type}",
+        "/api/v1/auth/devices",
     }
     assert feature_ish == expected, f"unexpected feature routes: {feature_ish - expected}"
