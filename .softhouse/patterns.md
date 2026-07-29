@@ -59,6 +59,21 @@ This is what makes `executor` routing correct.
 
 <!-- LEARNED PATTERNS START -->
 
+### Run 20260729-consents-devices — EP-1 consents + device-listing self-service (2026-07-29)
+
+Added the memberOAuth2-only self-service endpoints (listMyConsents / upsertMyConsent / listDevices) on the auth foundation. 1 coder + 1 IDOR-focused review + verifier. All 4 gates PASS (98 tests). No schema change, no money/ledger.
+
+**Deferred the step-up-gated op instead of half-building it**
+- revokeDevice's contract security is `memberOAuth2 + stepUpAssertion`. Step-up isn't built, so revokeDevice was NOT mounted — and a route-allowlist test (`test_only_expected_feature_routes` asserts the mounted feature routes EXACTLY equal an explicit set) guardrails it: if anyone later mounts a step-up-gated op without enforcing step-up, the suite fails. Don't ship a security-gated operation without its gate; make the deferral enforceable, not just a comment.
+
+**IDOR excluded structurally again (the pattern holds)**: identity only from get_current_member; repos take the owning member_id as a required arg; path params ({consent_type}) are resource names validated against an enum, never owner selectors. Non-vacuous A<->B tests (B seeded distinct, unchanged after A's hostile write).
+
+**Audit-integrity micro-fix**: the default consent `channel` was `MOBILE_APP` — but stamping a SPECIFIC capture channel we don't actually know onto a legally-meaningful consent audit row asserts a possibly-false fact. Changed to a neutral `UNKNOWN` sentinel (explicit caller value still wins). For audit/compliance fields, a truthful 'unknown' beats a plausible fabrication — same honesty rule as the requirements work, now in code.
+
+**Honestly-flagged assumption**: SERVICE_REQUIRED_CONSENTS = {TERMS_AND_BYLAWS, PRIVACY_POLICY, E_SIGN_DISCLOSURE} is an invented policy set (04 doesn't enumerate it) — kept as a replaceable frozenset with a comment saying so, not asserted as fact. The reviewer confirmed the honest framing.
+
+**Verifier**: check_models PASS (61t) · check_migration PASS (142==142) · openapi validate PASS · pytest 98 · routes wired · revokeDevice deferred+guardrailed · no money/ledger.
+
 ### Run 20260728-auth-profile — member auth foundation + profile self-service (2026-07-28)
 
 Added the member-authentication foundation (verify external-IdP RS256 Bearer JWTs -> get_current_member) and the first post-auth endpoints (getMyProfile/updateMyProfile), extending Member for the profile. 2 coders (serial) + 2 reviews (one a dedicated SECURITY review) + verifier. All 4 gates PASS on merged main (82 tests). No money/ledger. A member can now onboard -> KYC -> promote -> AUTHENTICATE -> manage their profile.
