@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session
 from app.api.errors import register_error_handlers
+from app.api.routers.consents import router as consents_router
+from app.api.routers.devices import router as devices_router
 from app.api.routers.members import router as members_router
 from app.api.routers.onboarding import router as onboarding_router
 from app.config import get_settings
@@ -35,10 +37,13 @@ app = FastAPI(
 )
 
 # Uniform error envelope (04 §3.0) + the EP-1 feature routers: pre-auth onboarding
-# and the post-auth member self-service (getMyProfile / updateMyProfile).
+# and the post-auth member self-service (getMyProfile / updateMyProfile, plus
+# consent history and trusted-device listing).
 register_error_handlers(app)
 app.include_router(onboarding_router)
 app.include_router(members_router)
+app.include_router(consents_router)
+app.include_router(devices_router)
 
 
 @app.get("/health", tags=["ops"], summary="Liveness probe")
