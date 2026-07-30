@@ -1,8 +1,8 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
+  "run_id": "20260730-ledger-audit",
+  "feature": "Ledger design \u2014 independent adversarial audit (3 lenses) + synthesis",
+  "requirement": "Adversarially audit the current 06 ledger design from 3 independent lenses (posting correctness; holds/available/precision; invariants/interest-dividend/completeness) against first principles + 04 + 03 acceptance criteria + CLAUDE.md non-negotiables. Reconcile CLAUDE.md's 5 claimed defects (present vs fixed). Produce a controller-ready verdict + residual-defect list. Design audit only \u2014 no code, no live money.",
+  "status": "planning",
   "backlog": [
     "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
     "Auth: add a membership-status/revocation gate at auth time \u2014 get_current_member currently resolves ANY Member row regardless of membership_status (a SUSPENDED/CLOSED member with a still-valid token authenticates). Add for the actions/money slices (profile read may be fine; money-movement must gate). Also: token revocation on device unbind.",
@@ -24,5 +24,71 @@
     "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
     "Other-vendor abstraction completeness: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) providers are `-class` abstractions but could get the same 'provider TBD/procurement' treatment as the five main vendors."
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "A1",
+      "title": "Ledger audit \u2014 posting correctness",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "A2",
+      "title": "Ledger audit \u2014 holds/available/precision",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "A3",
+      "title": "Ledger audit \u2014 invariants/interest-dividend/completeness",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "S",
+      "title": "Synthesize verdict + defect list (controller-ready)",
+      "agent_role": "analyst",
+      "executor": "orchestrator",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Reconcile the 3 independent audits into a controller-ready verdict: for each CLAUDE.md claimed defect present/fixed; the residual real defects ranked by severity; the bottom-line controller-readiness call; and whether a corrections pass is warranted."
+    }
+  ]
 }
