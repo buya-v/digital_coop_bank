@@ -51,6 +51,35 @@ class OnboardingApplicationRepository(BaseRepository[OnboardingApplication]):
         )
         return self.session.execute(stmt).scalar_one_or_none()
 
+    def get_by_resume_token_hash_for_update(
+        self, resume_token_hash: str
+    ) -> OnboardingApplication | None:
+        """Resolve the draft AND take a row-level lock on it (`SELECT ... FOR
+        UPDATE`) for a read-modify-write that must serialize.
+
+        Used by the KYC service to serialize the APPROVED->promote transition:
+        two concurrent getKycStatus polls that both observe APPROVED would
+        otherwise both create a Member (only backstopped by a DB uniqueness
+        violation -> 500). With the lock, the second poll blocks until the first
+        commits, then re-reads the now-frozen APPROVED draft and is idempotent.
+
+        `populate_existing=True` forces the already-identity-mapped instance to be
+        REFRESHED from the freshly-locked row (rather than returning stale
+        in-memory column values) — essential so the caller re-reads the committed
+        APPROVED status, not the pre-lock IN_PROGRESS it may have loaded earlier.
+
+        NOTE: Postgres honours `FOR UPDATE`; SQLite (tests) silently ignores it,
+        so the block-and-serialize behaviour is Postgres-only, but the caller's
+        re-read idempotency guard yields exactly one Member on either backend.
+        """
+        stmt = (
+            select(OnboardingApplication)
+            .where(OnboardingApplication.resume_token_hash == resume_token_hash)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return self.session.execute(stmt).scalar_one_or_none()
+
     def update(self, application: OnboardingApplication) -> OnboardingApplication:
         """Persist mutations to an already-tracked draft (flush, no commit)."""
         self.flush()

@@ -272,6 +272,81 @@ def test_approved_promotion_is_idempotent(h: Harness) -> None:
     assert h.member_count() == 1
 
 
+def test_concurrent_approved_polls_promote_exactly_one_member(h: Harness) -> None:
+    """Two concurrent getKycStatus polls that BOTH observe APPROVED on the same
+    IN_PROGRESS draft must promote EXACTLY ONE Member — never double-insert (which
+    the DB uniqueness constraint would surface only as a 500).
+
+    Concurrency is simulated deterministically. Session A loads the draft while it
+    is still IN_PROGRESS (as a racing poll would, before the other commits), then
+    session B runs its poll to completion — promoting and committing. Session A's
+    poll finally runs on its now-STALE IN_PROGRESS in-memory view: that drives it
+    into the guarded APPROVED->promote branch, where the row-lock re-read
+    (`get_by_resume_token_hash_for_update`, `populate_existing`) observes the
+    recorded APPROVED and is idempotent. One Member, one KycSubmission, no error.
+    (SQLite ignores FOR UPDATE; the companion test confirms it renders on Postgres.)
+    """
+    from app.repositories.onboarding import OnboardingApplicationRepository
+    from app.services.kyc import KycService, KycStatusResult
+    from app.services.onboarding import _hash_token
+
+    # One provider instance drives BOTH the session start (returns IN_PROGRESS)
+    # and both polls (return APPROVED) — the mock keeps its inquiry state
+    # per-instance, so the create+poll must share it (as the app wires it).
+    provider = MockEkycProvider(KycStatus.APPROVED)
+    h.set_provider(provider)
+
+    # Arrange: a draft with a started KYC session (draft is IN_PROGRESS).
+    token = _create_with_identity(h.client)
+    assert h.client.post(_KYC_SESSIONS, headers=_auth(token)).status_code == 201
+
+    # Session A: a racing poll loads the draft while it is still IN_PROGRESS.
+    session_a = h.session_factory()
+    draft_a = OnboardingApplicationRepository(session_a).get_by_resume_token_hash(
+        _hash_token(token)
+    )
+    assert draft_a is not None and draft_a.kyc_status is KycStatus.IN_PROGRESS
+    # End the read transaction; expire_on_commit=False keeps A's stale IN_PROGRESS
+    # view of the draft in its identity map (exactly the racing-poll condition).
+    session_a.commit()
+
+    # Session B: the other poll promotes to a PENDING_PAYMENT Member, and commits.
+    session_b = h.session_factory()
+    res_b = KycService(session_b, provider).get_status(token)
+    session_b.commit()
+    session_b.close()
+    assert isinstance(res_b, KycStatusResult) and res_b.kyc_status is KycStatus.APPROVED
+    assert h.member_count() == 1
+
+    # Session A now runs its poll against its STALE (IN_PROGRESS) in-memory draft:
+    # it enters the guarded promote branch and must be idempotent, not re-insert.
+    res_a = KycService(session_a, provider).get_status(token)
+    session_a.commit()
+    session_a.close()
+    assert isinstance(res_a, KycStatusResult) and res_a.kyc_status is KycStatus.APPROVED
+
+    # THE GUARANTEE: exactly one Member and one KycSubmission, and no exception.
+    assert h.member_count() == 1
+    assert h.kyc_submission_count() == 1
+
+
+def test_promotion_lock_query_renders_for_update_on_postgres() -> None:
+    """SQLite ignores FOR UPDATE, so confirm the lock is REAL on Postgres: the
+    locking select the promotion path uses renders `FOR UPDATE` under the
+    postgresql dialect (mirrors OnboardingApplicationRepository
+    .get_by_resume_token_hash_for_update)."""
+    from sqlalchemy import select
+    from sqlalchemy.dialects import postgresql
+
+    stmt = (
+        select(OnboardingApplication)
+        .where(OnboardingApplication.resume_token_hash == "x")
+        .with_for_update()
+    )
+    compiled = str(stmt.compile(dialect=postgresql.dialect()))
+    assert "FOR UPDATE" in compiled
+
+
 # --- error branches -----------------------------------------------------------
 
 

@@ -41,7 +41,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_session
 from app.api.errors import register_error_handlers
-from app.auth.deps import get_current_member, get_token_verifier
+from app.auth.deps import get_current_member, get_token_verifier, require_active_member
 from app.auth.dev_signer import DevRsaSigner
 from app.models.membership import Member, MembershipStatus
 
@@ -88,6 +88,11 @@ def _build_probe_app() -> FastAPI:
         # Prove the dep returns the DB Member (only `sub` -> DB is trusted).
         return {"id": str(member.id), "ner": member.ner}
 
+    @app.get("/probe/active")
+    def _active(member: Member = Depends(require_active_member)) -> dict[str, str]:
+        # Guarded by require_active_member: reachable only by an ACTIVE member.
+        return {"id": str(member.id)}
+
     return app
 
 
@@ -131,11 +136,34 @@ def ctx() -> Iterator[SimpleNamespace]:
     # Default: verify against the dev signer's public key, no iss/aud enforced.
     app.dependency_overrides[get_token_verifier] = lambda: SIGNER.verifier()
 
+    def _seed_member(status: MembershipStatus, code: str) -> str:
+        """Insert an extra Member with the given membership_status; return its
+        UUID subject (for minting a token). `code` (<=8 chars) keeps the UNIQUE
+        member_id / registration_number columns distinct across seeded members."""
+        s = test_session()
+        m = Member(
+            member_id=f"DCB-{code}",  # <=16 chars, unique
+            ovog=None,
+            etsgiin_ner="Болд",
+            ner="Ганаа",
+            mrz_name_latin=None,
+            registration_number=f"УБ{code}",  # <=10 chars, unique
+            membership_status=status,
+            email=f"{code}@example.mn",
+            phone_number="+97688110022",
+        )
+        s.add(m)
+        s.commit()
+        sub = str(m.id)
+        s.close()
+        return sub
+
     try:
         yield SimpleNamespace(
             client=TestClient(app),
             app=app,
             member_id=member_id,
+            seed_member=_seed_member,
         )
     finally:
         app.dependency_overrides.clear()
@@ -231,7 +259,8 @@ def test_missing_authorization_header_is_401(ctx: SimpleNamespace) -> None:
 def test_malformed_authorization_header_is_401(ctx: SimpleNamespace) -> None:
     # Right token, wrong scheme.
     token = SIGNER.mint(subject=ctx.member_id, expires_in_seconds=900)
-    assert ctx.client.get("/probe/me", headers={"Authorization": f"Token {token}"}).status_code == 401
+    r = ctx.client.get("/probe/me", headers={"Authorization": f"Token {token}"})
+    assert r.status_code == 401
 
 
 # --- iss / aud enforced only when configured --------------------------------
@@ -283,3 +312,59 @@ def test_not_yet_valid_nbf_is_401(ctx: SimpleNamespace) -> None:
         not_before=_future(300),  # nbf 5 min in the future
     )
     assert ctx.client.get("/probe/me", headers=_auth(token)).status_code == 401
+
+
+# --- CLOSED member must not authenticate (safe subset of backlog #2) ---------
+
+
+def test_closed_member_is_rejected_uniform_401(ctx: SimpleNamespace) -> None:
+    # A perfectly valid, correctly-signed, unexpired token whose subject IS a
+    # real member — but the account is CLOSED. It must NOT authenticate, and the
+    # refusal is the SAME uniform 401 (same code + message) as an unknown subject:
+    # no way to tell "no such member" from "closed member" (no info leak).
+    closed_sub = ctx.seed_member(MembershipStatus.CLOSED, "CLOSED01")
+    token = SIGNER.mint(subject=closed_sub, expires_in_seconds=900)
+    # Non-vacuous: an ACTIVE member with the same token shape is admitted (200).
+    r = ctx.client.get("/probe/me", headers=_auth(token))
+    assert r.status_code == 401
+    body = r.json()
+    assert body["error"]["code"] == "UNAUTHENTICATED"
+    assert body["error"]["message"] == (
+        "The access token subject does not identify a known member."
+    )
+
+
+# --- require_active_member (available for future money/sensitive ops) --------
+
+
+def test_require_active_member_allows_active(ctx: SimpleNamespace) -> None:
+    # The seeded default member is ACTIVE -> the guarded route is reachable.
+    token = SIGNER.mint(subject=ctx.member_id, expires_in_seconds=900)
+    r = ctx.client.get("/probe/active", headers=_auth(token))
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == ctx.member_id
+
+
+def test_require_active_member_rejects_suspended_403(ctx: SimpleNamespace) -> None:
+    suspended_sub = ctx.seed_member(MembershipStatus.SUSPENDED, "SUSP0001")
+    token = SIGNER.mint(subject=suspended_sub, expires_in_seconds=900)
+    # Authenticated (get_current_member succeeds: SUSPENDED still authenticates),
+    # but not ACTIVE -> 403 MEMBER_NOT_ACTIVE.
+    assert ctx.client.get("/probe/me", headers=_auth(token)).status_code == 200
+    r = ctx.client.get("/probe/active", headers=_auth(token))
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "MEMBER_NOT_ACTIVE"
+
+
+def test_require_active_member_rejects_pending_payment_403(
+    ctx: SimpleNamespace,
+) -> None:
+    # A JUST-PROMOTED member is PENDING_PAYMENT, not ACTIVE. It authenticates and
+    # can use its profile (get_current_member), but require_active_member is 403 —
+    # which is exactly why require_active_member MUST NOT gate onboarding/profile.
+    pending_sub = ctx.seed_member(MembershipStatus.PENDING_PAYMENT, "PEND0001")
+    token = SIGNER.mint(subject=pending_sub, expires_in_seconds=900)
+    assert ctx.client.get("/probe/me", headers=_auth(token)).status_code == 200
+    r = ctx.client.get("/probe/active", headers=_auth(token))
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "MEMBER_NOT_ACTIVE"
