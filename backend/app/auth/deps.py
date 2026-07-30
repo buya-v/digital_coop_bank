@@ -37,7 +37,7 @@ from app.auth.verifier import (
     TokenVerifier,
 )
 from app.models.identity import StepUpToken
-from app.models.membership import Member
+from app.models.membership import Member, MembershipStatus
 from app.repositories.identity import StepUpTokenRepository
 from app.repositories.membership import MemberRepository
 # NOTE: `hash_step_up_token` is imported lazily inside `_require_step_up` (below)
@@ -115,13 +115,44 @@ def get_current_member(
         if isinstance(subject, str) and subject
         else None
     )
-    if member is None:
-        # A validly-signed token whose subject is not a known member is still an
-        # authentication failure here (uniform 401, no member enumeration).
+    if member is None or member.membership_status is MembershipStatus.CLOSED:
+        # A validly-signed token whose subject is not a known member — OR whose
+        # member is CLOSED — is an authentication failure here. A CLOSED account
+        # must NOT authenticate, and it is refused with the SAME uniform 401 as an
+        # unknown subject: the caller cannot distinguish "no such member" from
+        # "closed member" (no account-status enumeration, no info leak).
         raise ApiError(
             status.HTTP_401_UNAUTHORIZED,
             "UNAUTHENTICATED",
             "The access token subject does not identify a known member.",
+        )
+    return member
+
+
+def require_active_member(
+    member: Member = Depends(get_current_member),
+) -> Member:
+    """Dependency for money / sensitive member-rights operations: require an
+    ACTIVE membership.
+
+    Composes `get_current_member` (so a missing/invalid/expired token or an
+    unknown/CLOSED subject is already a uniform 401), then additionally requires
+    `membership_status == ACTIVE`. Any other authenticated status — SUSPENDED, or
+    a just-promoted PENDING_PAYMENT / PENDING_KYC — is refused with
+    403 MEMBER_NOT_ACTIVE (root.yaml Forbidden: "a member-rights action attempted
+    while MembershipStatus != ACTIVE").
+
+    AVAILABLE for future money/ledger routes; apply it ONLY where clearly correct.
+    It MUST NOT gate onboarding/profile completion: a member is PENDING_PAYMENT the
+    instant KYC approves (services/kyc.py `_promote`), and must still read and edit
+    their own profile / manage consents and devices before paying for shares. Those
+    routes therefore keep depending on `get_current_member`, never this.
+    """
+    if member.membership_status is not MembershipStatus.ACTIVE:
+        raise ApiError(
+            status.HTTP_403_FORBIDDEN,
+            "MEMBER_NOT_ACTIVE",
+            "This action requires an active membership.",
         )
     return member
 

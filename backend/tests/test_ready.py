@@ -60,6 +60,38 @@ def test_ready_ok_path_with_fake_session():
     assert body["currency"] == "MNT"
 
 
+def test_ready_malformed_database_url_returns_503_not_500(monkeypatch):
+    """A configured-but-MALFORMED DATABASE_URL makes create_engine() raise
+    ArgumentError while building the engine. That must be caught and reported as
+    503 unready/error via the normal path — NOT leak out during dependency
+    resolution as an uncaught 500 (backlog #12)."""
+    import app.main as main
+    from sqlalchemy.exc import ArgumentError
+
+    secret_url_detail = "postgres://garbage-host-should-not-leak"
+
+    # A non-empty DATABASE_URL is present (so we pass engine_configured)...
+    monkeypatch.setattr(main, "engine_configured", lambda: True)
+
+    # ...but building the engine raises, exactly as create_engine() does on a
+    # malformed URL. We do NOT override ready_session here: the real dependency's
+    # new guard is what must turn this into a 503.
+    def _boom() -> object:
+        raise ArgumentError(f"Could not parse SQLAlchemy URL from {secret_url_detail}")
+
+    monkeypatch.setattr(main, "get_engine", _boom)
+
+    r = client.get("/ready")
+
+    assert r.status_code == 503
+    body = r.json()
+    assert body["status"] == "unready"
+    assert body["db"] == "error"
+    assert body["currency"] == "MNT"
+    # The malformed-URL detail is never leaked into the response body.
+    assert secret_url_detail not in r.text
+
+
 def test_ready_error_path_returns_503_without_leaking_exception_text():
     """Any exception from the liveness check -> 503, and never leaked verbatim."""
 

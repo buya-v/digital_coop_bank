@@ -27,7 +27,7 @@ from app.api.routers.onboarding import router as onboarding_router
 from app.api.routers.stepup import router as stepup_router
 from app.auth.mfa import MfaCryptoNotConfigured
 from app.config import get_settings
-from app.db.session import engine_configured
+from app.db.session import DatabaseNotConfigured, engine_configured, get_engine
 from app.money import CURRENCY_CODE
 
 settings = get_settings()
@@ -85,13 +85,33 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": settings.app_name, "version": settings.version}
 
 
-def ready_session() -> Iterator[Session | None]:
+class _EngineUnavailable:
+    """Sentinel yielded by `ready_session` when the DB is configured but its
+    engine cannot even be BUILT — e.g. a non-empty-but-malformed DATABASE_URL,
+    where `create_engine()` raises `ArgumentError` before any connection is made.
+
+    Its `execute()` raises, so `/ready` reports the failure through its EXISTING
+    error path (503 `{status: unready, db: error}`, exception text never leaked) —
+    exactly as it does for a runtime liveness failure — instead of letting the
+    build error escape during dependency resolution as an uncaught 500.
+    """
+
+    def execute(self, *_args: object, **_kwargs: object) -> object:
+        raise DatabaseNotConfigured()
+
+
+def ready_session() -> Iterator["Session | _EngineUnavailable | None"]:
     """Session dependency for `/ready` ONLY — not for feature routes.
 
     Yields `None` when no DB is configured instead of raising
     `DatabaseNotConfigured`, so the unconfigured branch of `/ready` never
     touches DB machinery and the whole check is a single dependency that
     tests can swap with `app.dependency_overrides[ready_session] = ...`.
+
+    When a DB IS configured but building its engine fails (e.g. a malformed
+    DATABASE_URL -> `ArgumentError`), yields an `_EngineUnavailable` sentinel so
+    the route renders 503 via its normal error path rather than 500 — the build
+    error is caught here, never during dependency resolution.
 
     Real feature routes must keep using `Depends(app.api.deps.get_session)`
     directly, which stays strict (raises on a missing DB) — that strictness
@@ -100,6 +120,16 @@ def ready_session() -> Iterator[Session | None]:
     """
     if not engine_configured():
         yield None
+        return
+    try:
+        # Build (once, cached) the engine up front. A non-empty-but-malformed
+        # DATABASE_URL raises ArgumentError HERE rather than mid-request, so it is
+        # caught instead of escaping during dependency resolution as a 500.
+        get_engine()
+    except Exception:  # noqa: BLE001 — a readiness probe never lets a build error
+        # (malformed URL, driver import failure, ...) escape as a 500; it reports
+        # "unready" and lets the route own the 503 + no-leak envelope.
+        yield _EngineUnavailable()
         return
     yield from get_session()
 

@@ -175,6 +175,31 @@ class KycService:
 
         new_status = result.status
         if new_status is KycStatus.APPROVED:
+            # Serialize the APPROVED->promote transition with a row-level lock so
+            # two concurrent polls that both observe APPROVED cannot both create a
+            # Member (which would otherwise surface only as a DB uniqueness
+            # violation -> 500). The lock (SELECT ... FOR UPDATE) makes the second
+            # poll block until the first commits, then re-read the now-frozen
+            # APPROVED draft and skip promotion — idempotent, exactly one Member.
+            # (SQLite ignores FOR UPDATE, but populate_existing still refreshes the
+            # draft so the re-read guard holds on either backend.)
+            locked = self._repo.get_by_resume_token_hash_for_update(
+                _hash_token(resume_token)
+            )
+            if locked is None:
+                # The draft vanished between the two reads (not expected); treat
+                # as no-draft rather than promote a row we can no longer lock.
+                return None
+            if locked.kyc_status is KycStatus.APPROVED:
+                # A concurrent poll already promoted and froze this draft. Observe
+                # the recorded APPROVED without creating a second Member (DEC-4:
+                # exactly one Member; no double-insert -> no 500).
+                return KycStatusResult(
+                    kyc_status=KycStatus.APPROVED,
+                    retry_guidance=None,
+                    pending_review=False,
+                )
+            draft = locked
             self._promote(draft, result)
             pending_review = False
         elif new_status is KycStatus.REJECTED:
