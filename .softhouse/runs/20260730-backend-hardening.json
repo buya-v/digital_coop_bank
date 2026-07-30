@@ -1,0 +1,85 @@
+{
+  "run_id": "20260730-backend-hardening",
+  "feature": "Backend robustness hardening (promotion row-lock, CLOSED-member auth, /ready malformed URL)",
+  "requirement": "Three reviewed robustness fixes: concurrent-safe promotion via row-lock; CLOSED members cannot authenticate + a require_active_member dep; /ready returns 503 (not 500) on a malformed DATABASE_URL. No new features, no ledger. All 4 gates pass.",
+  "status": "executing",
+  "backlog": [
+    "LEDGER (audited 2026-07-30, see 07_ledger_audit_verdict.md \u2014 needs a CONTROLLER to ratify): the CORE ledger (postings/invariants/interest/precision) is VERIFIED implementable AFTER (a) the applied hold-formula fix is ratified + a 03:340=50,000\u20ae regression, and (b) a full MNT re-denomination of 06 (par 10,000\u20ae; replace US rail/vendor accounts with ACH+/Banks\u00fcljee(RTGS)/NETC; add the RTGS_OUT posting rule + reconcile txn types with 04's E-8 enum; add a payment-hold memo account). The DIVIDEND engine is NOT certifiable until LA-11 (encode rate-vs-volume aggregation) + LA-8 (surplus split) + LA-13 (eligibility). Plus \u00a74.9 (10 txn types) + \u00a74.10 policy (closure residuals, negative-balance collections LA-14). THEN share purchase (EP-2/US-2.1 PENDING_PAYMENT->ACTIVE) unblocks.",
+    "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
+    "Auth: add a membership-status/revocation gate at auth time \u2014 get_current_member currently resolves ANY Member row regardless of membership_status (a SUSPENDED/CLOSED member with a still-valid token authenticates). Add for the actions/money slices (profile read may be fine; money-movement must gate). Also: token revocation on device unbind.",
+    "EP-1 identity epic is COMPLETE (onboarding->KYC->promote->auth->profile/consents/devices->MFA/step-up->revokeDevice). Minor gaps only: preferred_language read/update; the profile registration_number edit could now be wired behind require_step_up (currently 422); SMS OTP server-side verification (TOTP is the real factor). The NEXT epics all need the LEDGER (share purchase EP-2/US-2.1 = PENDING_PAYMENT->ACTIVE) or a further decision.",
+    "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
+    "Migration (partially done T3): T3 added an OFFLINE metadata-DDL == migration _UP gate. A STRONGER variant still worth adding: `alembic revision --autogenerate` against real Postgres in CI must yield an empty diff (catches things offline DDL render can miss).",
+    "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
+    "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
+    "verify-docs.sh prose blind spot (04:829, 04:1087) + no context exclusion on n_snake_name.",
+    "'etsgiin ner' vs 'etsgiin_ner' spacing \u2014 decide canonical spelling.",
+    "/ready malformed DATABASE_URL edge (LOW, T2 review): a non-empty-but-garbage URL passes engine_configured() then create_engine() raises ArgumentError during dependency resolution -> 500 instead of 503. Operator-misconfig edge; harden when auth/real-deploy lands.",
+    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
+    "Minor-unit TERM cleanup: 'cents' still used as the minor-unit name (04:9 gloss, 04:657 *_cents config keys, schema field names). MNT minor unit is m\u00f6ng\u00f6 (obsolete); the whole-t\u00f6gr\u00f6g convention means these should be reconciled in one terminology pass (rename/neutralize 'cents' -> 'minor units').",
+    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
+    "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
+    "Other-vendor abstraction completeness: e-signature (DocuSign/Dropbox-Sign-class) and notification (SendGrid/Twilio-class) providers are `-class` abstractions but could get the same 'provider TBD/procurement' treatment as the five main vendors."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Backend hardening: promotion row-lock + CLOSED-member auth + /ready malformed URL",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/services/kyc.py",
+        "backend/app/repositories/onboarding.py",
+        "backend/app/auth/deps.py",
+        "backend/app/repositories/membership.py",
+        "backend/app/db/session.py",
+        "backend/app/main.py",
+        "backend/tests/"
+      ],
+      "dependencies": [],
+      "status": "done",
+      "attempts": 0,
+      "note": "branch softhouse/T1-hardening da9b80f; 3 fixes, 123 tests; review R1 a4f93001d5ac93546 running",
+      "description": "Three focused robustness fixes from the review backlog. Reuse existing patterns; NO new features; NO money/ledger; all 4 gates must stay green.\n(1) PROMOTION ROW-LOCK (backlog #1b): in services/kyc.py get_status/_promote, two concurrent getKycStatus polls on an IN_PROGRESS draft that both see APPROVED could both promote (currently backstopped only by DB uniqueness -> 500). Add a row-level lock (SELECT ... FOR UPDATE via the repo, e.g. get_by_resume_token_hash_for_update) on the draft before the APPROVED->promote transition, so the second poll serializes and sees the already-APPROVED state (idempotent, 1 Member). Keep the DEC-4 guarantee. Add a test proving concurrent-safe single promotion (simulate by calling the guarded path twice; assert 1 Member, no 500).\n(2) CLOSED-MEMBER AUTH (backlog #2, safe subset): get_current_member currently resolves ANY member regardless of status. A CLOSED account must NOT authenticate \u2014 make get_current_member reject a CLOSED member (uniform 401, no info leak). ALSO add a reusable `require_active_member` dependency (composes get_current_member; 403 unless membership_status==ACTIVE) for future money/sensitive ops, documented as available but apply it ONLY where clearly correct now (do NOT broadly block PENDING_PAYMENT members from completing onboarding/profile). Tests: CLOSED token -> 401; require_active_member: ACTIVE ok, SUSPENDED/PENDING_PAYMENT -> 403.\n(3) /READY MALFORMED URL (backlog #12): a non-empty-but-garbage DATABASE_URL passes engine_configured() then create_engine raises ArgumentError during dependency resolution -> uncaught 500. Catch it so /ready returns 503 db:error (not 500), no exception leak. Test the malformed-URL path.\nGATES from backend/ ALL PASS (install any needed dep in your venv): check_models, check_migration, openapi/validate.py, pytest; ruff (E,F) + mypy strict clean on changed files. Handoff: each fix + its test, gate outputs verbatim."
+    },
+    {
+      "id": "R1",
+      "title": "Review backend hardening",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/",
+        "backend/tests/"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "agent a4f93001d5ac93546",
+      "description": "INDEPENDENT review of T1. In your worktree git checkout the branch, cd backend, gitignored venv + install deps (PyJWT[crypto], pyotp, cryptography); RUN all 4 gates yourself (paste verdicts) + ruff/mypy on changed files. CHECK: (1) the row-lock actually serializes the promote path (FOR UPDATE on the draft before APPROVED->promote); the concurrent test is NON-VACUOUS (would 500/double-promote without the lock); DEC-4 still holds. (2) get_current_member rejects CLOSED (uniform 401, no leak); require_active_member 403s non-ACTIVE and is NOT applied so broadly it blocks legit PENDING_PAYMENT onboarding completion. (3) /ready malformed URL -> 503 not 500, no exception text leaked. (4) no money/ledger/feature creep; non-negotiables; gates green. Verdict APPROVED/MICRO-FIX/REJECTED with gate verdicts."
+    },
+    {
+      "id": "V",
+      "title": "Verify on merged main",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "backend",
+      "files_hint": [
+        "backend/"
+      ],
+      "dependencies": [
+        "R1"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Install deps in gate env first; run all 4 gates PASS on merged main; confirm the 3 fixes present + tests; record in postmortem."
+    }
+  ]
+}

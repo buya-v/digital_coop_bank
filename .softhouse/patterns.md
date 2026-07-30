@@ -58,6 +58,8 @@ This is what makes `executor` routing correct.
 - There is **no OpenAPI or JSON Schema artifact** anywhere, despite ~192 endpoints being described. API contracts are key names only, with no types, nullability, or formats.
 
 <!-- LEARNED PATTERNS START -->
+### Run 20260730-backend-hardening (2026-07-30)
+Three reviewed robustness fixes: promotion row-lock (FOR UPDATE + re-read + idempotency guard — concurrent polls yield 1 Member not a 500; reviewer independently mutation-proved BOTH the populate_existing and the APPROVED-guard are load-bearing, each removal -> IntegrityError); get_current_member rejects CLOSED with a UNIFORM 401 (no status enumeration) + a require_active_member dep left unwired (applying it now would regress legit PENDING_PAYMENT onboarding — build the mechanism, don't over-apply); /ready 503 (not 500) on a malformed DATABASE_URL. All 4 gates, 123 tests. Lesson: for a concurrency fix, the review must mutation-test the guard, and SQLite-in-tests ignoring FOR UPDATE means you assert BOTH the idempotency (backend-agnostic) AND that FOR UPDATE renders on Postgres (dialect compile check).
 
 ### Run 20260730-ledger-audit — 3-lens adversarial audit of the ledger design (2026-07-30)
 
