@@ -20,9 +20,39 @@ DOCS="idea-lab/final_requirements"
 BASELINE=".softhouse/baseline.txt"
 fail=0
 
-c() { # c <pattern> [extra-grep-args...] -> count of matching lines
+# --- meta-doc exclusion ----------------------------------------------------
+# A META/AUDIT doc legitimately QUOTES the very defects a spec doc must never
+# CONTAIN. `07_ledger_audit_verdict.md` cites the pre-migration USD par
+# ($25.00), the US vendor/rail-named clearing accounts (1010 Stripe / 1040 Wire
+# / 1050 RTP/FedNow) and float/DECIMAL — to REPORT what it audited in `06`, not
+# to prescribe them. Scanning it would flag an audit for accurately describing
+# the thing it audits.
+#
+# The exclusion is by EXPLICIT FILENAME ONLY — never by pattern, proximity, or
+# any "this hit is only a quote / not near a real violation" heuristic. That is
+# what makes it non-abusable: a normal spec doc (01–06) cannot opt itself out by
+# how it phrases a line; the ONLY way a file escapes the checks is to be named,
+# in this reviewed list, in a diff a human reads. Add nothing here that is a
+# real requirements spec — only genuine meta/audit docs belong.
+META_DOCS=(07_ledger_audit_verdict.md)
+
+# Build ONCE the file list every counter scans: all *.md EXCEPT the named meta
+# docs. Both the HARD/DRIFT checks below AND `--baseline` use this same list, so
+# the baseline is computed over the identical non-meta set (no meta hit can ever
+# inflate a baseline it is then measured against).
+FILES=()
+for f in "$DOCS"/*.md; do
+  base=$(basename "$f")
+  is_meta=0
+  for m in "${META_DOCS[@]}"; do
+    [ "$base" = "$m" ] && { is_meta=1; break; }
+  done
+  [ "$is_meta" -eq 0 ] && FILES+=("$f")
+done
+
+c() { # c <pattern> [extra-grep-args...] -> count of matching lines (non-meta files)
   local pat="$1"; shift
-  grep -rEoh "$pat" "$DOCS"/*.md "$@" 2>/dev/null | wc -l | tr -d ' '
+  grep -rEoh "$pat" "${FILES[@]}" "$@" 2>/dev/null | wc -l | tr -d ' '
 }
 
 hard() { # hard <label> <count> — must be 0
@@ -58,20 +88,20 @@ drift() { # drift <key> <label> <count> — must not exceed baseline
 # --- gather ----------------------------------------------------------------
 # Vendor names: exclude "Persona" used as the user-persona noun (P-1..P-5,
 # "Persona A", "target persona", etc). Only vendor-context hits count.
-n_vendor=$(grep -rEoih '\b(stripe|plaid|lithic)\b|persona (inquiry|webhook|api|returns|watchlist)|via persona' "$DOCS"/*.md 2>/dev/null | wc -l | tr -d ' ')
+n_vendor=$(grep -rEoih '\b(stripe|plaid|lithic)\b|persona (inquiry|webhook|api|returns|watchlist)|via persona' "${FILES[@]}" 2>/dev/null | wc -l | tr -d ' ')
 # Insurance claims about member money — exclude peer-guarantee language.
-n_insured=$(grep -rEoih 'deposit[s]? (are |is )?insured|savings (are |is )?insured|fdic|ncua|deposit insurance corporation' "$DOCS"/*.md 2>/dev/null | wc -l | tr -d ' ')
+n_insured=$(grep -rEoih 'deposit[s]? (are |is )?insured|savings (are |is )?insured|fdic|ncua|deposit insurance corporation' "${FILES[@]}" 2>/dev/null | wc -l | tr -d ' ')
 n_stale_thresh=$(c 'MNT ?3(,000,000|m\b| ?million)')
 n_snake_name=$(c 'first_name|last_name')
 # Money types: match float/double-precision/DECIMAL(p,s) as a TYPE, but not the
 # English word "double" (double-entry, double-vote, double-count), and not the
 # migration table line that records DECIMAL as the *rejected* representation.
-n_float=$(grep -rEn 'DECIMAL\([0-9]+,[0-9]+\)|\bfloat\b|double precision' "$DOCS"/*.md 2>/dev/null \
+n_float=$(grep -rEn 'DECIMAL\([0-9]+,[0-9]+\)|\bfloat\b|double precision' "${FILES[@]}" 2>/dev/null \
           | grep -viE 'minor units|rejected|superseded' | wc -l | tr -d ' ')
 n_usd=$(c '\$[0-9][0-9,]*')
 # ACH+ is Mongolia's clearing system, not US ACH. POSIX ERE is leftmost-longest, so the
 # literal 'ACH\+' alternative wins over '\bACH\b' on "ACH+"; drop those matches.
-n_rails=$(grep -rEoh 'ACH\+|\b(ACH|FedNow|SEPA)\b' "$DOCS"/*.md 2>/dev/null \
+n_rails=$(grep -rEoh 'ACH\+|\b(ACH|FedNow|SEPA)\b' "${FILES[@]}" 2>/dev/null \
           | grep -vxF 'ACH+' | wc -l | tr -d ' ')
 n_tz=$(c 'UTC\+8\b|UTC\+08:00 only')
 

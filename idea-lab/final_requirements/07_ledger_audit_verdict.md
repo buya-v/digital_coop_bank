@@ -26,7 +26,7 @@ But it is **NOT yet controller-ready**, blocked by:
 1. **CRITICAL / money-loss — the inverted-hold formula is still present** (source-verified below).
    A one-line correction is proposed and applied to `06` §3 as an audit fix (pending ratification).
 2. **HIGH — `06` was never Mongolia-migrated.** It is entirely USD, US payment rails/vendors,
-   hard-coded USD 25 par, and US-law framing. The market's `RTGS_OUT` (Banksüljee) has no posting rule.
+   hard-coded $25.00 par, and US-law framing. The market's `RTGS_OUT` (Banksüljee) has no posting rule.
 3. **MEDIUM / open — the patronage-dividend factor aggregation** is corrected in prose but not
    encoded, and depends on unratified decisions (LA-8/LA-11/LA-13).
 
@@ -74,11 +74,11 @@ with §1.2; the operator flip is the minimal source-consistent correction.)
 
 `06` was deferred in every baseline migration, so it alone still carries the US framing that
 `00`–`05` and the backend no longer do:
-- **Currency:** USD throughout; hard-coded **USD 25.00 par** in §4.1 / L-4 / §6.5 (must be **10,000₮**,
-  DEC-11; par is US-12.5 config, never hard-coded). Note: the integer / no-floating-point precision model is
+- **Currency:** USD throughout; hard-coded **$25.00 par** in §4.1 / L-4 / §6.5 (must be **10,000₮**,
+  DEC-11; par is US-12.5 config, never hard-coded). Note: the integer (no `float`, no `DECIMAL`) precision model is
   **currency-agnostic and survives** re-denomination (MNT minor unit is also 2) — this is a
   denomination change, not a precision-model change.
-- **Rails/vendors:** chart of accounts has accounts `1010`/`1040`/`1050` (US payment-processor- and instant-rail-named clearing); posting rules cover `WIRE_OUT`/`RTP_*`. The market is **ACH+ /
+- **Rails/vendors:** chart of accounts has accounts `1010 Stripe Clearing`, `1040 Wire Clearing`, `1050 RTP/FedNow Clearing` (US payment-processor- and instant-rail-named); posting rules cover `WIRE_OUT`/`RTP_*`. The market is **ACH+ /
   Banksüljee (RTGS) / NETC**. **`RTGS_OUT` (the >₮5m rail) has NO posting rule**, and `06`'s rail
   transaction types do not reconcile with `04`'s migrated E-8 enum (`EXTERNAL_ACH_PLUS_* | RTGS_OUT`).
   The external-out flow is **unimplementable as written**.
@@ -128,7 +128,7 @@ Re-derived and confirmed by the audits:
   reconciled cache (nightly Drift check freezes on mismatch); single-writer/serializable; a
   meaningful nightly integrity set (L-1 trial balance, control=subsidiaries, shares×par, rounding,
   Σentitlement=pool).
-- **Precision / no floating-point:** integer minor units end-to-end incl. int128 dividend and micro-cent
+- **Precision / no `float` or `DECIMAL`:** integer minor units end-to-end incl. int128 dividend and micro-cent
   interest intermediates; half-even rounding once at posting; residual carry to a monitored 1950
   Rounding Differences account — no value leak.
 - **Four of the five historically-claimed defects are genuinely FIXED:** fractional-share identity,
@@ -141,8 +141,9 @@ Re-derived and confirmed by the audits:
 ## Open items a controller must supply/decide before implementation
 
 - Ratify the §1 hold-formula correction + add the 03:340 regression.
-- Full **MNT re-denomination** of `06` (par 10,000₮; remove USD/USD 25); replace US-vendor/rail-named
-  accounts + `WIRE_OUT`/`RTP_*` rules with **ACH+/Banksüljee(RTGS)/NETC**; add the **`RTGS_OUT`
+- Full **MNT re-denomination** of `06` (par 10,000₮; remove the $25.00 USD par); replace the US-vendor/rail-named
+  clearing accounts (`1010 Stripe Clearing` / `1040 Wire Clearing` / `1050 RTP/FedNow Clearing`)
+  + `WIRE_OUT`/`RTP_*` rules with **ACH+/Banksüljee(RTGS)/NETC**; add the **`RTGS_OUT`
   posting rule** and reconcile transaction types with `04`'s E-8 enum; add a payment-hold memo account.
 - **LA-8** surplus split (`dividend_share_bps`), **LA-11** rate-vs-volume aggregation + E-31
   absent-value semantics (encode it), **LA-13** dividend eligibility boundaries.

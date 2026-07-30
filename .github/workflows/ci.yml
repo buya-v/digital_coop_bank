@@ -38,6 +38,50 @@ jobs:
           cfg = Config("alembic.ini"); cfg.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
           command.upgrade(cfg, "head")
           PY
+      - name: Autogenerate diff is empty (models == applied migration on real Postgres)
+        env: { DATABASE_URL: "postgresql+psycopg://dcb:dcb@localhost:5432/dcb" }
+        run: |
+          python - <<'PY'
+          # Stronger than the offline check_migration gate: this runs Alembic's
+          # autogenerate against the REAL Postgres schema left by the preceding
+          # `alembic upgrade head` and asserts it would emit NO operations. I.e.
+          # Base.metadata and the applied migration agree on a full DB round-trip
+          # (column types, server defaults, and constraints as the live database
+          # actually reflects them) — something the offline DDL-string check cannot
+          # see. Needs a real Postgres, so it only runs here in CI.
+          import os
+          import sys
+          from sqlalchemy import create_engine
+          from alembic.runtime.migration import MigrationContext
+          from alembic.autogenerate import produce_migrations, render_python_code
+          from app.db.base import Base
+          from app.db.check_models import _load_all_models
+
+          _load_all_models()  # populate Base.metadata (same loader as the other gates)
+          engine = create_engine(os.environ["DATABASE_URL"])
+          with engine.connect() as conn:
+              ctx = MigrationContext.configure(
+                  conn,
+                  opts={"compare_type": True, "compare_server_default": True},
+              )
+              # Run autogenerate into an in-memory MigrationScript and inspect its ops.
+              script = produce_migrations(ctx, Base.metadata)
+              upgrade_ops = script.upgrade_ops
+              if upgrade_ops.is_empty():
+                  print(
+                      "PASS: autogenerate produced an empty diff — ORM models match "
+                      "the applied migration on real Postgres."
+                  )
+                  sys.exit(0)
+              print("FAIL: autogenerate produced a NON-EMPTY diff against real Postgres.")
+              print("The ORM models drifted from migration head; detected operations:")
+              try:
+                  print(render_python_code(upgrade_ops))
+              except Exception:  # rendering is best-effort; the non-empty diff is authoritative
+                  for op in upgrade_ops.ops:
+                      print("  -", repr(op))
+              sys.exit(1)
+          PY
       - name: Tests
         env: { DATABASE_URL: "postgresql+psycopg://dcb:dcb@localhost:5432/dcb" }
         run: pytest -q
