@@ -406,7 +406,7 @@ S3 is the acknowledged peak; its mitigation is the pre-agreed slippage of the US
 5. **US-2.4 marked MVP via F-106** but blocked on US-4.2 sweeps and non-essential for launch → demoted to Should (S5), with admin-executed closure as interim.
 6. **Loan cap re-introduction:** `02`'s reconciliation notes de-ratified Sprint 1's $1,000 cap, yet `03` EP-6 re-proposed it as a seed → adjudicated to 5,700,000₮ (DEC-45).
 7. **CAP-13.5 feature-ID gap:** `02` flags that Data Privacy & Records Management has no feature ID (US-13.6 anchors to F-105) → adopt the recommended **F-152** in the next `01` revision.
-8. **E-signature vendor unnamed** ("Dropbox Sign or DocuSign class") while all other integrations are named vendors → procurement to name one before S3 (US-6.6); treated as procurement, not a requirements gap.
+8. **E-signature provider unnamed** — defined by role (per the DEC-5 provider-neutrality pattern), concrete provider TBD → procurement to name one before S3 (US-6.6); treated as procurement, not a requirements gap.
 
 ### 6.4 Assumptions
 

@@ -253,7 +253,7 @@ Stable feature IDs **F-101 …** in one continuous series, grouped by capability
 | F-102 | Eligibility & Common-Bond Check | CAP-1.4 | P-1, P-2, P-3, P-4 | Automated validation of membership eligibility criteria during onboarding, before share purchase. | MVP |
 | F-103 | Initial Membership Share Purchase | CAP-2.1, CAP-2.2 | P-1, P-2, P-3, P-4 | In-flow purchase of the one mandatory membership share (10,000₮ par value, DEC-11) via card or bank transfer; on settlement the member transitions PENDING_PAYMENT → ACTIVE and voting rights activate. | MVP |
 | F-104 | Multi-Factor Authentication & Biometrics | CAP-1.5 | All | MFA at enrollment and step-up for sensitive actions; device biometrics; device binding. | MVP |
-| F-105 | Member Profile & Consents | CAP-1.6 | All | View/edit contact details (ovog/etsgiin ner/ner + structured address per DEC-6), membership status, join date, consents, and communication preferences. | MVP |
+| F-105 | Member Profile & Consents | CAP-1.6 | All | View/edit contact details (ovog/etsgiin_ner/ner + structured address per DEC-6), membership status, join date, consents, and communication preferences. | MVP |
 | F-106 | Membership Lifecycle Management | CAP-2.3 | P-5 | Enforcement of the canonical membership status machine (DEC-4) with member-visible status and admin-controlled transitions (suspend, close) under maker-checker. | MVP |
 | F-107 | Share Registry & Voting Eligibility | CAP-2.4 | P-4, P-5 | Authoritative registry of shares held per member; drives one-member-one-vote eligibility snapshots per ballot. | MVP |
 
