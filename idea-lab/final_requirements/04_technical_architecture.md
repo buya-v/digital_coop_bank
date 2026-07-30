@@ -6,7 +6,7 @@
 
 **Conventions used throughout:**
 
-* All monetary amounts are **MNT, integer minor units (cents)** per DEC-18. The abstract type `Money` below means `BIGINT` minor units with implicit currency `MNT` (an explicit `currency` column, fixed to `MNT`, is carried on ledger rows for forward compatibility).
+* All monetary amounts are **MNT, integer minor units** per DEC-18. The abstract type `Money` below means `BIGINT` minor units with implicit currency `MNT` (an explicit `currency` column, fixed to `MNT`, is carried on ledger rows for forward compatibility).
 * All timestamps are UTC, ISO-8601 (`TIMESTAMPTZ`).
 * All primary keys are UUIDv7 unless stated otherwise; `Member ID` (the member-facing identifier — non-guessable, non-sequential per DEC-28, e.g. `DCB-8K4W2M9X`) is a separate unique display attribute, never the PK.
 * Enum machine values are `UPPER_SNAKE_CASE`; glossary-governed enums (`MembershipStatus`, `KycStatus`, `VoteChoice`, `ProposalCategory`, `ProposalStatus`, `BallotType`, `RecipientIdentifierType`, `LoanStatus`) are used exactly as defined in `01_business_analysis.md` §6.
@@ -29,8 +29,8 @@ Digital Coop Bank is a purely digital cooperative banking platform: a mobile-fir
 | **Sponsor bank / BaaS provider** (entity and charter form is **pending counsel** — see `01` §6.3 item 3 and `05` OI-3 / R-1. The previous US deposit-insurance framing assumed a US sponsor-bank/BaaS structure that does not apply in Mongolia and is withdrawn with no replacement claim about final form. Whichever structure is confirmed, payment-rail settlement runs through a bank on the Bank of Mongolia settlement-agent register; final selection is a procurement decision, not a requirements change.) | FBO account structure, ACH+ origination/receipt (24/7), Banksüljee (RTGS) large-value settlement, NETC card-network settlement. |
 | **Payment processor** | Card/wallet payment capture for the one mandatory 10,000₮ (provisional, pending DEC-11 / legal) membership share purchase (US-2.1) and its refunds. Concrete provider is a procurement decision (TBD). |
 | **Card issuer-processor** | Virtual and physical debit card issuance, PAN tokenization, Apple Pay / Google Pay provisioning, real-time authorization webhooks (cards — EP-5 remains entity-gated / not-buildable). Concrete provider is a procurement decision (TBD). |
-| **E-signature provider** (Dropbox Sign or DocuSign class) | Legally binding e-signature ceremonies for loan agreements and guarantee pledge agreements (US-6.6). |
-| **Notification channels** | FCM/APNs (push), SendGrid-class email, Twilio-class SMS — behind the platform's own Notification Service (US-11.1). |
+| **E-signature provider** | Legally binding e-signature ceremonies for loan agreements and guarantee pledge agreements (US-6.6). Concrete provider is a procurement decision (TBD). |
+| **Notification channels** | FCM/APNs (push), an email provider, and an SMS provider — behind the platform's own Notification Service (US-11.1). Concrete email/SMS providers are a procurement decision (TBD). |
 | Credit bureau (optional pulls) | Optional bureau data for underwriting (US-6.2); adverse-action content obligations apply. |
 | Regulators / auditors | Consume outputs of the Regulatory Reporting Suite (US-13.2) and the immutable audit log (US-13.3); never direct system actors. |
 
@@ -654,7 +654,7 @@ Unified work-queue case for KYC escalations, AML alerts, and SAR workflow (US-12
 #### E-55 ConfigurationParameter
 Versioned, effective-dated configuration registry (US-12.5) — "configuration is the execution of democracy".
 
-* `id` UUID PK; `key` String (e.g., `savings.interest_rate_bps`, `share.par_value_cents`, `p2p.limits`, `underwriting.params`, `patronage.factor_weights`, `roundup.batch_threshold_cents`, `eligibility.common_bond_rules`).
+* `id` UUID PK; `key` String (e.g., `savings.interest_rate_bps`, `share.par_value_minor_units`, `p2p.limits`, `underwriting.params`, `patronage.factor_weights`, `roundup.batch_threshold_minor_units`, `eligibility.common_bond_rules`).
 * `value` JSON; `version` Integer; UQ(key, version); `effective_from`, `effective_to?` Timestamps.
 * `approval_id` FK→MakerCheckerApproval (dual approval mandatory).
 * `governing_ballot_id?` FK→Ballot — **mandatory** when the parameter is governed by a certified `FINANCIAL_POLICY` / `GOVERNANCE_BYLAW` outcome.
@@ -1102,7 +1102,7 @@ Concrete vendor selections are procurement decisions (TBD) — no provider is na
 
 ### 4.7 Notification Channels — FCM/APNs, Email, SMS (EP-11)
 
-**Flow:** domain events → Notification Service resolves the NotificationEventType, applies member preferences and quiet hours (suppression never applied to `suppressible:false` regulatory/security notices), renders per-channel templates, dispatches (FCM/APNs push, SendGrid-class email, Twilio-class SMS), and records per-channel delivery status on the Notification row; every notification carries a deep link.
+**Flow:** domain events → Notification Service resolves the NotificationEventType, applies member preferences and quiet hours (suppression never applied to `suppressible:false` regulatory/security notices), renders per-channel templates, dispatches (FCM/APNs push, email via the notification provider, SMS via the notification provider), and records per-channel delivery status on the Notification row; every notification carries a deep link.
 **Failure handling:** per-channel retry with backoff; invalid push tokens pruned against DeviceBindings; email/SMS provider failover to a secondary route for `SECURITY_REGULATORY` category; delivery failures of mandatory notices escalate to the staff console.
 
 ### 4.8 Credit Bureau (optional; US-6.2)
