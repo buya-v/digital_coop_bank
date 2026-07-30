@@ -148,9 +148,19 @@ Derived quantities:
 
 ```
 balance           = signed_sum(FINANCIAL entries on the account)
-available_balance = balance − signed_sum(MEMO_HOLD entries on the account)
+available_balance = balance + signed_sum(MEMO_HOLD entries on the account)
 goal_balance(G)   = signed_sum(FINANCIAL + ATTRIBUTION entries where savings_goal_id = G)
 ```
+
+> **AUDIT CORRECTION (2026-07-30, pending controller ratification — see `07_ledger_audit_verdict.md` §1).**
+> This formula previously read `available_balance = balance − signed_sum(MEMO_HOLD…)`, which was
+> STILL the inverted-hold defect in disguise: because `signed_sum` is computed in the account's
+> normal direction (§1.2) and a hold posts as a *debit* to the credit-normal member account
+> (§4.4/§4.6), `signed_sum(MEMO_HOLD)` is *negative*, so `balance − (negative)` *adds* the hold.
+> For 03:340 (150,000₮ balance, 100,000₮ pledge) the old formula gave 250,000₮ (identical to
+> Draft-1's `balance + hold`) instead of the required 50,000₮ — a money-loss defect (pledged
+> collateral becomes spendable). The operator is corrected to `+`: `150,000 + (−100,000) = 50,000₮`.
+> A regression must pin 03:340 available = 50,000₮.
 
 **Holds are released arithmetically, never by mutation.** A release posts an entry in the opposite direction; the hold's residual is the signed sum, not a status field. Draft 1's phrase "active MEMO_HOLD" implied a mutable status on an append-only entry — exactly the anti-pattern this section exists to avoid — and is withdrawn. This also makes partial pledge release (§4.6) representable, which a single `hold_ledger_entry_id` FK cannot express (§8.11).
 
