@@ -8,7 +8,10 @@ structurally excluded, not merely checked.
 Field ownership (reconciled with ProfilePatchRequest + the MemberProfile schema):
 
 - EDITABLE by the member: the three DEC-6 name parts, the structured postal
-  address, and the contact channels (email / phone_number).
+  address, the contact channels (email / phone_number), and the preferred UI
+  language (a BCP-47-ish tag; an invalid value -> 422). `preferred_language`
+  is a UI preference, NOT KYC-relevant, so editing it alone does not set
+  `reverification_required`.
 - READ-ONLY (attempting to set any -> 422): `legal_name` (DERIVED from the name
   parts, never stored), `mrz_name_latin` (KYC-populated, verbatim MRZ),
   `registration_number` (the identity key; a change needs KYC step-up, which is a
@@ -19,6 +22,8 @@ Like the slice-1/2 services this NEVER commits — the router owns the transacti
 boundary; the service mutates the attached Member and the router commits.
 """
 from __future__ import annotations
+
+import re
 
 from app.models.membership import Member
 
@@ -36,8 +41,21 @@ EDITABLE_FIELDS: frozenset[str] = frozenset(
         "country",
         "email",
         "phone_number",
+        "preferred_language",
     }
 )
+
+# Editable fields that are NOT KYC-relevant: changing them never triggers
+# re-verification (they are UI/preference state, not identity attributes).
+NON_REVERIFYING_FIELDS: frozenset[str] = frozenset({"preferred_language"})
+
+# BCP-47-ish language tag: a 2–3 letter primary subtag plus optional
+# alphanumeric 2–8 char subtags (script/region/variant), e.g. `mn`, `en`,
+# `mn-MN`, `mn-Cyrl-MN`. Structural validation only — matches the column's
+# String(35) bound. Default is `mn` (Cyrillic-Mongolian) per the market
+# non-negotiable.
+_LANGUAGE_TAG_MAX_LEN = 35
+_LANGUAGE_TAG_RE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
 
 # Attributes that MAY appear in a request but are never member-writable. Each maps
 # to the canonical 422 error code the contract/04 §3.1 pin for it.
@@ -71,6 +89,29 @@ class ProfileFieldUnknown(ProfileError):
         self.field = field
 
 
+class ProfileFieldInvalid(ProfileError):
+    """An editable field carried an invalid value (maps to 422)."""
+
+    def __init__(self, field: str, code: str, message: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.code = code
+
+
+def _validate_preferred_language(value: object) -> None:
+    """Reject a preferred_language that is not a BCP-47-ish tag (-> 422)."""
+    if (
+        not isinstance(value, str)
+        or len(value) > _LANGUAGE_TAG_MAX_LEN
+        or _LANGUAGE_TAG_RE.match(value) is None
+    ):
+        raise ProfileFieldInvalid(
+            "preferred_language",
+            "PREFERRED_LANGUAGE_INVALID",
+            f"{value!r} is not a valid BCP-47-ish language tag.",
+        )
+
+
 class ProfileService:
     """Read + update the authenticated member's own profile."""
 
@@ -91,10 +132,12 @@ class ProfileService:
                 raise ProfileFieldNotEditable(field, READ_ONLY_FIELD_CODES[field])
             if field not in EDITABLE_FIELDS:
                 raise ProfileFieldUnknown(field)
+            if field == "preferred_language":
+                _validate_preferred_language(provided[field])
 
         changed = False
         for field, value in provided.items():
-            if getattr(member, field) != value:
+            if getattr(member, field) != value and field not in NON_REVERIFYING_FIELDS:
                 changed = True
             setattr(member, field, value)
         return changed

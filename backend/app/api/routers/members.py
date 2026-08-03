@@ -30,6 +30,7 @@ from app.api.errors import ApiError
 from app.auth.deps import get_current_member
 from app.models.membership import Member
 from app.services.profile import (
+    ProfileFieldInvalid,
     ProfileFieldNotEditable,
     ProfileFieldUnknown,
     ProfileService,
@@ -62,6 +63,7 @@ class MemberProfile(BaseModel):
     country: Optional[str] = None  # noqa: UP045
     email: str
     phone_number: str
+    preferred_language: str = "mn"
     membership_status: str
 
 
@@ -85,6 +87,7 @@ class ProfilePatchRequest(BaseModel):
     country: Optional[str] = None  # noqa: UP045
     email: Optional[str] = None  # noqa: UP045
     phone_number: Optional[str] = None  # noqa: UP045
+    preferred_language: Optional[str] = None  # noqa: UP045
 
 
 class ProfilePatchResponse(BaseModel):
@@ -111,6 +114,7 @@ def _to_profile(member: Member) -> MemberProfile:
         country=member.country,
         email=member.email,
         phone_number=member.phone_number,
+        preferred_language=member.preferred_language,
         membership_status=member.membership_status.value,
     )
 
@@ -166,6 +170,19 @@ def update_my_profile(
                 {
                     "field": exc.field,
                     "code": "UNKNOWN_FIELD",
+                    "message": str(exc),
+                }
+            ],
+        ) from exc
+    except ProfileFieldInvalid as exc:
+        raise ApiError(
+            422,
+            exc.code,
+            str(exc),
+            details=[
+                {
+                    "field": exc.field,
+                    "code": exc.code,
                     "message": str(exc),
                 }
             ],

@@ -207,6 +207,71 @@ def test_patch_read_only_field_is_422(
     assert current.get(field) != value
 
 
+# --- preferred_language (UI preference; BCP-47-ish) --------------------------
+
+
+def test_get_profile_returns_preferred_language(ctx: SimpleNamespace) -> None:
+    r = ctx.client.get("/api/v1/members/me", headers=_auth(ctx.token_a))
+    assert r.status_code == 200, r.text
+    # Seeded default is Cyrillic-Mongolian per the market non-negotiable.
+    assert r.json()["preferred_language"] == "mn"
+
+
+def test_patch_preferred_language_persists_and_reflects_on_get(ctx: SimpleNamespace) -> None:
+    r = ctx.client.patch(
+        "/api/v1/members/me/profile",
+        headers=_auth(ctx.token_a),
+        json={"preferred_language": "en"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["profile"]["preferred_language"] == "en"
+    # A UI-language change is NOT KYC-relevant, so it does not force re-verification.
+    assert body["reverification_required"] is False
+
+    again = ctx.client.get("/api/v1/members/me", headers=_auth(ctx.token_a))
+    assert again.json()["preferred_language"] == "en"
+
+
+def test_patch_preferred_language_accepts_bcp47_subtags(ctx: SimpleNamespace) -> None:
+    r = ctx.client.patch(
+        "/api/v1/members/me/profile",
+        headers=_auth(ctx.token_a),
+        json={"preferred_language": "mn-Cyrl-MN"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["profile"]["preferred_language"] == "mn-Cyrl-MN"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["english", "e", "mn_MN", "not a language!", "123", ""],
+)
+def test_patch_invalid_preferred_language_is_422(ctx: SimpleNamespace, bad: str) -> None:
+    r = ctx.client.patch(
+        "/api/v1/members/me/profile",
+        headers=_auth(ctx.token_a),
+        json={"preferred_language": bad},
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["error"]["code"] == "PREFERRED_LANGUAGE_INVALID"
+    # Rejected PATCH leaves the stored value untouched (validate-then-apply).
+    current = ctx.client.get("/api/v1/members/me", headers=_auth(ctx.token_a)).json()
+    assert current["preferred_language"] == "mn"
+
+
+def test_patch_preferred_language_with_a_token_never_touches_b(ctx: SimpleNamespace) -> None:
+    r = ctx.client.patch(
+        "/api/v1/members/me/profile",
+        headers=_auth(ctx.token_a),
+        json={"preferred_language": "en"},
+    )
+    assert r.status_code == 200, r.text
+    # No member id in path/body: B is unreachable and keeps its default.
+    b = ctx.client.get("/api/v1/members/me", headers=_auth(ctx.token_b)).json()
+    assert b["preferred_language"] == "mn"
+
+
 # --- IDOR: the token subject is the ONLY identity ----------------------------
 
 
