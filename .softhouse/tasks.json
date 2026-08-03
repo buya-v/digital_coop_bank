@@ -29,9 +29,9 @@
         "idea-lab/final_requirements/06_ledger_addendum.md"
       ],
       "dependencies": [],
-      "status": "done",
+      "status": "approved",
       "attempts": 0,
-      "note": "branch softhouse/T1-06-migrate 319d8a3; 06 migrated (rails 15->1, vendor 6->0), RTGS_OUT added, logic untouched; adversarial review ab7b83b58561dc994 running (T2 forks after merge)",
+      "note": "merged; R1 APPROVED (postings re-derived, hold-fix survived); 06 Mongolia-migrated",
       "description": "Verdict HIGH #2 \u2014 make 06 Mongolia-consistent (DESIGN-DOC consistency only; 06 stays do-not-implement-pending-controller). Full brief given to the agent."
     },
     {
