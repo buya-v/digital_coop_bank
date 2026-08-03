@@ -226,6 +226,57 @@
             schema:
               $ref: '#/components/schemas/Error'
 
+/api/v1/auth/mfa/challenges:
+  post:
+    operationId: createMfaChallenge
+    tags: [EP-1]
+    summary: Issue a fresh out-of-band SMS one-time code for an enrolled SMS factor.
+    description: >-
+      Sends a new single-use SMS verification code to the member's phone and arms
+      it as a short-lived, hash-only challenge the subsequent `POST /auth/step-up`
+      verifies. Only the SMS factor is challengeable — a TOTP authenticator derives
+      its own codes, so it needs no server-issued challenge. The code is delivered
+      ONLY over the SMS channel and is never present in the response body. INFERRED
+      status code 201 (a challenge resource is created), consistent with
+      createMfaEnrollment.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MfaChallengeRequest'
+    responses:
+      '201':
+        description: SMS challenge issued (non-secret delivery confirmation + expiry).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaChallengeResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '404':
+        description: 404 NOT_FOUND — the member has no enrolled SMS factor to challenge.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+      '423':
+        description: 423 FACTOR_LOCKED — too many failed attempts; the factor is locked.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+      '502':
+        description: 502 SMS_DELIVERY_FAILED — the SMS provider could not deliver the code.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
 /api/v1/auth/step-up:
   post:
     operationId: createStepUpToken

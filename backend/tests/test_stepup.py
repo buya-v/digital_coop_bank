@@ -18,6 +18,17 @@ Security properties proved:
 - A token minted for member A is refused when presented by member B (binding).
 - revokeDevice requires a step-up assertion (401/403 without X-Step-Up-Token; 200
   with a valid one) and is IDOR-safe (A cannot revoke B's device -> 404).
+
+SMS OTP factor (out-of-band code, no stored seed):
+- SMS enroll issues a challenge whose code is delivered OUT OF BAND (via the SMS
+  port) and is NOT in the HTTP body; step-up with that code succeeds, binds the
+  factor ACTIVE, and mints a single-use step-up token (hash-only).
+- A wrong SMS code mints nothing (401); N wrong codes lock the factor (423).
+- The SMS challenge is SINGLE-USE (a replay of a spent code fails) and EXPIRES (a
+  timed-out code fails even though correct).
+- createMfaChallenge re-issues a fresh code (the old one stops working), refuses
+  TOTP (422) and a member with no SMS factor (404), and refuses to re-arm a LOCKED
+  factor (423) — lockout cannot be bypassed by requesting a new code.
 """
 from __future__ import annotations
 
@@ -176,6 +187,7 @@ def ctx() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace(
             client=TestClient(app),
             session_factory=test_session,
+            sms=sms,
             a_id=a_id,
             b_id=b_id,
             b_device_id=b_device_id,
@@ -227,6 +239,46 @@ def _mint_token(ctx: SimpleNamespace, token: str, secret: str) -> str:
     )
     assert r.status_code == 200, r.text
     return str(r.json()["step_up_token"])
+
+
+def _enroll_sms(ctx: SimpleNamespace, token: str) -> str:
+    """Enroll an SMS factor via the real endpoint; return the OUT-OF-BAND code.
+
+    Asserts the code is delivered only via the SMS port (readable from the mock)
+    and never appears in the HTTP response body.
+    """
+    r = ctx.client.post(
+        "/api/v1/auth/mfa/enrollments",
+        headers=_auth(token),
+        json={"factor_type": "SMS", "device_fingerprint": "fp-a", "platform": "IOS"},
+    )
+    assert r.status_code == 201, r.text
+    assert "SMS_CODE_SENT" in r.json()["binding_challenge"]  # masked, non-secret
+    code = ctx.sms.last_code
+    assert code is not None
+    assert code not in r.text  # out-of-band: the code is NOT in the HTTP body
+    return code
+
+
+def _sms_factor(ctx: SimpleNamespace, member_id: str) -> MfaFactor:
+    session = ctx.session_factory()
+    try:
+        return session.execute(
+            select(MfaFactor).where(
+                MfaFactor.member_id == uuid.UUID(member_id),
+                MfaFactor.factor_type == MfaFactorType.SMS,
+            )
+        ).scalar_one()
+    finally:
+        session.close()
+
+
+def _step_up(ctx: SimpleNamespace, token: str, code: str) -> object:
+    return ctx.client.post(
+        "/api/v1/auth/step-up",
+        headers=_auth(token),
+        json={"factor_response": code, "action_context": {}},
+    )
 
 
 # --- createStepUpToken: happy path + binding activation ----------------------
@@ -496,3 +548,194 @@ def _device_status(ctx: SimpleNamespace, device_id: str) -> DeviceStatus:
         return row.status
     finally:
         session.close()
+
+
+# --- SMS OTP factor: challenge issuance + step-up verification ----------------
+
+
+def test_sms_enroll_issues_challenge_out_of_band(ctx: SimpleNamespace) -> None:
+    """PROVES: SMS enrollment sends a one-time code OUT OF BAND (via the SMS port,
+    readable from the mock) and never returns it in the HTTP body; the factor is
+    armed PENDING with a hash-only challenge (the plaintext code is NOT stored)."""
+    code = _enroll_sms(ctx, ctx.token_a)  # asserts out-of-band delivery internally
+    factor = _sms_factor(ctx, ctx.a_id)
+    assert factor.status is MfaFactorStatus.PENDING  # not yet confirmed
+    assert factor.secret_ciphertext is None  # SMS has no stored seed
+    # Only the HASH of the code is stored — never the plaintext.
+    assert factor.sms_challenge_hash is not None
+    assert factor.sms_challenge_hash != code
+    assert factor.sms_challenge_expires_at is not None
+
+
+def test_sms_step_up_with_code_succeeds_and_mints_single_use_token(
+    ctx: SimpleNamespace,
+) -> None:
+    """PROVES: the out-of-band SMS code drives step-up — it binds the PENDING factor
+    ACTIVE and mints a single-use token stored hash-only; the challenge is then
+    burned (single-use)."""
+    code = _enroll_sms(ctx, ctx.token_a)
+    r = _step_up(ctx, ctx.token_a, code)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["step_up_token"] and body["expires_at"]
+
+    factor = _sms_factor(ctx, ctx.a_id)
+    assert factor.status is MfaFactorStatus.ACTIVE
+    assert factor.confirmed_at is not None
+    # Single-use: the challenge is cleared once the code is accepted.
+    assert factor.sms_challenge_hash is None
+    assert factor.sms_challenge_expires_at is None
+    # The returned plaintext token appears in NO token row (hash-only).
+    session = ctx.session_factory()
+    try:
+        rows = session.execute(select(StepUpToken)).scalars().all()
+        assert len(rows) == 1
+        assert rows[0].token_hash == hash_step_up_token(body["step_up_token"])
+        assert rows[0].consumed_at is None
+    finally:
+        session.close()
+
+
+def test_sms_wrong_code_is_rejected_and_mints_nothing(ctx: SimpleNamespace) -> None:
+    """PROVES: a wrong SMS code is refused (401) and mints NO token — the armed
+    challenge is not satisfied by a guess."""
+    real = _enroll_sms(ctx, ctx.token_a)
+    wrong = "000000" if real != "000000" else "111111"
+    r = _step_up(ctx, ctx.token_a, wrong)
+    assert r.status_code == 401, r.text
+    assert r.json()["error"]["code"] == "STEP_UP_FAILED"
+    session = ctx.session_factory()
+    try:
+        assert session.execute(select(StepUpToken)).scalars().first() is None
+    finally:
+        session.close()
+
+
+def test_sms_lockout_after_n_failures_returns_423(ctx: SimpleNamespace) -> None:
+    """PROVES: N wrong SMS codes LOCK the factor (423) — the SAME lockout as TOTP,
+    no unlimited SMS-code guessing. Even the correct code is then refused (423)."""
+    code = _enroll_sms(ctx, ctx.token_a)
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(MAX_FAILED_ATTEMPTS - 1):
+        r = _step_up(ctx, ctx.token_a, wrong)
+        assert r.status_code == 401, r.text
+    r = _step_up(ctx, ctx.token_a, wrong)
+    assert r.status_code == 423, r.text
+    assert r.json()["error"]["code"] == "FACTOR_LOCKED"
+    # While locked, even the CORRECT code is refused (423).
+    r = _step_up(ctx, ctx.token_a, code)
+    assert r.status_code == 423, r.text
+    assert r.json()["error"]["code"] == "FACTOR_LOCKED"
+
+
+def test_sms_challenge_is_single_use_replay_fails(ctx: SimpleNamespace) -> None:
+    """PROVES: the SMS code is SINGLE-USE — after a successful step-up, replaying the
+    SAME code is refused (401) and mints no second token."""
+    code = _enroll_sms(ctx, ctx.token_a)
+    first = _step_up(ctx, ctx.token_a, code)
+    assert first.status_code == 200, first.text
+    # Replay the identical code — the challenge was burned on first use.
+    second = _step_up(ctx, ctx.token_a, code)
+    assert second.status_code == 401, second.text
+    assert second.json()["error"]["code"] == "STEP_UP_FAILED"
+    session = ctx.session_factory()
+    try:
+        assert len(session.execute(select(StepUpToken)).scalars().all()) == 1
+    finally:
+        session.close()
+
+
+def test_sms_challenge_expires(ctx: SimpleNamespace) -> None:
+    """PROVES: an EXPIRED SMS challenge is refused even with the CORRECT code —
+    short-lived is enforced, not merely advertised."""
+    code = _enroll_sms(ctx, ctx.token_a)
+    # Force the armed challenge into the past.
+    past = datetime.datetime.now(datetime.timezone.utc).replace(  # noqa: UP017
+        tzinfo=None
+    ) - datetime.timedelta(minutes=10)
+    session = ctx.session_factory()
+    try:
+        factor = session.execute(
+            select(MfaFactor).where(
+                MfaFactor.member_id == uuid.UUID(ctx.a_id),
+                MfaFactor.factor_type == MfaFactorType.SMS,
+            )
+        ).scalar_one()
+        factor.sms_challenge_expires_at = past
+        session.commit()
+    finally:
+        session.close()
+
+    r = _step_up(ctx, ctx.token_a, code)
+    assert r.status_code == 401, r.text
+    assert r.json()["error"]["code"] == "STEP_UP_FAILED"
+    session = ctx.session_factory()
+    try:
+        assert session.execute(select(StepUpToken)).scalars().first() is None
+    finally:
+        session.close()
+
+
+# --- createMfaChallenge: re-issue, unsupported factor, lockout ----------------
+
+
+def _create_challenge(ctx: SimpleNamespace, token: str, factor_type: str) -> object:
+    return ctx.client.post(
+        "/api/v1/auth/mfa/challenges",
+        headers=_auth(token),
+        json={"factor_type": factor_type},
+    )
+
+
+def test_create_mfa_challenge_reissues_a_fresh_code(ctx: SimpleNamespace) -> None:
+    """PROVES: createMfaChallenge issues a NEW code (delivered out of band, not in
+    the body); the new code works while the SUPERSEDED code no longer does — at most
+    one live challenge per factor."""
+    old_code = _enroll_sms(ctx, ctx.token_a)
+    r = _create_challenge(ctx, ctx.token_a, "SMS")
+    assert r.status_code == 201, r.text
+    assert "SMS_CODE_SENT" in r.json()["delivery"]  # masked, non-secret
+    new_code = ctx.sms.last_code
+    assert new_code is not None
+    assert new_code not in r.text  # out-of-band: not in the HTTP body
+
+    # The superseded code is dead; the fresh one authorizes a step-up.
+    if new_code != old_code:
+        stale = _step_up(ctx, ctx.token_a, old_code)
+        assert stale.status_code == 401, stale.text
+    ok = _step_up(ctx, ctx.token_a, new_code)
+    assert ok.status_code == 200, ok.text
+
+
+def test_create_mfa_challenge_rejects_totp(ctx: SimpleNamespace) -> None:
+    """PROVES: TOTP is not challengeable (422) — the authenticator derives its own
+    codes, so there is nothing for the server to issue."""
+    _enroll_totp(ctx, ctx.token_a)
+    r = _create_challenge(ctx, ctx.token_a, "TOTP")
+    assert r.status_code == 422, r.text
+    assert r.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_create_mfa_challenge_without_enrolled_sms_is_404(ctx: SimpleNamespace) -> None:
+    """PROVES: a member with no enrolled SMS factor cannot arm a challenge (404) —
+    never reveals or fabricates a factor."""
+    r = _create_challenge(ctx, ctx.token_a, "SMS")
+    assert r.status_code == 404, r.text
+    assert r.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_create_mfa_challenge_refuses_while_locked(ctx: SimpleNamespace) -> None:
+    """PROVES: a LOCKED factor cannot be re-armed (423) — an attacker cannot bypass
+    the lockout by requesting a fresh code, and the old challenge is untouched."""
+    code = _enroll_sms(ctx, ctx.token_a)
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(MAX_FAILED_ATTEMPTS - 1):
+        assert _step_up(ctx, ctx.token_a, wrong).status_code == 401
+    assert _step_up(ctx, ctx.token_a, wrong).status_code == 423  # now locked
+
+    before = ctx.sms.last_code
+    r = _create_challenge(ctx, ctx.token_a, "SMS")
+    assert r.status_code == 423, r.text
+    assert r.json()["error"]["code"] == "FACTOR_LOCKED"
+    # No fresh code was sent (issuance refused before delivery).
+    assert ctx.sms.last_code == before

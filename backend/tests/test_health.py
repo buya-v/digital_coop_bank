@@ -33,7 +33,9 @@ def test_only_expected_feature_routes():
     # and listDevices (trusted-device listing) — all memberOAuth2-only. The MFA
     # step-up slice (T2) adds createMfaEnrollment, createStepUpToken
     # (POST /auth/step-up) and, now unblocked by step-up, revokeDevice
-    # (DELETE /auth/devices/{id}) — expected here.
+    # (DELETE /auth/devices/{id}) — expected here. The SMS-OTP slice (T4) adds
+    # createMfaChallenge (POST /auth/mfa/challenges) — the out-of-band SMS
+    # code-issuance step that lets the SMS factor drive step-up.
     paths = {route.path for route in app.routes}
     assert paths >= {"/health", "/ready"}
     feature_ish = {p for p in paths if p.startswith("/api/")}
@@ -50,6 +52,7 @@ def test_only_expected_feature_routes():
         "/api/v1/auth/devices",
         "/api/v1/auth/devices/{id}",
         "/api/v1/auth/mfa/enrollments",
+        "/api/v1/auth/mfa/challenges",
         "/api/v1/auth/step-up",
     }
     assert feature_ish == expected, f"unexpected feature routes: {feature_ish - expected}"

@@ -387,6 +387,37 @@ MfaEnrollmentResponse:
       type: string
       description: Challenge the client must satisfy to bind the factor. type inferred; 04 does not specify its format.
 
+MfaChallengeRequest:
+  type: object
+  description: >-
+    Body for `POST /auth/mfa/challenges` (createMfaChallenge). Names the enrolled
+    factor to issue a fresh out-of-band code for. Only SMS is challengeable.
+  required:
+    - factor_type
+  properties:
+    factor_type:
+      $ref: '#/components/schemas/MfaFactorType'
+
+MfaChallengeResponse:
+  type: object
+  description: >-
+    Response for `POST /auth/mfa/challenges`. NON-secret only — the one-time code
+    is delivered over the SMS channel and never appears here.
+  properties:
+    challenge_id:
+      type: string
+      format: uuid
+      description: Identifier of the challenged MFA factor (a handle, not a secret).
+    delivery:
+      type: string
+      description: >-
+        Masked, non-secret delivery confirmation (e.g. `SMS_CODE_SENT:***1234`).
+        Never contains the code.
+    expires_at:
+      type: string
+      format: date-time
+      description: When the issued SMS code expires (short-lived).
+
 StepUpRequest:
   type: object
   description: Body for `POST /auth/step-up` (04 §3.1, US-1.4).
