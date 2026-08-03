@@ -1,7 +1,7 @@
 # Ledger Design Addendum — Digital Coop Bank
 
 **Document ID:** 06_ledger_addendum
-**Version:** Draft 2 (incorporates adversarial accounting review; see §11 changelog)
+**Version:** Draft 2 + Mongolia migration (currency USD→MNT, payment rails/chart-of-accounts re-grounded per `07` §2; see §11 changelog). **Still do-not-implement — the accounting design remains pending controller ratification (`07`); this pass migrated denomination, rails and naming only and changed no accounting logic, invariant, or the §3 hold formula.**
 **Status:** Draft for review (engineering + finance + counsel). Blocks S1 implementation.
 **Upstream sources of truth:** `01_business_analysis.md` §5 (KPIs) and §6 (DEC-1…DEC-20), `04_technical_architecture.md` §2.3 (E-6 Account, E-7 LedgerEntry, E-8 Transaction), `05_prd_and_roadmap.md` §3 (DEC-21…DEC-75).
 
@@ -40,7 +40,7 @@ credit-normal:  balance = Σ(CREDIT amounts) − Σ(DEBIT amounts)
 
 **Contra accounts** carry a `normal_balance` *opposite* to their category default (1190 Allowance for Loan Losses is an ASSET with a CREDIT normal balance). The pairing is explicit per account and must **not** be derived from category — any validator inferring normal balance from category will wrongly flag contra accounts.
 
-**Clearing accounts are bidirectional.** 1010–1050 routinely carry credit balances between the two settlement stages (a payable to the network or ACH operator). They are exempt from normal-balance assertions; only their *aged* balance is monitored (§7.3).
+**Clearing accounts are bidirectional.** 1010–1040 routinely carry credit balances between the two settlement stages (a payable to the network or settlement operator). They are exempt from normal-balance assertions; only their *aged* balance is monitored (§7.3).
 
 A member's savings account is credit-normal, so a positive member-facing balance is a credit balance. **The API contract is unchanged** — `04` §3.3 continues to return `balance` as a positive integer for a funded account. The sign convention is internal.
 
@@ -65,17 +65,18 @@ Critically, **every subsidiary must be an E-6 row**, because only E-6 rows carry
 | Code | Account | Purpose |
 | :--- | :--- | :--- |
 | 1000 | FBO Cash at Sponsor Bank | Settled cash at the partner institution. The reconciliation anchor. |
-| 1010 | Stripe Clearing | Share-subscription collections in flight (US-2.1). |
-| 1020 | ACH Clearing | ACH originations and receipts in flight, including returns. |
-| 1030 | Card Network Settlement Clearing | Card activity between authorization and network settlement. |
-| 1040 | Wire Clearing | Outbound wires in flight. |
-| 1050 | RTP / FedNow Clearing | Real-time rail activity in flight. |
+| 1010 | Payment-Processor Clearing | Share-subscription collections in flight (US-2.1), via the payment processor (concrete provider is a procurement decision — TBD). |
+| 1020 | ACH+ Clearing | ACH+ originations and receipts in flight (24/7), including returns. |
+| 1030 | NETC Card Settlement Clearing | Card activity between authorization and NETC network settlement. |
+| 1040 | Banksüljee (RTGS) Clearing | Outbound large-value (>₮5,000,000) RTGS settlements in flight. |
 | 1100 | Loans Receivable — Principal | Control; subsidiary = one Account per E-24 Loan (§8.10). |
 | 1110 | Loan Interest Receivable | Accrued, unposted loan interest. Subsidiary per loan. |
 | 1120 | Loan Fees Receivable | Assessed, uncollected loan fees. Required by the §4.6 waterfall. |
 | 1190 | Allowance for Loan Losses | **Contra-asset, credit-normal.** |
 | 1900 | Suspense / Unidentified Receipts | Unmatched inbound funds. Must be zero at period close (§7.4). |
 | 1950 | Rounding Differences | The designated rounding account required by L-5. Monitored; a growing balance indicates a rounding defect. |
+
+> **Note.** Draft 2's `1050` real-time clearing account is **retired**. Mongolia has no separate real-time retail rail — ACH+ is 24/7 and covers the instant case (payment-rails migration), so former real-time activity clears through **1020 ACH+ Clearing**. Large-value external transfers (>₮5,000,000, the Governor's-order threshold carried as US-12.5 configuration) settle through **1040 Banksüljee (RTGS) Clearing**.
 
 ### 2.2 Liabilities (2000–2999, credit-normal)
 
@@ -94,7 +95,7 @@ Critically, **every subsidiary must be an E-6 row**, because only E-6 rows carry
 
 | Code | Account | Purpose |
 | :--- | :--- | :--- |
-| 3000 | Member Share Capital | Control for `MEMBERSHIP_SHARE`, at DEC-11 par ($25.00). |
+| 3000 | Member Share Capital | Control for `MEMBERSHIP_SHARE`, at DEC-11 par (10,000₮ — provisional, pending DEC-11 / legal; par is a US-12.5 config seed, never hard-coded). |
 | 3100 | Retained Surplus | Accumulated surplus not otherwise appropriated. |
 | 3150 | Statutory & General Reserves | The reserve tranche implied by KPI-4.1/4.2 ("60% dividends + 10% community + **remainder to reserves**"). Its absence in Draft 1 silently deleted the reserve allocation. |
 | 3200 | Current Year Surplus | Current fiscal year result. Closed and appropriated at the AGM (§7.4). |
@@ -105,7 +106,7 @@ Critically, **every subsidiary must be an E-6 row**, because only E-6 rows carry
 | :--- | :--- | :--- |
 | 4000 | Loan Interest Income | Accrued interest on the loan book. |
 | 4010 | Loan Interest Reversed | **Contra-income, debit-normal.** Reversal of accrued interest on write-off (§4.9). |
-| 4100 | Fee Income | Wire fees, loan fees, and other member fees (US-12.5 configured). |
+| 4100 | Fee Income | RTGS (Banksüljee) transfer fees, loan fees, and other member fees (US-12.5 configured). |
 | 4200 | Interchange Income | Card interchange received via the issuer processor. |
 | 4900 | Recoveries | Post-charge-off recoveries. |
 
@@ -116,7 +117,7 @@ Critically, **every subsidiary must be an E-6 row**, because only E-6 rows carry
 | 5000 | Savings Interest Expense | Interest credited to member savings. |
 | 5100 | Loan Charge-Off Expense | Write-offs exceeding the allowance. |
 | 5200 | Provision for Loan Losses | Periodic provisioning to 1190. |
-| 5400 | Payment Processing Fees | Stripe/processor fees withheld from remittance (§4.1). |
+| 5400 | Payment Processing Fees | Payment-processor fees withheld from remittance (§4.1). |
 
 > **Note.** Draft 1 defined a `5300 Surplus Match Grant Expense` that no posting rule used. It is **deleted**: the Community Grant pool is an *appropriation of surplus* (equity → restricted liability), not an operating expense. See §4.7.
 
@@ -127,6 +128,7 @@ Critically, **every subsidiary must be an E-6 row**, because only E-6 rows carry
 | 9000 | Card Authorization Holds | Counter-account for card auth `MEMO_HOLD` pairs. |
 | 9010 | Guarantee Pledge Holds | Counter-account for E-23 pledge holds. |
 | 9020 | Group Pot Pending Holds | Counter-account for E-12 pending approvals. |
+| 9030 | External-Payment Holds | Counter-account for external-payment (`EXTERNAL_ACH_PLUS_OUT`, `RTGS_OUT`) outbound `MEMO_HOLD` pairs (§4.3). Keeps external-payment holds off `9000`, which is card-authorization-specific. |
 
 Memorandum accounts satisfy L-1 (holds post in balanced pairs) while being excluded from the financial trial balance in §7.3.
 
@@ -164,7 +166,7 @@ goal_balance(G)   = signed_sum(FINANCIAL + ATTRIBUTION entries where savings_goa
 
 **Holds are released arithmetically, never by mutation.** A release posts an entry in the opposite direction; the hold's residual is the signed sum, not a status field. Draft 1's phrase "active MEMO_HOLD" implied a mutable status on an append-only entry — exactly the anti-pattern this section exists to avoid — and is withdrawn. This also makes partial pledge release (§4.6) representable, which a single `hold_ledger_entry_id` FK cannot express (§8.11).
 
-**Invariant L-3 (withdrawn as an invariant).** Draft 1 asserted that a hold may never drive `available_balance` negative. That cannot hold: `04` §4.5 stand-in authorizations, ACH returns, and card force-posts all drive balances negative independently of holds. It is demoted to a **validation rule**: hold *placement* is rejected with `422 INSUFFICIENT_AVAILABLE_BALANCE` if it would breach zero. A negative `available_balance` is a legitimate observable state and requires a deposit-side collections path, which does not currently exist in the backlog — raised as LA-14.
+**Invariant L-3 (withdrawn as an invariant).** Draft 1 asserted that a hold may never drive `available_balance` negative. That cannot hold: `04` §4.5 stand-in authorizations, ACH+ returns, and card force-posts all drive balances negative independently of holds. It is demoted to a **validation rule**: hold *placement* is rejected with `422 INSUFFICIENT_AVAILABLE_BALANCE` if it would breach zero. A negative `available_balance` is a legitimate observable state and requires a deposit-side collections path, which does not currently exist in the backlog — raised as LA-14.
 
 `Σ(goal_balance) ≤ balance(Member SAV)` at all times.
 
@@ -178,12 +180,12 @@ Notation: `Dr` / `Cr`. "Member TXN" = the member's `TRANSACTION` account; "Membe
 
 | Type | Stage | Dr | Cr |
 | :--- | :--- | :--- | :--- |
-| `SHARE_SUBSCRIPTION` | collection (US-2.1) | 1010 Stripe Clearing | Member SHARE |
-| | processor remittance | 1000 FBO Cash **and** 5400 Processing Fees | 1010 Stripe Clearing |
+| `SHARE_SUBSCRIPTION` | collection (US-2.1) | 1010 Payment-Processor Clearing | Member SHARE |
+| | processor remittance | 1000 FBO Cash **and** 5400 Processing Fees | 1010 Payment-Processor Clearing |
 | `SHARE_REDEMPTION` | closure at par (DEC-11) | Member SHARE | Member SAV |
-| `SHARE_SUBSCRIPTION_REFUND` | aborted application (`04` §4.4) | Member SHARE | 1010 Stripe Clearing |
+| `SHARE_SUBSCRIPTION_REFUND` | aborted application (`04` §4.4) | Member SHARE | 1010 Payment-Processor Clearing |
 
-The remittance leg is split because Stripe remits **net of fees**; posting par against par would leave 1010 permanently uncleared.
+The remittance leg is split because the payment processor remits **net of fees**; posting par against par would leave 1010 permanently uncleared.
 
 **Aborted applications** have no savings account (accounts open only at `ACTIVE`, `04` E-6), so the refund returns to the original funding instrument via the clearing account — it cannot credit Member SAV. This is a distinct type from `SHARE_REDEMPTION` (§4.9).
 
@@ -206,34 +208,35 @@ The remittance leg is split because Stripe remits **net of fees**; posting par a
 
 ### 4.3 External rails
 
-Every rail follows the same three-stage shape: **hold → origination → settlement**. Draft 1 omitted the hold on outbound and the settlement leg on wire and RTP, which left 1040 and 1050 permanently unclearable.
+Every outbound rail follows the same three-stage shape: **hold → origination → settlement**. Draft 1 omitted the hold on outbound and the settlement leg on the large-value and real-time rails, which left their clearing accounts permanently unclearable.
+
+The three external rail types are `04` E-8's migrated enum: `EXTERNAL_ACH_PLUS_IN | EXTERNAL_ACH_PLUS_OUT | RTGS_OUT`. **External-out routing is by amount against a configurable threshold (₮5,000,000, set by Governor's order, US-12.5):** `> threshold → RTGS_OUT` (Banksüljee / RTGS, `1040`); `≤ threshold → EXTERNAL_ACH_PLUS_OUT` (ACH+, 24/7, `1020`). The threshold is configuration, never hard-coded. There is no separate real-time rail — ACH+ (24/7) covers the instant retail case, so Draft 2's `RTP_*` types fold into the ACH+ types.
 
 | Type | Stage | Dr | Cr |
 | :--- | :--- | :--- | :--- |
-| `EXTERNAL_ACH_OUT` | request accepted (`04` §4.3) | Member TXN → 9000-class hold | `MEMO_HOLD` |
-| | origination | Member TXN | 1020 ACH Clearing *(hold released)* |
-| | settlement | 1020 ACH Clearing | 1000 FBO Cash |
-| `EXTERNAL_ACH_IN` | receipt | 1020 ACH Clearing | Member TXN |
-| | settlement | 1000 FBO Cash | 1020 ACH Clearing |
-| `WIRE_OUT` | origination | Member TXN | 1040 Wire Clearing |
-| | settlement | 1040 Wire Clearing | 1000 FBO Cash |
+| `EXTERNAL_ACH_PLUS_OUT` | request accepted (`04` §4.3) | Member TXN → 9030 External-Payment Holds | `MEMO_HOLD` |
+| | origination | Member TXN | 1020 ACH+ Clearing *(hold released)* |
+| | settlement | 1020 ACH+ Clearing | 1000 FBO Cash |
+| `EXTERNAL_ACH_PLUS_IN` | receipt | 1020 ACH+ Clearing | Member TXN |
+| | settlement | 1000 FBO Cash | 1020 ACH+ Clearing |
+| `RTGS_OUT` | request accepted (`04` §4.3) | Member TXN → 9030 External-Payment Holds | `MEMO_HOLD` |
+| | origination | Member TXN | 1040 Banksüljee (RTGS) Clearing *(hold released)* |
+| | settlement | 1040 Banksüljee (RTGS) Clearing | 1000 FBO Cash |
 | | fee (if configured) | Member TXN | 4100 Fee Income |
-| `RTP_IN` | receipt | 1050 RTP Clearing | Member TXN |
-| | settlement | 1000 FBO Cash | 1050 RTP Clearing |
-| `RTP_OUT` | origination | Member TXN | 1050 RTP Clearing |
-| | settlement | 1050 RTP Clearing | 1000 FBO Cash |
 
-**Returns.** `Transaction.status = RETURNED` requires a **reversing Transaction**, never an update. The reversal posts the exact inverse and carries `reversal_of_transaction_id` (§8.3). ACH return codes populate `failure_reason`.
+`RTGS_OUT` — the large-value (>₮5,000,000) external-out rail — was absent from Draft 2 and is added here with the standard outbound three-stage shape (hold → origination → settlement) required by this section, plus the configurable transfer-fee leg carried over from the former `WIRE_OUT`. Each stage is a balanced Dr/Cr pair (L-1).
+
+**Returns.** `Transaction.status = RETURNED` requires a **reversing Transaction**, never an update. The reversal posts the exact inverse and carries `reversal_of_transaction_id` (§8.3). The return **reason** populates `failure_reason`; the specific return-code catalogue is the settlement operator's, carried as configuration — TBD pending the Bank-of-Mongolia settlement-agent selection.
 
 ### 4.4 Cards
 
 | Type | Stage | Dr | Cr |
 | :--- | :--- | :--- | :--- |
 | `CARD_PURCHASE` | authorization | Member TXN | 9000 Card Authorization Holds — `MEMO_HOLD` |
-| | settlement | Member TXN | 1030 Card Settlement Clearing *(hold released)* |
-| | network settlement | 1030 Card Settlement Clearing | 1000 FBO Cash |
-| `CARD_REFUND` | | 1030 Card Settlement Clearing | Member TXN |
-| `CARD_ATM_WITHDRAWAL` | settlement | Member TXN | 1030 Card Settlement Clearing |
+| | settlement | Member TXN | 1030 NETC Card Settlement Clearing *(hold released)* |
+| | network settlement | 1030 NETC Card Settlement Clearing | 1000 FBO Cash |
+| `CARD_REFUND` | | 1030 NETC Card Settlement Clearing | Member TXN |
+| `CARD_ATM_WITHDRAWAL` | settlement | Member TXN | 1030 NETC Card Settlement Clearing |
 
 Interchange is **not** posted here — it is a platform-level Transaction (`INTERCHANGE_SETTLEMENT`, §4.9), not a member transaction. Draft 1 posted it in both places, which would have double-counted income.
 
@@ -241,7 +244,7 @@ Interchange is **not** posted here — it is a platform-level Transaction (`INTE
 
 ### 4.5 Savings interest
 
-**Daily accrual is not a ledger posting.** It accumulates in `InterestAccrualAccumulator` (§8.6) at micro-cent precision. Draft 1 posted daily to the ledger, which — against §5.1's integer-cent storage rule — truncated daily and cost a member with a $500 balance roughly 3–5% of annual interest, contradicting §5.4's own promise.
+**Daily accrual is not a ledger posting.** It accumulates in `InterestAccrualAccumulator` (§8.6) at micro-unit precision. Draft 1 posted daily to the ledger, which — against §5.1's integer-minor-unit storage rule — truncates each day's fractional-minor-unit accrual. In tögrög the discarded per-day remainder is small at ordinary balances (a 500,000₮ balance at 2.00% loses on the order of a few tögrög a year), but the loss grows without bound *as a share of interest* for the smallest savers, and L-5 forbids discarding value at any balance — contradicting §5.4's own promise.
 
 | Stage | Dr | Cr |
 | :--- | :--- | :--- |
@@ -267,7 +270,7 @@ Interchange is **not** posted here — it is a platform-level Transaction (`INTE
 
 **Repayment waterfall:** fees → accrued interest → principal, oldest installment first. The interest leg credits the **accrued** balance in 1110, *not* the scheduled interest figure — crediting the schedule causes 1110 to drift every month and hold a residue at payoff. Overpayment reduces principal and triggers schedule recomputation (US-6.7).
 
-**Guarantee application is restricted to `pledge_source = SAVINGS`.** Draft 1 permitted debiting Member SHARE, which (a) retires share capital from an ACTIVE member against DEC-11's non-withdrawability, (b) breaks L-4 whenever the amount is not a multiple of $25.00, since E-5 has no partial-redemption model, and (c) violates §4.8's own prohibition on touching 3000. `04` E-23 does allow `pledge_source = SHARE_CAPITAL`, but explicitly behind `jurisdiction_flag` (`05` OI-2) — it was left open, not ratified. **Raised as LA-9; until adjudicated, share-capital pledges are not implementable.**
+**Guarantee application is restricted to `pledge_source = SAVINGS`.** Draft 1 permitted debiting Member SHARE, which (a) retires share capital from an ACTIVE member against DEC-11's non-withdrawability, (b) breaks L-4 whenever the amount is not a multiple of 10,000₮ (the DEC-11 par), since E-5 has no partial-redemption model, and (c) violates §4.8's own prohibition on touching 3000. `04` E-23 does allow `pledge_source = SHARE_CAPITAL`, but explicitly behind `jurisdiction_flag` (`05` OI-2) — it was left open, not ratified. **Raised as LA-9; until adjudicated, share-capital pledges are not implementable.**
 
 `GUARANTEE_PLEDGE` / `GUARANTEE_RELEASE` are new types — Draft 1 posted only *application*, leaving DEC-51's pre-disbursement revocability and US-6.4's pro-rata release unrepresentable.
 
@@ -286,8 +289,8 @@ Sequence matters here, and Draft 1 had it wrong (see §7.4).
 | `DIVIDEND_PAYOUT` → `SHARE_REINVESTMENT` | 2200 Dividend Payable | Member SHARE *(whole shares)* **and** Member SAV *(residual, §6.5)* |
 | `PROJECT_BACKING` | Member SAV | 2100 Escrow *(project)* |
 | `BACKING_REFUND` (DEC-66) | 2100 Escrow *(project)* | Member SAV |
-| `BACKING_DISBURSEMENT` | 2100 Escrow *(project)* | 1020 ACH Clearing → settlement `Dr 1020 / Cr 1000` |
-| `SURPLUS_MATCH_DISBURSEMENT` | 2300 Community Grant Pool | 1020 ACH Clearing → settlement `Dr 1020 / Cr 1000` |
+| `BACKING_DISBURSEMENT` | 2100 Escrow *(project)* | 1020 ACH+ Clearing → settlement `Dr 1020 / Cr 1000` |
+| `SURPLUS_MATCH_DISBURSEMENT` | 2300 Community Grant Pool | 1020 ACH+ Clearing → settlement `Dr 1020 / Cr 1000` |
 
 The appropriation entry zeroes 3200 and is the **only** debit to it. The Community Grant pool is an appropriation of equity to a restricted liability — **not an expense** — which is why the `5300` account of Draft 1 is deleted.
 
@@ -315,7 +318,7 @@ Draft 1 identified five; review found six more. None adds member-facing scope.
 | `CARD_ATM_WITHDRAWAL` | `04` E-18 enables the `atm` channel with no posting rule. |
 | `LOAN_WRITE_OFF` | `Dr 1190` *(and 5100 for any excess)* `/ Cr 1100`, **and** `Dr 4010 Interest Reversed / Cr 1110`. Draft 1 wrote off principal only, leaving uncollectible interest in 1110 and phantom income in 4000. |
 | `LOAN_PROVISION` | `Dr 5200 / Cr 1190`. Required for KPI-2.5 NPL reporting. |
-| `RECOVERY` | Post-charge-off collection. Routes through `Member TXN` or `1020 ACH Clearing` like any other inbound receipt — **not** directly to 1000 as Draft 1 had it. |
+| `RECOVERY` | Post-charge-off collection. Routes through `Member TXN` or `1020 ACH+ Clearing` like any other inbound receipt — **not** directly to 1000 as Draft 1 had it. |
 | `INTERCHANGE_SETTLEMENT` | `Dr 1030 / Cr 4200`, posted once, at platform level (§4.4). |
 | `ACCOUNT_CLOSURE_DISBURSEMENT` | Residual balance disposition on account or Group Pot closure. |
 
@@ -327,7 +330,7 @@ Stated plainly rather than claimed complete:
 
 1. **Group Pot / account closure residual disposition** — type proposed above; the *policy* (where residuals go, how disputes are handled) is undecided.
 2. **Deposit-account negative-balance collections** — see L-3 above; LA-14.
-3. **Card disputes / provisional credit** — `04` handles disputes "via case notes at launch"; provisional credit under Reg E is a real posting path with statutory clocks and does not exist in the backlog. Out of scope here, flagged as LA-15.
+3. **Card disputes / provisional credit** — `04` handles disputes "via case notes at launch"; provisional credit is a real posting path with statutory clocks and does not exist in the backlog. The prior US Reg E framing does not apply in Mongolia — **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia dispute-resolution and provisional-credit rules]**. Out of scope here, flagged as LA-15.
 
 ---
 
@@ -337,13 +340,13 @@ Stated plainly rather than claimed complete:
 
 ### 5.1 Storage precision
 
-All persisted monetary amounts are **signed 64-bit integers in USD minor units (cents)**, per DEC-18. No floating-point type may appear in any monetary code path, schema column, API field, or test fixture — including intermediate calculation.
+All persisted monetary amounts are **signed 64-bit integers in MNT minor units**, per DEC-18. No floating-point type may appear in any monetary code path, schema column, API field, or test fixture — including intermediate calculation.
 
 ### 5.2 Computation precision
 
-Interest accrual and rate tiering compute in **scaled integer micro-cents — minor units × 10⁶**. This is the "high precision" `03` EP-3 refers to without defining. Accumulators (§8.6) persist micro-cents in a dedicated column, which is the one documented exception to §5.1's cents rule.
+Interest accrual and rate tiering compute in **scaled integer micro-units — minor units × 10⁶**. This is the "high precision" `03` EP-3 refers to without defining. Accumulators (§8.6) persist micro-units in a dedicated column, which is the one documented exception to §5.1's minor-units rule.
 
-**Dividend apportionment is different** and uses the exact integer method in §6.4 at `SCALE = 10¹²`, with an **int128 (or arbitrary-precision) intermediate**. `pool_¢ × 10¹² × w_bps × F_k` overflows int64 at realistic magnitudes; the widening is mandatory, not an optimization.
+**Dividend apportionment is different** and uses the exact integer method in §6.4 at `SCALE = 10¹²`, with an **int128 (or arbitrary-precision) intermediate**. `pool_minor × 10¹² × w_bps × F_k` overflows int64 at realistic magnitudes; the widening is mandatory, not an optimization.
 
 ### 5.3 Rounding rule [NEW]
 
@@ -359,12 +362,12 @@ Two deliberate exceptions, and no others without amending this section:
 
 **Invariant L-5.** No monetary computation may discard value. Every rounding step either posts the residue, carries it in a named accumulator, or posts it to **1950 Rounding Differences**.
 
-- **Savings interest:** the accumulator (§6.2) retains micro-cent precision; only the monthly posting rounds, and the residue carries forward.
-- **Dividend:** largest-remainder allocation (§6.4) distributes every residual cent, so the pool is exhausted exactly.
+- **Savings interest:** the accumulator (§6.2) retains micro-unit precision; only the monthly posting rounds, and the residue carries forward.
+- **Dividend:** largest-remainder allocation (§6.4) distributes every residual minor unit, so the pool is exhausted exactly.
 
 ### 5.5 Day-count convention [NEW]
 
-**Actual/365 Fixed (ACT/365F)** for all interest, savings and lending alike. Leap years divide by 365, not 366 — the 366th day accrues normally. This ratifies the convention already implied arithmetically by `03` EP-3 ("$1,000.00 × 2.00%/365").
+**Actual/365 Fixed (ACT/365F)** for all interest, savings and lending alike. Leap years divide by 365, not 366 — the 366th day accrues normally. This ratifies the convention already implied arithmetically by `03` EP-3 ("1,000,000₮ × 2.00%/365").
 
 ---
 
@@ -375,7 +378,7 @@ Two deliberate exceptions, and no others without amending this section:
 Accrual is on the **end-of-day `FINANCIAL` balance** of the `PRIMARY_SAVINGS` account — not the average daily balance and not the available balance. Holds do not reduce accrual.
 
 ```
-daily_accrual_μ¢ = round_half_even( eod_balance_¢ × 10⁶ × annual_rate_bps / 10 000 / 365 )
+daily_accrual_μ = round_half_even( eod_balance_minor × 10⁶ × annual_rate_bps / 10 000 / 365 )
 ```
 
 The job runs once per calendar day, idempotent and checkpointed, keyed on `(account_id, accrual_date)` so a re-run cannot double-count. It writes only to the accumulator, never to the ledger (§4.5).
@@ -385,15 +388,15 @@ The job runs once per calendar day, idempotent and checkpointed, keyed on `(acco
 On the last calendar day of each month:
 
 ```
-posted_¢    = ⌊ accumulated_μ¢ / 10⁶ ⌋         // floor, NOT half-even
-accumulator = accumulated_μ¢ − posted_¢ × 10⁶   // always ≥ 0, carries forward
+posted_minor = ⌊ accumulated_μ / 10⁶ ⌋          // floor, NOT half-even
+accumulator  = accumulated_μ − posted_minor × 10⁶   // always ≥ 0, carries forward
 ```
 
 Rounding half-even here can round *up*, crediting interest that has not accrued and driving the accumulator negative — the cooperative would pay unearned interest and carry a receivable against the member. Flooring guarantees a non-negative accumulator; the residue is not lost, it posts in a later month.
 
-Worked check at $1,000.00 and 2.00% APR: the twelve monthly postings total $19.99, with $0.0099 remaining in the accumulator and posting in January. Value is conserved (L-5); only timing shifts by one period.
+Worked check at 500,000₮ and 2.00% APR: the exact annual interest is 10,000₮ (1,000,000 minor units); the twelve monthly floored postings total 9,999.99₮, with ~0.0099₮ (≈1 minor unit) remaining in the accumulator and posting in January. Value is conserved (L-5); only timing shifts by one period.
 
-Rate changes take effect from the ConfigurationParameter effective date (US-12.5); each day accrues at the rate in force that day. Reg DD/TISA disclosure obligations attach here — LA-7.
+Rate changes take effect from the ConfigurationParameter effective date (US-12.5); each day accrues at the rate in force that day. Deposit-account interest-disclosure obligations attach here; the prior US Reg DD / TISA framing does not apply in Mongolia — **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia deposit-disclosure rules]** — LA-7.
 
 ### 6.3 Loan interest and amortization
 
@@ -409,7 +412,7 @@ where `days_in_period_k` is the actual day count between installment due dates.
 
 **Level payment** is solved, not computed in closed form: the smallest integer payment `p` such that applying the recurrence above for `n` installments drives outstanding to zero or below. Binary search over `[1, principal + total_interest_ceiling]` converges in ~30 iterations and is fully deterministic.
 
-The **final installment absorbs the residue**: `final = outstanding + interest_n`. It differs from the level payment by at most a few cents.
+The **final installment absorbs the residue**: `final = outstanding + interest_n`. It differs from the level payment by at most a few minor units.
 
 This formulation has three properties the annuity lacked: it is consistent with daily accrual, it needs **no zero-interest special case** (Draft 1's `principal × i / (1 − (1+i)^(−n))` divided by zero at `i = 0`, reachable via a `HARDSHIP_RESCHEDULE` under E-25 since DEC-49's 4% floor is a config seed, not a code guarantee), and it handles `n = 1`.
 
@@ -433,7 +436,7 @@ retained_to_reserves       = ratified_surplus − distributable_pool − communi
 
 Draft 1 set `distributable_pool = surplus − 10%`, distributing 90% to members and silently deleting the reserve tranche. **The exact split above is a Board/Finance decision, not an engineering one — LA-8.** The formula is correct for any ratified split.
 
-**Step 2 — Eligibility.** Members `ACTIVE` holding an `ISSUED MEMBERSHIP` share at the declaration date. Per DEC-56, a zero-patronage eligible member receives a **$0.00 entitlement statement, not an error**.
+**Step 2 — Eligibility.** Members `ACTIVE` holding an `ISSUED MEMBERSHIP` share at the declaration date. Per DEC-56, a zero-patronage eligible member receives a **0₮ entitlement statement, not an error**.
 
 This excludes a member who was ACTIVE all fiscal year but closed before the AGM, and excludes `SUSPENDED` members. Neither exclusion is derivable from DEC-4, DEC-10 or DEC-56 — it is a member-facing policy decision and is **not settled here. LA-13.**
 
@@ -455,7 +458,7 @@ If `S_k = 0` for a factor (no loans in year one), that factor is dropped and its
 
 **E-31 absent-value semantics are undefined in `04` and move real money** — a member with no loan may plausibly record `0`, `1.0`, or no row. Recommended: members with no loan are **excluded from that factor's denominator** rather than scored zero. **LA-11.**
 
-**Degenerate case.** If *every* `S_k = 0`, no patronage basis exists and Step 6 would silently under-allocate. The run **aborts**: the declaration moves to `status = CANCELLED` with reason `NO_PATRONAGE_BASIS` and no allocations are written. This is distinct from DEC-56's individual zero-patronage member, who is eligible and receives $0.00.
+**Degenerate case.** If *every* `S_k = 0`, no patronage basis exists and Step 6 would silently under-allocate. The run **aborts**: the declaration moves to `status = CANCELLED` with reason `NO_PATRONAGE_BASIS` and no allocations are written. This is distinct from DEC-56's individual zero-patronage member, who is eligible and receives 0₮.
 
 **Step 4 — Weighted score, as an exact integer.** `W` is the summed weight of surviving factors.
 
@@ -486,13 +489,13 @@ Rank by `(distributable_pool × N(m)) mod T` descending, ties by `member_id` asc
 
 **Invariant L-7.** `Σ(entitlement) = distributable_pool` exactly. This is the reconciliation assertion `03` EP-7 already requires; §6.4 is what makes it mechanically true. Verified against 1–50,000 member populations.
 
-**Legal flag.** DEC-10 includes **governance participation** as a patronage factor. Under US Subchapter T, patronage dividends must be allocated on business done with the cooperative; voting is not patronage, and a governance-weighted allocation may both fail Subchapter T and read as paying members to vote. The formula supports a weight of `0` without code change. **Counsel decision — LA-1.**
+**Legal flag.** DEC-10 includes **governance participation** as a patronage factor. The concern is that patronage distributions may need to be allocated on business done *with* the cooperative — voting is not such business, so a governance-weighted allocation may both be impermissible and read as paying members to vote. This concern was originally framed under US Subchapter T, which does not apply in Mongolia — **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia and Mongolian cooperative-tax treatment of patronage distributions; do not assume the US Subchapter T rule transfers]**. The formula supports a weight of `0` without code change. **Counsel decision — LA-1.**
 
 ### 6.5 Share reinvestment and fractional shares [NEW]
 
-DEC-11 fixes par at $25.00 and E-5 permits `share_class = REINVESTED_PATRONAGE`, but an entitlement is rarely a multiple of $25.00.
+DEC-11 fixes par at 10,000₮ (provisional, pending DEC-11 / legal) and E-5 permits `share_class = REINVESTED_PATRONAGE`, but an entitlement is rarely a multiple of 10,000₮.
 
-**Rule:** issue `⌊ entitlement / par_value ⌋` whole `REINVESTED_PATRONAGE` shares; credit the residual to `PRIMARY_SAVINGS`. For $84.60 at $25.00 par: **3 shares issued, $9.60 to savings.** No fractional shares are created, so L-4 holds and voting eligibility — binary per E-5 regardless of holdings — is unaffected.
+**Rule:** issue `⌊ entitlement / par_value ⌋` whole `REINVESTED_PATRONAGE` shares; credit the residual to `PRIMARY_SAVINGS`. For 84,600₮ at 10,000₮ par: **8 shares issued, 4,600₮ to savings.** No fractional shares are created, so L-4 holds and voting eligibility — binary per E-5 regardless of holdings — is unaffected.
 
 This makes a **split payout the normal case** for every reinvesting member, which E-33 cannot currently record (singular `payout_transaction_id` / `reinvested_share_id`, no split status). See §8.12.
 
@@ -520,7 +523,7 @@ Per `04` §1.1, the Ledger Service (S-3) is the only writer of financial posting
 | L-6 | every active loan's schedule reconciles to principal and disclosed APR |
 | L-7 | on declaration runs only |
 | Drift | materialized `balance` = recomputed signed sum, per account |
-| Clearing aging | no 10xx–105x item older than its rail's settlement window |
+| Clearing aging | no 10xx–104x item older than its rail's settlement window |
 
 Draft 1 omitted L-5 and L-6 from the nightly set — including L-6, the one invariant §6.3 shows was false as constructed.
 
@@ -556,7 +559,7 @@ Card authorization has a 200 ms ceiling (`04` §5.2) and `04` §4.5 permits a ca
 | 8.3 | **E-8 Transaction** | Add the ten types in §4.9. Add `reversal_of_transaction_id?` FK→Transaction. |
 | 8.4 | **New: AccountingPeriod** | `id`, `fiscal_year`, `period_number`, `starts_on`, `ends_on`, `status`, `closed_at?`, `closed_by?`. |
 | 8.5 | **New: AccountBalanceCheckpoint** | `account_id`, `as_of_date`, `sequence`, `balance`; UQ(account, as_of_date). |
-| 8.6 | **New: InterestAccrualAccumulator** | `account_id` or `loan_id`, `accrual_date`, `accrued_μ¢` (int64, micro-cents), `posted_through_date`; UQ on the natural key for idempotency. |
+| 8.6 | **New: InterestAccrualAccumulator** | `account_id` or `loan_id`, `accrual_date`, `accrued_μ` (int64, micro-units = minor units × 10⁶), `posted_through_date`; UQ on the natural key for idempotency. |
 | 8.7 | **E-20 LoanApplication** | Fix `referral_case_id? FK→ComplianceCase-style loan referral` — add `LOAN_REFERRAL` to `ComplianceCase.case_type` or drop the field. Currently unwritable. |
 | 8.8 | **DEC-20 / E-20** | `04` introduces `DECLINED_CLOSED`, absent from DEC-20's canonical `LoanStatus`, despite `04`'s front matter promising glossary enums are used "exactly as defined." Amend DEC-20 or record the outcome solely in `decision.outcome`. |
 | 8.9 | **E-17 PaymentRequest** | The `shares` child rows have no E-number, PK, or FK. Promote to a first-class entity. *(Draft 1 cited E-16; E-16 is ScheduledPayment.)* |
@@ -570,13 +573,13 @@ Card authorization has a 200 ms ceiling (`04` §5.2) and `04` §4.5 permits a ca
 
 | ID | Item | Owner | Gate |
 | :--- | :--- | :--- | :--- |
-| LA-1 | **Governance participation as a patronage factor** (§6.4) — Subchapter T exposure. Formula supports weight 0 without code change. | Counsel + PO | Before S5 |
+| LA-1 | **Governance participation as a patronage factor** (§6.4) — cooperative-patronage-distribution exposure; the original US Subchapter T framing needs re-grounding **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia]**. Formula supports weight 0 without code change. | Counsel + PO | Before S5 |
 | LA-2 | **`SEASONAL` / `INCOME_LINKED` schedule generation** (§6.3) — not derivable from current requirements. | PO + Lending | Before S3 |
 | LA-3 | **Rounding mode** — §5.3 proposes half-even with two stated exceptions. Confirm. | Finance | Before S1 |
 | ~~LA-4~~ | *Closed in Draft 2.* Draft 1 asked Finance to confirm that fees "floor before rounding" — a no-op, since flooring already yields an integer. Restated in §5.3 as `fee = ⌊exact_fee⌋` with no subsequent rounding. Number retired, not reused. | — | — |
 | LA-5 | **Ten missing transaction types** (§4.9) — particularly `SAVINGS_TRANSFER` (S2) and `BACKING_DISBURSEMENT` (S6). | PO | Per epic |
 | LA-6 | **Allowance/provisioning methodology** — accounts and postings exist; the *model* (incurred loss, CECL-style, aging matrix) is undecided and affects KPI-2.5. | Finance + Counsel | Before S4 |
-| LA-7 | **Reg DD / TISA disclosure obligations** attach to §6.1–6.2 and are absent from the baseline. | Counsel | Before launch |
+| LA-7 | **Deposit-interest disclosure obligations** attach to §6.1–6.2 and are absent from the baseline; the prior US Reg DD / TISA framing needs re-grounding **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia deposit-disclosure rules]**. | Counsel | Before launch |
 | LA-8 | **Surplus split** (§6.4 Step 1) — dividends vs community vs reserves. KPI-4.1/4.2 imply 60/10/30; needs Board ratification and a `dividend_share_bps` seed. | Board + Finance | Before S5 |
 | LA-9 | **Share-capital guarantee pledges** (§4.6) — currently conflicts with DEC-11 and L-4; restricted to SAVINGS until resolved. | Counsel + Lending | Before S4 |
 | LA-10 | **Non-accrual policy** (§4.9) — proposed: stop at `DEFAULTED`, reverse `DELINQUENT` accruals. Confirm. | Finance | Before S3 |
@@ -584,7 +587,7 @@ Card authorization has a 200 ms ceiling (`04` §5.2) and `04` §4.5 permits a ca
 | LA-12 | **ROSCA backstop postings** (§4.6) — DEC-54's three options are ratified; the ledger treatment of forfeiture at circle close needs confirmation. | PO | Before S4 |
 | LA-13 | **Dividend eligibility** (§6.4 Step 2) — members closing between fiscal year end and AGM; `SUSPENDED` members. Member-facing policy. | Counsel + PO | Before S5 |
 | LA-14 | **Deposit negative-balance collections** (§3) — no path exists for a member account driven negative by stand-in, returns, or force-posts. | PO + Ops | Before S2 |
-| LA-15 | **Reg E provisional credit postings** (§4.10) — disputes are "case notes at launch"; the statutory path has real ledger effects. | Counsel + PO | Before card launch |
+| LA-15 | **Dispute provisional-credit postings** (§4.10) — disputes are "case notes at launch"; the statutory path has real ledger effects. The prior US Reg E framing needs re-grounding **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia dispute / provisional-credit rules]**. | Counsel + PO | Before card launch |
 
 ---
 
@@ -603,7 +606,7 @@ Draft 2 incorporates an adversarial accounting review. Substantive corrections, 
 1. **Surplus split** — Draft 1 allocated 90% of surplus to members and omitted reserves entirely, contradicting KPI-4.1/4.2. Added account 3150 and a governed `dividend_share_bps` (§6.4 Step 1, LA-8).
 2. **Year-end sequencing** — Draft 1 closed 3200 before the declaration and then debited it, and defined no rule closing income/expense into it. Rewritten (§4.7, §7.4).
 3. **Loan interest basis** — Draft 1 accrued ACT/365F simple but scheduled a monthly-compounded annuity; 1110 would drift every month. Both now ACT/365F; level payment solved rather than closed-form, which also removes the zero-interest division-by-zero (§6.3).
-4. **Daily accrual** — Draft 1 posted daily to a cents-only ledger, truncating ~3–5% of member interest. Accrual now accumulates at micro-cents and posts monthly (§4.5, §6.1).
+4. **Daily accrual** — Draft 1 posted daily to a minor-unit-only ledger, truncating each day's fractional accrual. Accrual now accumulates at micro-units and posts monthly (§4.5, §6.1).
 5. **Guarantee application** — Draft 1 permitted debiting share capital, breaking DEC-11, L-4, and its own §4.8 rule. Restricted to SAVINGS (§4.6, LA-9).
 6. **Write-off** — Draft 1 wrote off principal only, leaving uncollectible interest and phantom income. Added interest reversal and a non-accrual policy (§4.9).
 7. **Missing accounts** — hold-control (9000–9020), 1120 Loan Fees Receivable, 1950 Rounding Differences, 3150 Reserves, 4010 Interest Reversed, 5400 Processing Fees. Deleted unused 5300.
@@ -611,8 +614,18 @@ Draft 2 incorporates an adversarial accounting review. Substantive corrections, 
 9. **Holds** — removed the mutable "active" semantic; releases are arithmetic (§3). L-3 demoted from invariant to validation rule.
 10. **Five further missing transaction types**, including `SAVINGS_TRANSFER` — funding a Savings Goal from the Transaction Account, the most common member flow, had no posting rule.
 11. **Fee waterfall** — the three-bucket waterfall had a two-leg posting; added 1120.
-12. **Rail settlement** — wire and RTP had no settlement leg, so 1040/1050 could never clear; ACH outbound had no hold stage, silently changing member-facing behaviour.
+12. **Rail settlement** — the large-value (now Banksüljee/RTGS) and real-time rails had no settlement leg, so their clearing accounts could never clear; ACH+ outbound had no hold stage, silently changing member-facing behaviour.
 13. **Interchange** — was posted in two places; now once.
 14. **Cross-reference fixes** — E-17 not E-16; FBO structure is `04` §4.3 not §1.2; stand-in and cached balance are `04` §4.5 not §4.3; §7.5 no longer contradicts its own source on stand-in behaviour.
+
+### Mongolia migration (post-Draft-2, per `07` §2 HIGH #2)
+
+This pass re-grounds `06` from its US framing to Mongolia. It is **denomination / rail / naming only — no accounting logic, invariant, posting-balance rule, or the §3 hold formula was changed.** Still do-not-implement (pending controller ratification).
+
+15. **Currency re-denominated to tögrög (DEC-18).** Dropped the former minor-unit terms ("cents"/"micro-cents"/`¢`) in favour of "minor units"/"micro-units"/`μ` throughout §5–§6, §8.6. Re-denominated every legacy figure: share par → **10,000₮** (provisional, pending DEC-11 / legal — §2.3, §4.6, §6.5); §6.5 reinvestment worked example re-derived to **84,600₮ → 8 shares of 10,000₮ + 4,600₮ residual**; §6.2 interest check re-derived to **500,000₮ @ 2.00% → 9,999.99₮ posted + ~0.0099₮ carried to January**; §5.5 quote aligned to `03` EP-3 (`1,000,000₮ × 2.00%/365`); §4.5 truncation example re-grounded honestly (the per-day minor-unit remainder is immaterial at ordinary MNT balances but L-5 still forbids discarding it); zero entitlements → `0₮`. The integer-only precision model is currency-agnostic and unchanged.
+16. **Payment rails → Mongolia.** Chart of accounts re-grounded: `1010` → Payment-Processor Clearing (from the former US card/wallet-processor clearing account; provider TBD), `1020` → ACH+ Clearing, `1030` → NETC Card Settlement Clearing, `1040` → Banksüljee (RTGS) Clearing; `1050` (the former real-time clearing account) **retired** — no separate real-time rail; its function folds into ACH+. §4.3 rail transaction types reconciled to `04` E-8 (`EXTERNAL_ACH_PLUS_IN | EXTERNAL_ACH_PLUS_OUT | RTGS_OUT`); the former large-value `WIRE_OUT` renamed to the added **`RTGS_OUT`** rule (>₮5,000,000 external out, balanced hold → origination → settlement + fee); the former real-time out/in types fold into the ACH+ types; the ₮5,000,000 routing threshold stated as US-12.5 configuration; return-code catalogue marked settlement-operator config (TBD), not invented.
+17. **Dedicated external-payment memo account.** Added **`9030 External-Payment Holds`** (§2.6); §4.3 external-out holds now post there instead of overloading `9000 Card Authorization Holds`.
+18. **Vendors removed.** The former US-processor references (§1.2, §2.1, §2.5, §4.1) made role-neutral (the payment processor; provider is a procurement decision, TBD). No Mongolian vendor invented.
+19. **US-law framings flagged, not re-invented.** The former US deposit-disclosure framing (§6.2, LA-7), dispute/provisional-credit framing (§4.10, LA-15) and cooperative-patronage-tax framing (§6.4, LA-1) marked **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia]** — the correct answer pending counsel, no Mongolian citation fabricated.
 
 *End of document.*
