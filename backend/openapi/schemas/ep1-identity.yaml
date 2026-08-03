@@ -111,6 +111,15 @@ MemberProfile:
     phone_number:
       type: string
       description: KYC-verified phone in E.164 form; a P2P identifier (E-1, DEC-3).
+    preferred_language:
+      type: string
+      pattern: '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+      maxLength: 35
+      default: mn
+      description: >-
+        Preferred UI language as a BCP-47-ish tag (E-1). Defaults to Cyrillic
+        Mongolian (`mn`) per the market non-negotiable. Member-editable; an
+        invalid tag yields 422 PREFERRED_LANGUAGE_INVALID.
     date_of_birth:
       type: string
       format: date
@@ -487,6 +496,14 @@ ProfilePatchRequest:
       format: email
     phone_number:
       type: string
+    preferred_language:
+      type: string
+      pattern: '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+      maxLength: 35
+      description: >-
+        Preferred UI language as a BCP-47-ish tag (E-1). An invalid tag yields
+        422 PREFERRED_LANGUAGE_INVALID. Not KYC-relevant — editing it alone does
+        not set `reverification_required`.
 
 ProfilePatchResponse:
   type: object
