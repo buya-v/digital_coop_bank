@@ -440,23 +440,45 @@ Draft 1 set `distributable_pool = surplus − 10%`, distributing 90% to members 
 
 This excludes a member who was ACTIVE all fiscal year but closed before the AGM, and excludes `SUSPENDED` members. Neither exclusion is derivable from DEC-4, DEC-10 or DEC-56 — it is a member-facing policy decision and is **not settled here. LA-13.**
 
-**Step 3 — Factor sums.**
+**Step 3 — Factor aggregation (per factor *type*).**
+
+The four DEC-10 factors are of **two kinds**, and the two kinds aggregate a member's twelve monthly E-31 rows **differently**. Collapsing them into one uniform "aggregate" is the Draft-1 category error, and it moves real money: the auditor's worked stakes are one governance factor and two equally-perfect members (12-month vs 3-month) — the correct membership-month-weighted reading splits a 600,000,000₮ pool 50/50, a naïve sum splits it 80/20, a **180,000,000₮/member swing** (`07` §3). The pseudocode therefore makes the kind explicit and an implementer must **not** fold it back into a single loop over `k`.
 
 ```
-for each factor k ∈ {avg_savings_balance, transaction_volume,
-                     loan_repayment_performance, governance_participation}:
+factor_kind(avg_savings_balance)          = VOLUME
+factor_kind(transaction_volume)           = VOLUME
+factor_kind(loan_repayment_performance)   = RATE
+factor_kind(governance_participation)     = RATE
 
-    F_k(m) = the member's fiscal-year aggregate of monthly E-31 values for factor k
-    S_k    = Σ_over_eligible_members F_k(m)
+J(m)  = the fiscal-year months for which member m has a contributing E-31 row   // see LA-11
+mm(m) = |J(m)|                        // membership-months — the RATE weight (integer)
+
+for each factor k, for each eligible member m:
+
+    if factor_kind(k) = VOLUME:                      // aggregate by SUM
+        F_k(m) = Σ_{j ∈ J(m)}  v_k(m, j)             // v_k = monthly minor-unit balance or count (integer)
+
+    if factor_kind(k) = RATE:                        // membership-month-weighted AVERAGE
+        // E-31 stores the monthly score as Decimal(5,4); represent it as the integer
+        //   s_k(m, j) = monthly_score × RATE_SCALE,  s_k ∈ [0, RATE_SCALE]
+        RATE_SCALE = 10⁴                             // 4 fractional digits — exact; no floating-point, no DECIMAL type
+        if mm(m) = 0:  exclude m from factor k        // LA-11 absent-value — NOT scored 0
+        else:
+            F_k(m) = ⌊ ( Σ_{j ∈ J(m)} s_k(m, j) ) × RATE_SCALE / mm(m) ⌋
+                     // = the member's mean monthly score, held at fixed scale 10⁸ (integer);
+                     // ONE bounded integer division per member; the < 1-unit residue at 10⁸ is a
+                     // weighting quantity, not money — Step 6 still exhausts the pool exactly (L-7)
+
+    S_k = Σ_over_eligible_members  F_k(m)             // per-factor total; same kind & scale within k
 ```
 
-Member *m*'s share of factor *k* is conceptually `F_k(m) / S_k`, but is **never computed as an isolated division** — Step 4 folds it into an exact integer expression.
+Both kinds yield non-negative integers, so member *m*'s share of factor *k*, conceptually `F_k(m) / S_k`, is **never computed as an isolated division** — Step 4 folds it into the exact int128 apportionment at `SCALE = 10¹²` (§5.2). Each factor's internal scale (1 for VOLUME, 10⁸ for RATE) cancels against its own `S_k`, so the two kinds combine cleanly under `weight_k_bps`; the int128 widening §5.2 mandates already covers the combined magnitude.
+
+**Why the two kinds differ.** `avg_savings_balance` and `transaction_volume` are *volume* measures — more balance held longer, or more transactions, is more patronage — so they **sum**. `loan_repayment_performance` and `governance_participation` are `Decimal(5,4)` *rate* measures in [0,1]; **summing** them penalizes a member with perfect repayment over three months at one quarter the rate of an equally perfect twelve-month member, so they aggregate as a **membership-month-weighted average** (each active month one unit of weight; the mean over the member's active months). Draft 1 summed all four — the category error above.
 
 If `S_k = 0` for a factor (no loans in year one), that factor is dropped and its weight redistributed pro-rata across survivors, so a dormant factor cannot void the run.
 
-**Aggregation differs by factor type.** `avg_savings_balance` and `transaction_volume` are *volume* measures and aggregate by **sum**. `loan_repayment_performance_score` and `governance_participation_score` are `Decimal(5,4)` *rate* measures — summing them penalizes a member with perfect repayment over three months at one quarter the rate of an equally perfect twelve-month member. Rate factors therefore aggregate as a **membership-month-weighted average**. Draft 1 summed all four, a category error.
-
-**E-31 absent-value semantics are undefined in `04` and move real money** — a member with no loan may plausibly record `0`, `1.0`, or no row. Recommended: members with no loan are **excluded from that factor's denominator** rather than scored zero. **LA-11.**
+**Still OPEN — this encoding does NOT close LA-11.** The aggregation above is well-defined only once the **E-31 absent-value semantics** are decided: a member with no loan may record `0`, `1.0`, or no row, and `04` does not say which. That choice sets `J(m)` and `mm(m)` — and therefore moves real money. This document **recommends** excluding such a member from that factor's denominator (`mm`/`S_k`) rather than scoring them `0`, but does **not** decide it. With the rate-vs-volume split now encoded, the absent-value semantics is the remaining open half of **LA-11**.
 
 **Degenerate case.** If *every* `S_k = 0`, no patronage basis exists and Step 6 would silently under-allocate. The run **aborts**: the declaration moves to `status = CANCELLED` with reason `NO_PATRONAGE_BASIS` and no allocations are written. This is distinct from DEC-56's individual zero-patronage member, who is eligible and receives 0₮.
 
@@ -548,6 +570,8 @@ Card authorization has a 200 ms ceiling (`04` §5.2) and `04` §4.5 permits a ca
 - The `MEMO_HOLD` placed at authorization is written authoritatively, never cache-only.
 - On cache unavailability the read falls through to the database; if that breaches 200 ms, **the processor's stand-in rules govern**. Per `04` §4.5 stand-in *does* approve on an unknown balance by design ("conservative low-limit approval for card-present, decline for high-risk MCCs"), with all stand-in activity reconciled and flagged next cycle. The *platform* never approves on an unknown balance; the processor may, and the resulting exposure is an accepted, reconciled risk — not an error state. (Draft 1 asserted the opposite of its own source.)
 
+**Required regression — the §3 hold formula.** Every path that gates money movement on `available_balance` (this card read path and every transfer/withdrawal check) MUST be pinned by the canonical `03`:340 acceptance case against the **§3 corrected formula** `available_balance = balance + signed_sum(MEMO_HOLD)` (pending controller ratification, `07` §1): savings **150,000₮**, a **100,000₮** guarantee pledge → available **50,000₮**, so a **75,000₮** transfer is **rejected** (`422 INSUFFICIENT_AVAILABLE_BALANCE`). This is the exact case the disguised inverted-hold defect passed through two prior reviews (it computed 250,000₮ and allowed the transfer); the regression is mandatory before any available-balance gate ships.
+
 ---
 
 ## 8. Required schema amendments to `04` §2
@@ -583,7 +607,7 @@ Card authorization has a 200 ms ceiling (`04` §5.2) and `04` §4.5 permits a ca
 | LA-8 | **Surplus split** (§6.4 Step 1) — dividends vs community vs reserves. KPI-4.1/4.2 imply 60/10/30; needs Board ratification and a `dividend_share_bps` seed. | Board + Finance | Before S5 |
 | LA-9 | **Share-capital guarantee pledges** (§4.6) — currently conflicts with DEC-11 and L-4; restricted to SAVINGS until resolved. | Counsel + Lending | Before S4 |
 | LA-10 | **Non-accrual policy** (§4.9) — proposed: stop at `DEFAULTED`, reverse `DELINQUENT` accruals. Confirm. | Finance | Before S3 |
-| LA-11 | **E-31 absent-factor semantics** and rate-vs-volume aggregation (§6.4 Step 3). | PO + Finance | Before S5 |
+| LA-11 | **E-31 absent-factor semantics** (§6.4 Step 3) — sets `J(m)`/`mm(m)` and moves real money; recommended (not decided): exclude a member from a factor's denominator rather than score `0`. The **rate-vs-volume aggregation split is now encoded** (Step 3, pending ratification); the absent-value semantics is the remaining open half. | PO + Finance | Before S5 |
 | LA-12 | **ROSCA backstop postings** (§4.6) — DEC-54's three options are ratified; the ledger treatment of forfeiture at circle close needs confirmation. | PO | Before S4 |
 | LA-13 | **Dividend eligibility** (§6.4 Step 2) — members closing between fiscal year end and AGM; `SUSPENDED` members. Member-facing policy. | Counsel + PO | Before S5 |
 | LA-14 | **Deposit negative-balance collections** (§3) — no path exists for a member account driven negative by stand-in, returns, or force-posts. | PO + Ops | Before S2 |
@@ -627,5 +651,11 @@ This pass re-grounds `06` from its US framing to Mongolia. It is **denomination 
 17. **Dedicated external-payment memo account.** Added **`9030 External-Payment Holds`** (§2.6); §4.3 external-out holds now post there instead of overloading `9000 Card Authorization Holds`.
 18. **Vendors removed.** The former US-processor references (§1.2, §2.1, §2.5, §4.1) made role-neutral (the payment processor; provider is a procurement decision, TBD). No Mongolian vendor invented.
 19. **US-law framings flagged, not re-invented.** The former US deposit-disclosure framing (§6.2, LA-7), dispute/provisional-credit framing (§4.10, LA-15) and cooperative-patronage-tax framing (§6.4, LA-1) marked **[NEEDS Mongolian-law grounding: FRC / Bank-of-Mongolia]** — the correct answer pending counsel, no Mongolian citation fabricated.
+
+### Dividend-aggregation encoding (post-migration, per `07` §3 MEDIUM #3)
+
+This pass encodes a correction the audit already determined; it changes **no** accounting logic, invariant, posting rule, or the §3 hold formula. Still do-not-implement (pending controller ratification), and the dividend engine stays gated on LA-8/LA-11/LA-13.
+
+20. **Patronage factor aggregation encoded per factor *type* (§6.4 Step 3).** The prose already said volume factors sum and rate factors take a membership-month-weighted average, but the pseudocode used one uniform "aggregate" — so an implementer would reintroduce the Draft-1 category error (`07` §3: a ~180,000,000₮/member swing). Step 3 now makes the kind explicit (`factor_kind(k) ∈ {VOLUME, RATE}`): VOLUME → `Σ` of monthly integers; RATE → membership-month-weighted mean in scaled integers (`RATE_SCALE = 10⁴`, held at scale 10⁸, one bounded integer division per member, no floating-point / no DECIMAL type), feeding the unchanged `SCALE = 10¹²` int128 apportionment (§5.2). **LA-8** (surplus split / `dividend_share_bps`) and **LA-13** (eligibility boundaries) left open, values not invented; **LA-11** narrowed — the aggregation split is encoded, the E-31 absent-value semantics (which sets `J(m)`/`mm(m)`) remains the open half and is flagged, not decided. Added the `03`:340 hold-formula regression requirement to §7.5 (references the §3 corrected formula; §3 itself unchanged).
 
 *End of document.*
