@@ -22,7 +22,7 @@ SECURITY properties enforced here:
 """
 from __future__ import annotations
 
-import secrets
+import datetime
 import uuid
 from dataclasses import dataclass
 
@@ -30,16 +30,24 @@ from sqlalchemy.orm import Session
 
 from app.adapters.sms.port import SmsDeliveryError, SmsSender
 from app.auth.mfa import (
+    SMS_CHALLENGE_TTL,
     SecretCipher,
+    generate_sms_code,
     generate_totp_secret,
+    hash_sms_code,
     totp_provisioning_uri,
 )
 from app.models.identity import MfaFactor, MfaFactorStatus, MfaFactorType
 from app.models.membership import Member
 from app.repositories.identity import MfaFactorRepository
+# The SMS challenge lock mirrors the step-up brute-force lock exactly (same
+# window), so re-issuing a code can never reset or bypass a lockout.
+from app.services.stepup import LOCKOUT_DURATION
 
-# Length of the out-of-band SMS one-time code (digits).
-SMS_CODE_DIGITS = 6
+
+def _utc_now() -> datetime.datetime:
+    """Naive UTC now — matches the TIMESTAMP WITHOUT TIME ZONE columns."""
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)  # noqa: UP017
 
 
 class MfaServiceError(Exception):
@@ -85,12 +93,67 @@ class SmsDeliveryFailed(MfaServiceError):
         )
 
 
+class ChallengeNotSupported(MfaServiceError):
+    """A challenge was requested for a factor that needs none, e.g. TOTP (422).
+
+    Only SMS requires a server-issued challenge; TOTP codes are derived by the
+    authenticator from the shared seed, so there is nothing to issue.
+    """
+
+    def __init__(self, factor_type: MfaFactorType) -> None:
+        super().__init__(
+            422,
+            "VALIDATION_FAILED",
+            f"MFA challenge issuance is only supported for SMS factors, "
+            f"not {factor_type.value}.",
+        )
+
+
+class FactorNotEnrolled(MfaServiceError):
+    """A challenge was requested for a factor the member has not enrolled (404)."""
+
+    def __init__(self, factor_type: MfaFactorType) -> None:
+        super().__init__(
+            404,
+            "NOT_FOUND",
+            f"No enrolled {factor_type.value} factor to challenge.",
+        )
+
+
+class ChallengeFactorLocked(MfaServiceError):
+    """The factor is locked, so no new challenge may be issued (423).
+
+    The SAME lockout as step-up: refusing issuance while locked stops an attacker
+    from re-arming a fresh code to reset or side-step the brute-force lock.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            423,
+            "FACTOR_LOCKED",
+            "Too many failed attempts; the MFA factor is temporarily locked.",
+        )
+
+
 @dataclass(frozen=True)
 class EnrollmentResult:
     """The enrollment outcome projected onto the contract's response fields."""
 
     enrollment_id: uuid.UUID
     binding_challenge: str
+
+
+@dataclass(frozen=True)
+class ChallengeResult:
+    """A freshly issued SMS challenge, projected onto the contract's fields.
+
+    Carries only NON-secret fields: the factor id (a handle), a masked delivery
+    confirmation, and the expiry. The code itself travels ONLY over the SMS port.
+    """
+
+    challenge_id: uuid.UUID
+    delivery: str
+    expires_at: datetime.datetime
 
 
 def _parse_factor_type(value: str) -> MfaFactorType:
@@ -173,8 +236,14 @@ class MfaEnrollmentService:
 
         The code is NOT returned in the response — only a masked confirmation is.
         The mock records the code so tests can drive the (step-up) binding.
+
+        The sent code is ARMED as a one-time CHALLENGE on the row (hash-only, short
+        expiry) so the step-up slice can verify the member's first response and bind
+        the factor ACTIVE — the same challenge machinery `createMfaChallenge`
+        re-issues later. The lockout counters are NOT reset here (matching TOTP
+        re-enroll): re-issuing must never clear a brute-force lock.
         """
-        code = "".join(secrets.choice("0123456789") for _ in range(SMS_CODE_DIGITS))
+        code = generate_sms_code()
         try:
             self._sms.send_verification_code(
                 phone_number=member.phone_number, code=code
@@ -182,9 +251,13 @@ class MfaEnrollmentService:
         except SmsDeliveryError as exc:
             raise SmsDeliveryFailed() from exc
 
+        challenge_hash = hash_sms_code(code)
+        expires_at = _utc_now() + SMS_CHALLENGE_TTL
         if existing is not None:
             existing.status = MfaFactorStatus.PENDING
             existing.confirmed_at = None
+            existing.sms_challenge_hash = challenge_hash
+            existing.sms_challenge_expires_at = expires_at
             self._repo.flush()
             factor = existing
         else:
@@ -193,4 +266,68 @@ class MfaEnrollmentService:
                 factor_type=MfaFactorType.SMS,
                 secret_ciphertext=None,
             )
+            factor.sms_challenge_hash = challenge_hash
+            factor.sms_challenge_expires_at = expires_at
+            self._repo.flush()
         return factor, f"SMS_CODE_SENT:{_mask_phone(member.phone_number)}"
+
+
+class MfaChallengeService:
+    """Issue a fresh out-of-band SMS one-time code for an ENROLLED SMS factor.
+
+    Backs `POST /auth/mfa/challenges` (createMfaChallenge). It exists because an SMS
+    factor — unlike TOTP — cannot produce a code client-side: before each step-up
+    the server must SEND a new code and remember it. This is that send-and-remember
+    step, decoupled from enrollment so an ACTIVE factor can be re-challenged and an
+    expired binding code can be re-issued.
+
+    SECURITY:
+    - TOTP is refused (422) — it needs no server challenge.
+    - A factor the member has not enrolled is a 404 (never reveals another
+      member's factor: the id comes from `get_current_member`, never the request).
+    - A LOCKED factor is refused (423) with the SAME lockout as step-up, so
+      re-issuing a code cannot reset or bypass the brute-force lock. Issuance does
+      NOT touch `failed_attempts`/`locked_at`.
+    - The issued code is delivered ONLY through the SMS port and stored HASH-ONLY
+      with a short expiry; it is never returned in the response. Issuing overwrites
+      any prior outstanding challenge (at most one live code per factor).
+    Repos flush; the router owns the commit.
+    """
+
+    def __init__(self, session: Session, *, sms_sender: SmsSender) -> None:
+        self._session = session
+        self._repo = MfaFactorRepository(session)
+        self._sms = sms_sender
+
+    def issue(self, member: Member, *, factor_type: str) -> ChallengeResult:
+        """Send + arm a fresh SMS challenge for the member's OWN SMS factor."""
+        ftype = _parse_factor_type(factor_type)
+        if ftype is not MfaFactorType.SMS:
+            raise ChallengeNotSupported(ftype)
+        factor = self._repo.get_for_member_and_type(member.id, MfaFactorType.SMS)
+        if factor is None:
+            raise FactorNotEnrolled(MfaFactorType.SMS)
+
+        now = _utc_now()
+        if factor.locked_at is not None and now - factor.locked_at < LOCKOUT_DURATION:
+            # Still inside the lockout window — refuse rather than hand out a fresh
+            # code (which would let an attacker keep guessing indefinitely).
+            raise ChallengeFactorLocked()
+
+        code = generate_sms_code()
+        try:
+            self._sms.send_verification_code(
+                phone_number=member.phone_number, code=code
+            )
+        except SmsDeliveryError as exc:
+            raise SmsDeliveryFailed() from exc
+
+        expires_at = now + SMS_CHALLENGE_TTL
+        factor.sms_challenge_hash = hash_sms_code(code)
+        factor.sms_challenge_expires_at = expires_at
+        self._repo.flush()
+        return ChallengeResult(
+            challenge_id=factor.id,
+            delivery=f"SMS_CODE_SENT:{_mask_phone(member.phone_number)}",
+            expires_at=expires_at,
+        )

@@ -30,7 +30,10 @@ NOTHING in this module logs the secret or the key.
 """
 from __future__ import annotations
 
+import datetime
+import hashlib
 import os
+import secrets
 
 import pyotp
 from cryptography.fernet import Fernet, InvalidToken
@@ -132,3 +135,43 @@ def verify_totp(secret: str, code: str, *, valid_window: int = TOTP_VALID_WINDOW
     `pyotp`'s `verify` performs the constant-time digest comparison internally.
     """
     return bool(pyotp.TOTP(secret).verify(code, valid_window=valid_window))
+
+
+# =============================================================================
+# SMS one-time code — the out-of-band ("something you have": the phone) factor.
+# =============================================================================
+# Unlike TOTP, an SMS factor has NO server-stored seed the client can derive
+# codes from: the server must ISSUE a fresh code, deliver it out of band (the SMS
+# port), and remember it long enough to verify one response. That remembered code
+# is a CHALLENGE — stored HASH-ONLY, short-lived, single-use — never a seed.
+
+# Length of the out-of-band SMS one-time code (digits). Six is the conventional
+# SMS-OTP length; the guessing space (10**6) is defended ONLINE by the SAME
+# failed-attempt lockout as TOTP (see the step-up service), not by code length.
+SMS_CODE_DIGITS = 6
+# How long an issued SMS challenge code stays valid. Deliberately short — an SMS
+# code is a transient possession proof, not a stored seed; an expired code fails.
+SMS_CHALLENGE_TTL = datetime.timedelta(minutes=5)
+
+
+def generate_sms_code() -> str:
+    """Generate a fresh numeric SMS one-time code (cryptographically random)."""
+    return "".join(secrets.choice("0123456789") for _ in range(SMS_CODE_DIGITS))
+
+
+def hash_sms_code(code: str) -> str:
+    """SHA-256 hex of an SMS one-time code — the ONLY form persisted at rest.
+
+    The code is delivered OUT OF BAND (the SMS port) and is NEVER stored, logged,
+    or returned in plaintext; only this digest lands on
+    `mfa_factor.sms_challenge_hash`, so a leaked DB row yields no directly usable
+    code. SHA-256 (not a slow KDF) is deliberate: hash cost is NOT the control here.
+    A 6-digit code is low-entropy, so the attack is bounded instead by the
+    compensating controls — the code is SINGLE-USE, SHORT-LIVED
+    (`SMS_CHALLENGE_TTL`), and online guessing is capped by the step-up
+    failed-attempt LOCKOUT (a handful of tries against a 10**6 space). An offline
+    brute-force needs DB read access AND must win inside the few-minute, single-use
+    window. Verification uses a constant-time compare of this digest
+    (`hmac.compare_digest`).
+    """
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()

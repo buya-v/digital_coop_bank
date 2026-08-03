@@ -398,6 +398,8 @@ _UP = [
 	confirmed_at TIMESTAMP WITHOUT TIME ZONE,
 	failed_attempts INTEGER DEFAULT '0' NOT NULL,
 	locked_at TIMESTAMP WITHOUT TIME ZONE,
+	sms_challenge_hash VARCHAR(128),
+	sms_challenge_expires_at TIMESTAMP WITHOUT TIME ZONE,
 	id UUID NOT NULL,
 	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,

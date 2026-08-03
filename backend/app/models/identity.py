@@ -353,6 +353,20 @@ class MfaFactor(Base, UUIDPrimaryKey, Timestamps):
     # (see the step-up service) so a member is never permanently locked out with no
     # unlock path; NULL while not locked.
     locked_at: Mapped[Optional[datetime.datetime]]
+    # --- SMS one-time-code CHALLENGE (SMS factor only, US-1.4) ----------------
+    # An SMS factor has no server-stored seed (see `secret_ciphertext` above):
+    # instead the server ISSUES a one-time code, delivers it out of band via the
+    # SMS port, and remembers it here just long enough to verify one step-up
+    # response. Only the HASH is kept — the plaintext code is NEVER stored, logged,
+    # or returned (SHA-256 hex; see `app.auth.mfa.hash_sms_code`). SINGLE-USE: the
+    # step-up service CLEARS this hash on the first correct code, so a replay of a
+    # spent code finds no challenge and fails. Both NULL for a TOTP factor and for
+    # an SMS factor with no outstanding challenge.
+    sms_challenge_hash: Mapped[Optional[str]] = mapped_column(String(128))
+    # When the outstanding SMS challenge expires (a few minutes out; see
+    # `SMS_CHALLENGE_TTL`). An expired code is refused even if never used; NULL when
+    # no challenge is outstanding.
+    sms_challenge_expires_at: Mapped[Optional[datetime.datetime]]
 
 
 class StepUpToken(Base, UUIDPrimaryKey, Timestamps):

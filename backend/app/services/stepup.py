@@ -3,7 +3,10 @@
 The backend ISSUES a security credential here — the single-use step-up assertion
 token — so this is the highest-risk surface in EP-1. The flow:
 
-    verify the member's MFA `factor_response`  (constant-time, ±1 TOTP step)
+    verify the member's MFA `factor_response`  (constant-time)
+      -> TOTP (encrypted seed, ±1 step) OR SMS (an out-of-band one-time code
+         remembered hash-only as a short-lived, SINGLE-USE challenge; a correct
+         code BURNS the challenge so a replay fails)
       -> on the FIRST correct code, promote a PENDING factor to ACTIVE (binding)
       -> mint an OPAQUE random token, store ONLY its SHA-256 hash, return the
          plaintext once + `expires_at`.
@@ -21,12 +24,17 @@ SECURITY controls enforced here (each has a test that proves it):
   factor cannot mint at all.
 - **Lockout.** Consecutive wrong `factor_response` attempts increment
   `mfa_factor.failed_attempts`; at `MAX_FAILED_ATTEMPTS` the factor LOCKS (423)
-  for `LOCKOUT_DURATION` — never unlimited TOTP guessing. A correct code resets
-  the counter; the lock auto-expires so a member is never permanently locked out.
+  for `LOCKOUT_DURATION` — never unlimited guessing (the SAME lock for TOTP and
+  SMS). A correct code resets the counter; the lock auto-expires so a member is
+  never permanently locked out.
+- **SMS single-use + expiry.** An SMS code is verified against the armed
+  `mfa_factor.sms_challenge_hash` only while `sms_challenge_expires_at` is in the
+  future; a correct code clears the hash (single-use), and an expired or absent
+  challenge fails as a wrong attempt.
 
-TOTP verification (window ±1 step) and the secret decryption are REUSED from
-T1 (`app.auth.mfa`) — TOTP is never hand-rolled here. Repos flush; the router
-owns the commit.
+TOTP verification (window ±1 step) + secret decryption and the SMS code hashing
+are REUSED from `app.auth.mfa` — neither is hand-rolled here; the SMS compare is
+constant-time (`hmac.compare_digest`). Repos flush; the router owns the commit.
 
 Time is handled as NAIVE UTC (`_utc_now`) throughout, matching the
 `TIMESTAMP WITHOUT TIME ZONE` columns: a value read back from the store is naive,
@@ -36,12 +44,13 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import hmac
 import secrets
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.auth.mfa import SecretCipher, verify_totp
+from app.auth.mfa import SecretCipher, hash_sms_code, verify_totp
 from app.models.identity import MfaFactor, MfaFactorStatus, MfaFactorType
 from app.models.membership import Member
 from app.repositories.identity import MfaFactorRepository, StepUpTokenRepository
@@ -124,27 +133,29 @@ class StepUpService:
     def mint(
         self, member: Member, *, factor_response: str, requested_action: str | None
     ) -> MintResult:
-        """Verify `factor_response` for the member's TOTP factor, then mint a token.
+        """Verify `factor_response` for the member's MFA factor, then mint a token.
+
+        The factor is the member's OWN (id from `get_current_member`, never the
+        request — IDOR excluded by construction). Two factor kinds are verifiable:
+        TOTP (a stored, encrypted seed) and SMS (an out-of-band one-time code
+        remembered hash-only as a short-lived, single-use CHALLENGE). Resolution:
+        an SMS factor with an OUTSTANDING (unexpired) challenge is verified as SMS;
+        otherwise TOTP. Both share the SAME lockout and mint the SAME single-use
+        token.
 
         Raises `FactorLocked` (423) when locked, `StepUpFailed` (401) on a wrong
         code or when the member has no verifiable factor.
         """
-        # TOTP is the primary, server-verifiable factor (the SMS one-time code is
-        # not persisted at rest — T1). Resolve the member's OWN factor; the id is
-        # never taken from the request (IDOR excluded by construction).
-        factor = self._factor_repo.get_for_member_and_type(
-            member.id, MfaFactorType.TOTP
-        )
-        if factor is None or factor.secret_ciphertext is None:
+        now = _utc_now()
+        factor = self._resolve_factor(member, now)
+        if factor is None:
             # Absent / never-enrolled factor cannot mint a step-up.
             raise StepUpFailed()
 
-        now = _utc_now()
         if self._is_locked(factor, now):
             raise FactorLocked()
 
-        secret = self._cipher.decrypt(factor.secret_ciphertext)
-        if not verify_totp(secret, factor_response):
+        if not self._verify_response(factor, factor_response, now):
             factor.failed_attempts += 1
             if factor.failed_attempts >= MAX_FAILED_ATTEMPTS:
                 factor.locked_at = now
@@ -156,6 +167,11 @@ class StepUpService:
         # Correct code: clear the lockout counters.
         factor.failed_attempts = 0
         factor.locked_at = None
+        if factor.factor_type is MfaFactorType.SMS:
+            # SINGLE-USE: burn the challenge so a replay of this same code finds no
+            # outstanding challenge and fails (a used code authorizes nothing more).
+            factor.sms_challenge_hash = None
+            factor.sms_challenge_expires_at = None
         # BINDING: the first correct code confirms a PENDING factor (ACTIVE).
         if factor.status is MfaFactorStatus.PENDING:
             factor.status = MfaFactorStatus.ACTIVE
@@ -170,6 +186,58 @@ class StepUpService:
             expires_at=expires_at,
         )
         return MintResult(step_up_token=plaintext, expires_at=expires_at)
+
+    def _resolve_factor(
+        self, member: Member, now: datetime.datetime
+    ) -> MfaFactor | None:
+        """Pick the factor this step-up verifies against, or None.
+
+        An SMS factor with an OUTSTANDING (armed + unexpired) challenge takes
+        precedence — the member has just been sent a code, so this response is an
+        SMS response. Otherwise a usable TOTP factor is used. If only an SMS factor
+        exists with no live challenge, it is still returned so a stale/absent-code
+        attempt fails as SMS (never silently succeeds).
+        """
+        sms = self._factor_repo.get_for_member_and_type(member.id, MfaFactorType.SMS)
+        if (
+            sms is not None
+            and sms.sms_challenge_hash is not None
+            and sms.sms_challenge_expires_at is not None
+            and sms.sms_challenge_expires_at > now
+        ):
+            return sms
+        totp = self._factor_repo.get_for_member_and_type(
+            member.id, MfaFactorType.TOTP
+        )
+        if totp is not None and totp.secret_ciphertext is not None:
+            return totp
+        return sms
+
+    def _verify_response(
+        self, factor: MfaFactor, factor_response: str, now: datetime.datetime
+    ) -> bool:
+        """Verify a submitted response against a factor (dispatch on factor type)."""
+        if factor.factor_type is MfaFactorType.SMS:
+            return self._verify_sms(factor, factor_response, now)
+        if factor.secret_ciphertext is None:
+            return False
+        secret = self._cipher.decrypt(factor.secret_ciphertext)
+        return verify_totp(secret, factor_response)
+
+    def _verify_sms(
+        self, factor: MfaFactor, code: str, now: datetime.datetime
+    ) -> bool:
+        """Constant-time-verify an SMS one-time code against the armed challenge.
+
+        Fails (never raises) when there is NO outstanding challenge or it has
+        EXPIRED — so a code that was already spent (challenge cleared) or timed out
+        is refused and counts as a failed attempt.
+        """
+        if factor.sms_challenge_hash is None or factor.sms_challenge_expires_at is None:
+            return False
+        if factor.sms_challenge_expires_at <= now:
+            return False
+        return hmac.compare_digest(factor.sms_challenge_hash, hash_sms_code(code))
 
     def _is_locked(self, factor: MfaFactor, now: datetime.datetime) -> bool:
         """True iff the factor is currently locked; auto-clears an expired lock.
