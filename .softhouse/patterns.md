@@ -58,6 +58,20 @@ This is what makes `executor` routing correct.
 - There is **no OpenAPI or JSON Schema artifact** anywhere, despite ~192 endpoints being described. API contracts are key names only, with no types, nullability, or formats.
 
 <!-- LEARNED PATTERNS START -->
+
+### Run 20260803-remaining — 06 Mongolia migration + LA-11 encoding + product gaps (2026-08-03)
+
+Finished the LLM-doable remainder after the ledger audit. 6 agent tasks + 4 reviews, all APPROVED; 3 human items routed as user decision gates (NOT executed). Docs gate 5/5 (drift re-baselined usd 131->117, rails 15->1, vendor 6->0 as 06 migrated), code gates 4/4 (143 tests).
+
+**What worked**
+- Splitting the ledger work into DESIGN-CONSISTENCY (currency/rails/vendor migration of 06 + encoding the audit's DETERMINED dividend correction) vs IMPLEMENTATION (which still needs a controller). The migration + encoding are safe LLM work; the ratification, surplus split (LA-8), eligibility (LA-13), and E-31 absent-value semantics are user/controller decisions, kept OPEN and not fabricated. This is how you make progress on a human-gated component without overstepping: do the mechanical/determined parts, route the judgment parts to the human.
+- Adversarial review of a ledger change = re-derive, not read. The 06-migration reviewer re-balanced every posting (incl. the new RTGS_OUT) and confirmed the §3 hold-fix survived byte-for-byte; the dividend-encoding reviewer re-derived the audit's exact 50/50 stakes example through the ENCODED formula (M1 12mo vs M2 3mo -> 300M₮ each, not the summed 80/20) and confirmed the scaled-integer mean is float-free and its scale cancels into the 10^12 int128 apportionment.
+- SMS-OTP security review probed BOTH lockout re-arm vectors (challenge endpoint AND enrollment endpoint) — the tests only covered one; the reviewer found+cleared the second. For attacker-facing code, the reviewer must enumerate the attack surface beyond the author's tests.
+- The verify-docs META_DOCS exclusion (built last run) paid off: 06 (a real spec) stayed fully scanned and its drift genuinely dropped to 0, while 07 (the audit doc) keeps its precise defect-quoting literals — the exclusion is by exact filename, so a real spec can't hide.
+
+**Human decision gates recorded (not executed)**: U1 controller ratifies the ledger (07 verdict) + supplies LA-8/LA-13; U2 lawyer confirms the 5 blocking questions + picks the common bond; U3 PO on KPI re-baselining / rate model / RTGS_IN.
+
+**Product gaps closed**: preferred_language exposed/editable (non-KYC-relevant); SMS-OTP step-up completed (hash-only/single-use/expiry/lockout-non-bypass). Backlogged: SMS rate-limit (locked member can still trigger sends — cost, not bypass).
 ### Run 20260730-tooling (2026-07-30)
 Two tooling hardenings: (a) a CI step asserting `alembic revision --autogenerate` is EMPTY against real Postgres (produce_migrations + upgrade_ops.is_empty) — stronger than the offline check_migration because a real round-trip sees server defaults/type reflection the mock engine can't. (b) verify-docs META_DOCS exclusion for audit/meta docs that legitimately QUOTE defects (07_ledger_audit_verdict.md cites $-amounts, US vendor/rail names, money-type words to describe what it found). KEY DESIGN: the exclusion is by EXACT FILENAME ONLY (a reviewed list), applied to the single FILES set every counter scans — NOT a content/proximity heuristic. That is the difference between a safe exemption and a loophole: a spec doc can never opt itself out by wording; only being named in the short reviewed list exempts it. The reviewer PROVED non-abusability by planting real violations (first_name, FDIC, \$999) in normal docs — all still caught — and proved the exemption load-bearing (07 fails the gate when scanned). Lesson for gate design: when a meta/audit doc must describe forbidden things, exempt it by name, never by pattern; and prove both that the exemption works AND that everything else is still caught.
 ### Run 20260730-backend-hardening (2026-07-30)

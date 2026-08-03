@@ -1,0 +1,222 @@
+{
+  "run_id": "20260803-remaining",
+  "feature": "Remaining tasks \u2014 06 Mongolia migration + LA-11 encoding + product gaps (agent); ledger/legal/PO (user gates)",
+  "requirement": "Finish the LLM-doable remainder (06 doc migration + audited dividend-aggregation encoding + preferred_language + SMS-OTP step-up) and route the human-blocked items (ledger ratification, legal, KPI/rate/RTGS_IN) as user decision gates that are NOT executed.",
+  "status": "executing",
+  "backlog": [
+    "LEDGER (audited 2026-07-30, see 07_ledger_audit_verdict.md \u2014 needs a CONTROLLER to ratify): the CORE ledger (postings/invariants/interest/precision) is VERIFIED implementable AFTER (a) the applied hold-formula fix is ratified + a 03:340=50,000\u20ae regression, and (b) a full MNT re-denomination of 06 (par 10,000\u20ae; replace US rail/vendor accounts with ACH+/Banks\u00fcljee(RTGS)/NETC; add the RTGS_OUT posting rule + reconcile txn types with 04's E-8 enum; add a payment-hold memo account). The DIVIDEND engine is NOT certifiable until LA-11 (encode rate-vs-volume aggregation) + LA-8 (surplus split) + LA-13 (eligibility). Plus \u00a74.9 (10 txn types) + \u00a74.10 policy (closure residuals, negative-balance collections LA-14). THEN share purchase (EP-2/US-2.1 PENDING_PAYMENT->ACTIVE) unblocks.",
+    "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
+    "Auth (partly done 20260730): CLOSED members now rejected + require_active_member dep EXISTS but is unwired. When money/sensitive routes land, apply require_active_member to them and decide the per-status policy (which of PENDING_PAYMENT/SUSPENDED can do what) \u2014 a PO/product call.",
+    "EP-1 identity epic is COMPLETE (onboarding->KYC->promote->auth->profile/consents/devices->MFA/step-up->revokeDevice). Minor gaps only: preferred_language read/update; the profile registration_number edit could now be wired behind require_step_up (currently 422); SMS OTP server-side verification (TOTP is the real factor). The NEXT epics all need the LEDGER (share purchase EP-2/US-2.1 = PENDING_PAYMENT->ACTIVE) or a further decision.",
+    "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
+    "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
+    "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
+    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
+    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
+    "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
+    "EP-1 product gaps (LLM-doable but need contract surface / re-KYC \u2014 deferred as marginal, documented): (a) preferred_language read/update needs adding the field to the MemberProfile OpenAPI schema; (b) SMS OTP server-side verification for step-up needs a challenge-issuance flow the contract doesn't yet specify (TOTP is the working factor); (c) the profile registration_number edit behind step-up needs the re-KYC flow (a new \u0425\u0423\u0420-verified value), out of scope. None block anything; take them when the relevant product decision/contract-extension is wanted.",
+    "SMS rate-limit (from 20260803 R4, INFO/low): a locked member can still trigger SMS sends via the /mfa/enrollments re-arm path (_prepare_sms has no lock/rate gate) \u2014 SMS-cost/bombing, not an auth bypass (lockout counters persist, step-up stays 423). Add a 429 rate-limit on the SMS enroll/challenge paths."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Migrate 06 ledger design to Mongolia (currency/rails/vendors + RTGS_OUT + txn-type reconcile)",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R1 APPROVED (postings re-derived, hold-fix survived); 06 Mongolia-migrated",
+      "description": "Verdict HIGH #2 \u2014 make 06 Mongolia-consistent (DESIGN-DOC consistency only; 06 stays do-not-implement-pending-controller). Full brief given to the agent."
+    },
+    {
+      "id": "T2",
+      "title": "Encode LA-11 dividend aggregation + pin 03:340 regression",
+      "agent_role": "spec_writer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [
+        "T1"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "branch softhouse/T2-dividend-encode 1dba70f; \u00a76.4 factor_kind encoded, 03:340 pinned; review R1b a60bc9222bf369ba4 running",
+      "description": "Verdict MEDIUM #3 encodable part \u2014 encode sum(volume)/weighted-avg(rate) in 06 \u00a76.4; leave LA-8/LA-13 open; pin 03:340=50,000\u20ae regression."
+    },
+    {
+      "id": "R1",
+      "title": "Adversarial review \u2014 06 remediation",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [
+        "T2"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "T1 migration APPROVED (merged); T2 encoding review is R1b a60bc9222bf369ba4",
+      "description": "Independent adversarial review of T1+T2: currency/rail migration didn't alter posting LOGIC or the \u00a73 hold-fix; RTGS_OUT balances; txn types match 04 E-8; payment-hold memo account; LA-11 encoded correctly, LA-8/13 left open; verify-docs PASS (06 fully scanned)."
+    },
+    {
+      "id": "T3",
+      "title": "preferred_language on the member profile",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/openapi/schemas/ep1-identity.yaml",
+        "backend/app/api/routers/members.py",
+        "backend/app/services/profile.py",
+        "backend/tests/test_profile.py"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R3 APPROVED",
+      "description": "Expose+edit preferred_language (add to MemberProfile schema + PATCH editable set + endpoints; IDOR-safe; tests). 4 code gates PASS."
+    },
+    {
+      "id": "R3",
+      "title": "Review preferred_language",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/",
+        "backend/tests/test_profile.py"
+      ],
+      "dependencies": [
+        "T3"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a7a7c1da2272acad0",
+      "description": "Independent review of T3: run 4 gates; contract conformance; IDOR by-construction; no read-only field made editable."
+    },
+    {
+      "id": "T4",
+      "title": "SMS OTP step-up verification (complete the SMS factor)",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/services/stepup.py",
+        "backend/app/services/mfa.py",
+        "backend/app/adapters/sms/",
+        "backend/app/models/identity.py",
+        "backend/migrations/versions/0001_initial.py",
+        "backend/openapi/paths/ep1-identity.yaml",
+        "backend/tests/test_stepup.py"
+      ],
+      "dependencies": [],
+      "status": "approved",
+      "attempts": 0,
+      "note": "merged; R4 security APPROVED (8 attacks blocked)",
+      "description": "Complete SMS factor for step-up: verify factor_response against a hashed, short-lived, single-use SMS challenge (reuse SecretCipher/lockout/step-up machinery); add minimal well-formed contract surface only if needed. 4 gates PASS."
+    },
+    {
+      "id": "R4",
+      "title": "Security review \u2014 SMS OTP step-up",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/",
+        "backend/tests/test_stepup.py"
+      ],
+      "dependencies": [
+        "T4"
+      ],
+      "status": "done",
+      "attempts": 0,
+      "note": "agent a980d24a2a3842a38",
+      "description": "Independent SECURITY review of T4: hash-only, single-use, member-bound, expiry, lockout 423, narrow window; contract addition validate.py-clean; non-vacuous tests; run 4 gates."
+    },
+    {
+      "id": "V",
+      "title": "Verify all gates on merged main",
+      "agent_role": "verifier",
+      "executor": "orchestrator",
+      "model": "sonnet",
+      "target": "backend",
+      "files_hint": [
+        "backend/",
+        "idea-lab/final_requirements/06_ledger_addendum.md"
+      ],
+      "dependencies": [
+        "R1",
+        "R3",
+        "R4"
+      ],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "Install new deps in gate env; docs gate PASS (06 fully scanned, DRIFT not increased); backend 4 gates PASS; record."
+    },
+    {
+      "id": "U1",
+      "title": "CONTROLLER: ratify the ledger design (07 verdict)",
+      "agent_role": "reviewer",
+      "executor": "user",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/07_ledger_audit_verdict.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "USER/CONTROLLER decision \u2014 NOT an LLM task. Ratify the \u00a73 hold-fix + migrated 06; sign off the core ledger; supply LA-8 (surplus split) + LA-13 (eligibility) so the dividend engine certifies; then EP-2 share purchase unblocks."
+    },
+    {
+      "id": "U2",
+      "title": "LAWYER: confirm the 5 legal questions + pick the common bond",
+      "agent_role": "analyst",
+      "executor": "user",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "CLAUDE.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "USER/LEGAL decision \u2014 NOT an LLM task. Confirm the provisional directions (common bond, eKYC, data residency, e-vote, tax); choose the SPECIFIC common bond to pin eligibility config."
+    },
+    {
+      "id": "U3",
+      "title": "PO: KPI re-baselining, rate model (DEC-48/49), RTGS_IN gap",
+      "agent_role": "analyst",
+      "executor": "user",
+      "model": "opus",
+      "target": "requirements",
+      "files_hint": [
+        "idea-lab/final_requirements/05_prd_and_roadmap.md"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": "",
+      "description": "USER/PO decisions \u2014 NOT LLM tasks. KPI targets vs 78,608-member sector; inverted rate model; whether an inbound RTGS_IN txn type is needed."
+    }
+  ]
+}

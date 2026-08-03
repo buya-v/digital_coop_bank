@@ -1,4 +1,4 @@
-# Regenerated 210c1a9
-usd=131
-rails=15
-vendor=6
+# Regenerated e5fa558
+usd=117
+rails=1
+vendor=0
