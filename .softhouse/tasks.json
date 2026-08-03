@@ -2,7 +2,7 @@
   "run_id": "20260803-remaining",
   "feature": "Remaining tasks \u2014 06 Mongolia migration + LA-11 encoding + product gaps (agent); ledger/legal/PO (user gates)",
   "requirement": "Finish the LLM-doable remainder (06 doc migration + audited dividend-aggregation encoding + preferred_language + SMS-OTP step-up) and route the human-blocked items (ledger ratification, legal, KPI/rate/RTGS_IN) as user decision gates that are NOT executed.",
-  "status": "planning",
+  "status": "executing",
   "backlog": [
     "LEDGER (audited 2026-07-30, see 07_ledger_audit_verdict.md \u2014 needs a CONTROLLER to ratify): the CORE ledger (postings/invariants/interest/precision) is VERIFIED implementable AFTER (a) the applied hold-formula fix is ratified + a 03:340=50,000\u20ae regression, and (b) a full MNT re-denomination of 06 (par 10,000\u20ae; replace US rail/vendor accounts with ACH+/Banks\u00fcljee(RTGS)/NETC; add the RTGS_OUT posting rule + reconcile txn types with 04's E-8 enum; add a payment-hold memo account). The DIVIDEND engine is NOT certifiable until LA-11 (encode rate-vs-volume aggregation) + LA-8 (surplus split) + LA-13 (eligibility). Plus \u00a74.9 (10 txn types) + \u00a74.10 policy (closure residuals, negative-balance collections LA-14). THEN share purchase (EP-2/US-2.1 PENDING_PAYMENT->ACTIVE) unblocks.",
     "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
@@ -28,9 +28,9 @@
         "idea-lab/final_requirements/06_ledger_addendum.md"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
-      "note": "",
+      "note": "agent a109e4a91c1dfa7f2 (worktree)",
       "description": "Verdict HIGH #2 \u2014 make 06 Mongolia-consistent (DESIGN-DOC consistency only; 06 stays do-not-implement-pending-controller). Full brief given to the agent."
     },
     {
@@ -83,9 +83,9 @@
         "backend/tests/test_profile.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "approved",
       "attempts": 0,
-      "note": "",
+      "note": "merged; R3 APPROVED",
       "description": "Expose+edit preferred_language (add to MemberProfile schema + PATCH editable set + endpoints; IDOR-safe; tests). 4 code gates PASS."
     },
     {
@@ -102,9 +102,9 @@
       "dependencies": [
         "T3"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent a7a7c1da2272acad0",
       "description": "Independent review of T3: run 4 gates; contract conformance; IDOR by-construction; no read-only field made editable."
     },
     {
@@ -124,9 +124,9 @@
         "backend/tests/test_stepup.py"
       ],
       "dependencies": [],
-      "status": "pending",
+      "status": "in_progress",
       "attempts": 0,
-      "note": "",
+      "note": "agent adb04053ae7113fda (worktree)",
       "description": "Complete SMS factor for step-up: verify factor_response against a hashed, short-lived, single-use SMS challenge (reuse SecretCipher/lockout/step-up machinery); add minimal well-formed contract surface only if needed. 4 gates PASS."
     },
     {
