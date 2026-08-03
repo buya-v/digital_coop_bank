@@ -14,7 +14,8 @@
     "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
     "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
     "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
-    "EP-1 product gaps (LLM-doable but need contract surface / re-KYC \u2014 deferred as marginal, documented): (a) preferred_language read/update needs adding the field to the MemberProfile OpenAPI schema; (b) SMS OTP server-side verification for step-up needs a challenge-issuance flow the contract doesn't yet specify (TOTP is the working factor); (c) the profile registration_number edit behind step-up needs the re-KYC flow (a new \u0425\u0423\u0420-verified value), out of scope. None block anything; take them when the relevant product decision/contract-extension is wanted."
+    "EP-1 product gaps (LLM-doable but need contract surface / re-KYC \u2014 deferred as marginal, documented): (a) preferred_language read/update needs adding the field to the MemberProfile OpenAPI schema; (b) SMS OTP server-side verification for step-up needs a challenge-issuance flow the contract doesn't yet specify (TOTP is the working factor); (c) the profile registration_number edit behind step-up needs the re-KYC flow (a new \u0425\u0423\u0420-verified value), out of scope. None block anything; take them when the relevant product decision/contract-extension is wanted.",
+    "SMS rate-limit (from 20260803 R4, INFO/low): a locked member can still trigger SMS sends via the /mfa/enrollments re-arm path (_prepare_sms has no lock/rate gate) \u2014 SMS-cost/bombing, not an auth bypass (lockout counters persist, step-up stays 423). Add a 429 rate-limit on the SMS enroll/challenge paths."
   ],
   "tasks": [
     {
@@ -28,9 +29,9 @@
         "idea-lab/final_requirements/06_ledger_addendum.md"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "done",
       "attempts": 0,
-      "note": "agent a109e4a91c1dfa7f2 (worktree)",
+      "note": "branch softhouse/T1-06-migrate 319d8a3; 06 migrated (rails 15->1, vendor 6->0), RTGS_OUT added, logic untouched; adversarial review ab7b83b58561dc994 running (T2 forks after merge)",
       "description": "Verdict HIGH #2 \u2014 make 06 Mongolia-consistent (DESIGN-DOC consistency only; 06 stays do-not-implement-pending-controller). Full brief given to the agent."
     },
     {
@@ -66,7 +67,7 @@
       ],
       "status": "pending",
       "attempts": 0,
-      "note": "",
+      "note": "agent ab7b83b58561dc994 (reviewing T1 migration; T2 dividend-encoding review to follow after merge)",
       "description": "Independent adversarial review of T1+T2: currency/rail migration didn't alter posting LOGIC or the \u00a73 hold-fix; RTGS_OUT balances; txn types match 04 E-8; payment-hold memo account; LA-11 encoded correctly, LA-8/13 left open; verify-docs PASS (06 fully scanned)."
     },
     {
@@ -124,9 +125,9 @@
         "backend/tests/test_stepup.py"
       ],
       "dependencies": [],
-      "status": "in_progress",
+      "status": "approved",
       "attempts": 0,
-      "note": "agent adb04053ae7113fda (worktree)",
+      "note": "merged; R4 security APPROVED (8 attacks blocked)",
       "description": "Complete SMS factor for step-up: verify factor_response against a hashed, short-lived, single-use SMS challenge (reuse SecretCipher/lockout/step-up machinery); add minimal well-formed contract surface only if needed. 4 gates PASS."
     },
     {
@@ -143,9 +144,9 @@
       "dependencies": [
         "T4"
       ],
-      "status": "pending",
+      "status": "done",
       "attempts": 0,
-      "note": "",
+      "note": "agent a980d24a2a3842a38",
       "description": "Independent SECURITY review of T4: hash-only, single-use, member-bound, expiry, lockout 423, narrow window; contract addition validate.py-clean; non-vacuous tests; run 4 gates."
     },
     {
