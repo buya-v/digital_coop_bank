@@ -152,6 +152,14 @@ SMS_CODE_DIGITS = 6
 # How long an issued SMS challenge code stays valid. Deliberately short — an SMS
 # code is a transient possession proof, not a stored seed; an expired code fails.
 SMS_CHALLENGE_TTL = datetime.timedelta(minutes=5)
+# Minimum interval between two SMS sends for the SAME factor — the cost/bombing
+# control: a member (or attacker riding a stolen/valid session) cannot trigger
+# unbounded carrier-billed SMS sends by hammering enroll/challenge. MUST stay
+# strictly below SMS_CHALLENGE_TTL (a resend window wider than the challenge's own
+# life would be nonsensical). Deliberately short (not a lockout): legitimate
+# "I didn't get it, resend" retries are still possible after one interval, unlike
+# the much longer step-up brute-force LOCKOUT_DURATION this is layered next to.
+SMS_RESEND_INTERVAL = datetime.timedelta(seconds=60)
 
 
 def generate_sms_code() -> str:
