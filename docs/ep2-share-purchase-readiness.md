@@ -15,7 +15,7 @@
 
 ### 1.1 OpenAPI contract — `EP-2` tag (`backend/openapi/paths/ep2-shares.yaml`)
 
-The contract defines **10** EP-2 operations, not 4 — the four money/read ops named in the task plus six more (membership summary, closure, admin registry, admin governance ops). All ten are listed for completeness; the task's four are marked **★**.
+The contract defines **9** EP-2-tagged operations, not 4 — the four money/read ops named in the task plus five more (membership summary, closure, admin registry, admin governance ops). All nine are listed for completeness, along with the `paymentsWebhook` that drives US-2.1 activation but is **not** EP-2-tagged; the task's four are marked **★**.
 
 | Operation | Method/path | Security | Idempotency-Key | Declared responses | Evidence |
 |---|---|---|---|---|---|
@@ -111,7 +111,7 @@ The remittance leg is **split, net of fees**: because the payment processor remi
 
 **Invariant L-4**: `count(ISSUED shares) × par_value = balance(3000)`, checked by US-2.3 `[VERIFIED: 06:192]`. Also enforced as a nightly integrity check `[VERIFIED: 06:543]`.
 
-Account definitions referenced above `[VERIFIED: 06:67-71,98]`:
+Account definitions referenced above `[VERIFIED: 06:67-71,98,120]`:
 - `1010` Payment-Processor Clearing — "Share-subscription collections in flight (US-2.1)."
 - `1000` FBO Cash at Sponsor Bank — "the reconciliation anchor."
 - `5400` Payment Processing Fees — "Payment-processor fees withheld from remittance (§4.1)."
