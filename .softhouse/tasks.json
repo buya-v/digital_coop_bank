@@ -1,21 +1,59 @@
 {
-  "run_id": null,
-  "feature": null,
-  "requirement": null,
-  "status": "idle",
+  "run_id": "20260805-sms-ratelimit",
+  "feature": "SMS resend rate-limit (429) on MFA enroll/challenge",
+  "requirement": "Backlog (20260803 R4, INFO/low): a member can trigger unbounded SMS sends via the /auth/mfa/enrollments re-arm path (_prepare_sms) and /auth/mfa/challenges — SMS-cost/bombing, not an auth bypass. Add a per-factor minimum-resend-interval rate limit returning 429 on both SMS send paths. Migration-free: derive the last-send time from the existing sms_challenge_expires_at column; do NOT add a column or a migration.",
+  "status": "planning",
   "backlog": [
-    "LEDGER (audited 2026-07-30, see 07_ledger_audit_verdict.md \u2014 needs a CONTROLLER to ratify): the CORE ledger (postings/invariants/interest/precision) is VERIFIED implementable AFTER (a) the applied hold-formula fix is ratified + a 03:340=50,000\u20ae regression, and (b) a full MNT re-denomination of 06 (par 10,000\u20ae; replace US rail/vendor accounts with ACH+/Banks\u00fcljee(RTGS)/NETC; add the RTGS_OUT posting rule + reconcile txn types with 04's E-8 enum; add a payment-hold memo account). The DIVIDEND engine is NOT certifiable until LA-11 (encode rate-vs-volume aggregation) + LA-8 (surplus split) + LA-13 (eligibility). Plus \u00a74.9 (10 txn types) + \u00a74.10 policy (closure residuals, negative-balance collections LA-14). THEN share purchase (EP-2/US-2.1 PENDING_PAYMENT->ACTIVE) unblocks.",
+    "LEDGER (audited 2026-07-30, see 07_ledger_audit_verdict.md — needs a CONTROLLER to ratify): the CORE ledger (postings/invariants/interest/precision) is VERIFIED implementable AFTER (a) the applied hold-formula fix is ratified + a 03:340=50,000₮ regression, and (b) a full MNT re-denomination of 06 (par 10,000₮; replace US rail/vendor accounts with ACH+/Banksüljee(RTGS)/NETC; add the RTGS_OUT posting rule + reconcile txn types with 04's E-8 enum; add a payment-hold memo account). The DIVIDEND engine is NOT certifiable until LA-11 (encode rate-vs-volume aggregation) + LA-8 (surplus split) + LA-13 (eligibility). Plus §4.9 (10 txn types) + §4.10 policy (closure residuals, negative-balance collections LA-14). THEN share purchase (EP-2/US-2.1 PENDING_PAYMENT->ACTIVE) unblocks.",
     "EP-1 onboarding follow-ups: (a) share purchase US-2.1 (PENDING_PAYMENT->ACTIVE) is BLOCKED on the ledger; (b) add a row-lock on the promotion path (two concurrent getKycStatus polls currently rely on DB uniqueness -> 500, not graceful); (c) MFA/step-up, devices, profile, consents endpoints; (d) pin the eligibility common_bond_rules config once the specific bond is chosen.",
-    "Auth (partly done 20260730): CLOSED members now rejected + require_active_member dep EXISTS but is unwired. When money/sensitive routes land, apply require_active_member to them and decide the per-status policy (which of PENDING_PAYMENT/SUSPENDED can do what) \u2014 a PO/product call.",
+    "Auth (partly done 20260730): CLOSED members now rejected + require_active_member dep EXISTS but is unwired. When money/sensitive routes land, apply require_active_member to them and decide the per-status policy (which of PENDING_PAYMENT/SUSPENDED can do what) — a PO/product call.",
     "EP-1 identity epic is COMPLETE (onboarding->KYC->promote->auth->profile/consents/devices->MFA/step-up->revokeDevice). Minor gaps only: preferred_language read/update; the profile registration_number edit could now be wired behind require_step_up (currently 422); SMS OTP server-side verification (TOTP is the real factor). The NEXT epics all need the LEDGER (share purchase EP-2/US-2.1 = PENDING_PAYMENT->ACTIVE) or a further decision.",
-    "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = \u0425\u0423\u0420/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + \u0425\u0423\u0420/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
+    "PO DIRECTION recorded 2026-07-24 (provisional, pending legal sign-off; in CLAUDE.md blocking questions): (1) common bond = defined-bond SCC path [open sub-decision: which bond]; (2) eKYC = ХУР/XYP state-register lookup (not biometric); (3) data residency = in-Mongolia self-host only; (5) e-vote quorum = e-votes count (isolate behind config). STILL OPEN: (4) tax characterisation; the specific common-bond choice; the LEDGER design (controller); rate model. UNBLOCKED for design: onboarding-application + ХУР/XYP KYC + common-bond eligibility check (US-1.3) up to the share-purchase step (which needs the ledger).",
     "KPI re-baselining: 100,000 members vs 78,608 sector total; AUM ~1.5x whole sector. Held with the KPI decision.",
     "Rate model: DEC-48 12% base below 17.45% market; DEC-49 6% floor is the subsidised mortgage rate. Both inverted.",
-    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands \u2014 KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply \u00d71000 illustrative scale for consistency with 01-05.",
-    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory \u2014 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
-    "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap \u2014 enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
-    "EP-1 product gaps (LLM-doable but need contract surface / re-KYC \u2014 deferred as marginal, documented): (a) preferred_language read/update needs adding the field to the MemberProfile OpenAPI schema; (b) SMS OTP server-side verification for step-up needs a challenge-issuance flow the contract doesn't yet specify (TOTP is the working factor); (c) the profile registration_number edit behind step-up needs the re-KYC flow (a new \u0425\u0423\u0420-verified value), out of scope. None block anything; take them when the relevant product decision/contract-extension is wanted.",
-    "SMS rate-limit (from 20260803 R4, INFO/low): a locked member can still trigger SMS sends via the /mfa/enrollments re-arm path (_prepare_sms has no lock/rate gate) \u2014 SMS-cost/bombing, not an auth bypass (lockout counters persist, step-up stays 423). Add a 429 rate-limit on the SMS enroll/challenge paths."
+    "Currency residual (after the 20260724 apply, usd re-baselined to 131): re-denominate the remaining HELD sets once their gating decision lands — KPI cluster (needs KPI re-baselining), program-config caps DEC-65/63 (needs program budget), $88.20+$40 installment (needs rate model), 06 ledger amounts (needs controller ledger rewrite), persona incomes (income-basis task). Each is single-currency-per-scenario; apply ×1000 illustrative scale for consistency with 01-05.",
+    "Currency migration completeness: sweep for BARE minor-units money literals (amount:/par_value:/N cents with no $) missed by the $-anchored inventory — 3 found & fixed in 04 this run; audit 06 and any schema examples for the same pattern.",
+    "Payment-rails PO confirmations (from 20260724-payment-rails): (a) confirm the Transaction `type` enum remap WIRE_OUT->RTGS_OUT / RTP_*->EXTERNAL_ACH_PLUS_* (04:219, flagged [UNVERIFIED]); (b) decide the RTGS_IN gap — enum has RTGS_OUT but no inbound large-value type (carried from baseline WIRE_OUT/no-WIRE_IN).",
+    "EP-1 product gaps (LLM-doable but need contract surface / re-KYC — deferred as marginal, documented): (a) preferred_language read/update needs adding the field to the MemberProfile OpenAPI schema; (b) SMS OTP server-side verification for step-up needs a challenge-issuance flow the contract doesn't yet specify (TOTP is the working factor); (c) the profile registration_number edit behind step-up needs the re-KYC flow (a new ХУР-verified value), out of scope. None block anything; take them when the relevant product decision/contract-extension is wanted."
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Rate-limit SMS sends (429) on enroll + challenge",
+      "description": "Add a per-factor minimum-resend-interval rate limit to the TWO SMS send paths in backend/app/services/mfa.py: MfaEnrollmentService._prepare_sms (the re-arm path reached via POST /auth/mfa/enrollments) and MfaChallengeService.issue (POST /auth/mfa/challenges). GOAL: bound SMS sends to at most one per cooldown window per factor, closing the SMS-cost/bombing vector. NON-NEGOTIABLE DESIGN (migration-free): do NOT add a DB column and do NOT create an Alembic migration. Derive the last-send instant from the EXISTING column as last_sent_at = sms_challenge_expires_at - SMS_CHALLENGE_TTL (only when sms_challenge_expires_at is not None). If a prior challenge exists and _utc_now() - last_sent_at < SMS_RESEND_INTERVAL, refuse BEFORE calling self._sms.send_verification_code. Requirements: (1) add a constant SMS_RESEND_INTERVAL = datetime.timedelta(seconds=60) in backend/app/auth/mfa.py next to SMS_CHALLENGE_TTL, with a comment; SMS_RESEND_INTERVAL must be < SMS_CHALLENGE_TTL. (2) add a new exception class SmsRateLimited(MfaServiceError) with status_code=429, code='RATE_LIMITED', a clear message; raise it from both send paths. (3) The FIRST send for a factor (no prior challenge: existing is None on enroll, or sms_challenge_expires_at is None) MUST always be allowed — never rate-limit a first send. (4) On the challenge path keep the existing 423 lockout check FIRST (a locked factor stays 423, not 429); the rate-limit check comes after the lock check but before the send. (5) The rate limit must NOT reset or touch failed_attempts/locked_at (same discipline as the lockout — re-issuing never clears a lock). (6) Declare the new 429 response on BOTH operations (createMfaEnrollment, createMfaChallenge) in backend/openapi/paths/ep1-identity.yaml, reusing the existing Error schema/response component the other statuses use (reachable statuses must be declared — same rule applied to the earlier 502 declarations). (7) Add tests to backend/tests/test_mfa_enrollment.py (or a sibling) proving: a first SMS enroll/challenge succeeds; an immediate second send returns 429 with code RATE_LIMITED and does NOT deliver a second SMS (assert the MockSmsSender recorded only one code); a send after the interval elapses succeeds (advance time by monkeypatching the service clock / _utc_now or by ageing sms_challenge_expires_at in the DB — do NOT sleep); a TOTP enroll is unaffected; a locked factor on the challenge path still returns 423 (not 429). ACCEPTANCE: full backend suite green in your isolated checkout; .softhouse/verify-docs.sh does not regress; check_models, check_migration (must STILL show offline metadata == migration, i.e. NO new migration), openapi/validate.py, and pytest all PASS — run all of them before finishing. Scope is strictly these files.",
+      "agent_role": "coder",
+      "executor": "agent",
+      "model": "sonnet",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/services/mfa.py",
+        "backend/app/auth/mfa.py",
+        "backend/openapi/paths/ep1-identity.yaml",
+        "backend/tests/test_mfa_enrollment.py"
+      ],
+      "dependencies": [],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    },
+    {
+      "id": "T2",
+      "title": "Independent review of the SMS rate-limit",
+      "description": "INDEPENDENT adversarial review of T1. You did not plan it; assume defects exist. Read CLAUDE.md, .softhouse/patterns.md, the T1 handoff at .softhouse/handoff/20260805-sms-ratelimit/T1.md, and git diff main..<T1 branch>. VERIFY BY PROBING, not by reading: (1) The first send is genuinely never rate-limited — both a brand-new enrollment AND a re-send after the prior challenge has EXPIRED (check the last_sent_at = expires_at - TTL arithmetic at the boundary; an off-by-one that blocks a legitimate post-expiry resend is a defect). (2) A second send inside the window is blocked BEFORE self._sms.send_verification_code is called — no SMS leaves on the 429 path (a 429 that still sends is worthless). (3) SMS_RESEND_INTERVAL < SMS_CHALLENGE_TTL holds; reason about a challenge that is live but older than the interval (resend allowed, overwrites — acceptable) vs younger (blocked). (4) The rate limit does not touch failed_attempts/locked_at and cannot reset a lockout; the challenge-path lock check still precedes it and still 423s. (5) NO new DB column and NO new migration (check_migration must still pass; git diff shows no migrations/ change). (6) The 429 is declared on both operations in the OpenAPI contract and openapi/validate.py passes. (7) No money/ledger touched; no non-negotiable weakened. (8) The clock is injectable/monkeypatchable in tests without sleeping, and the tests actually assert the single-delivery property (not just the status code). Re-run .softhouse/verify-docs.sh + the four code gates against the branch. Report each finding as severity / location / what is wrong / the fix. Verdict: APPROVED, MICRO-FIX (<=10 lines mechanical), or REJECTED with specifics. If you find nothing, say what you checked so silence is distinguishable from not looking.",
+      "agent_role": "reviewer",
+      "executor": "agent",
+      "model": "opus",
+      "target": "backend",
+      "files_hint": [
+        "backend/app/services/mfa.py",
+        "backend/app/auth/mfa.py",
+        "backend/openapi/paths/ep1-identity.yaml",
+        "backend/tests/test_mfa_enrollment.py"
+      ],
+      "dependencies": ["T1"],
+      "status": "pending",
+      "attempts": 0,
+      "note": ""
+    }
+  ]
 }
