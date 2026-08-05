@@ -61,7 +61,12 @@ from app.api.routers.mfa import router as mfa_router
 from app.api.routers.stepup import router as stepup_router
 from app.auth.deps import get_token_verifier
 from app.auth.dev_signer import DevRsaSigner
-from app.auth.mfa import SecretCipher, get_secret_cipher
+from app.auth.mfa import (
+    SMS_CHALLENGE_TTL,
+    SMS_RESEND_INTERVAL,
+    SecretCipher,
+    get_secret_cipher,
+)
 from app.models.identity import (
     DeviceBinding,
     DevicePlatform,
@@ -692,6 +697,29 @@ def test_create_mfa_challenge_reissues_a_fresh_code(ctx: SimpleNamespace) -> Non
     the body); the new code works while the SUPERSEDED code no longer does — at most
     one live challenge per factor."""
     old_code = _enroll_sms(ctx, ctx.token_a)
+
+    # The enroll above already sent one SMS and armed sms_challenge_expires_at, so
+    # an IMMEDIATE re-challenge on the same factor would now hit the per-factor SMS
+    # resend cooldown (SMS_RESEND_INTERVAL) added to close the SMS-bombing vector.
+    # Age that timestamp back past the cooldown (no time.sleep) so this test still
+    # exercises its original intent — a fresh challenge re-issuing and superseding
+    # the prior code — without asserting away the new rate limit.
+    past = datetime.datetime.now(datetime.timezone.utc).replace(  # noqa: UP017
+        tzinfo=None
+    ) - SMS_RESEND_INTERVAL - datetime.timedelta(seconds=5) + SMS_CHALLENGE_TTL
+    session = ctx.session_factory()
+    try:
+        factor = session.execute(
+            select(MfaFactor).where(
+                MfaFactor.member_id == uuid.UUID(ctx.a_id),
+                MfaFactor.factor_type == MfaFactorType.SMS,
+            )
+        ).scalar_one()
+        factor.sms_challenge_expires_at = past
+        session.commit()
+    finally:
+        session.close()
+
     r = _create_challenge(ctx, ctx.token_a, "SMS")
     assert r.status_code == 201, r.text
     assert "SMS_CODE_SENT" in r.json()["delivery"]  # masked, non-secret

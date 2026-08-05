@@ -48,7 +48,13 @@ from app.api.routers.mfa import get_sms_sender
 from app.api.routers.mfa import router as mfa_router
 from app.auth.deps import get_token_verifier
 from app.auth.dev_signer import DevRsaSigner
-from app.auth.mfa import SecretCipher, get_secret_cipher, verify_totp
+from app.auth.mfa import (
+    SMS_CHALLENGE_TTL,
+    SMS_RESEND_INTERVAL,
+    SecretCipher,
+    get_secret_cipher,
+    verify_totp,
+)
 from app.models.identity import MfaFactor, MfaFactorStatus, MfaFactorType
 from app.models.membership import Member, MembershipStatus
 
@@ -149,6 +155,29 @@ def ctx() -> Iterator[SimpleNamespace]:
         MfaFactor.__table__.drop(engine)
         Member.__table__.drop(engine)
         engine.dispose()
+
+
+def _seed_sms_factor(ctx: SimpleNamespace, member_id: str, **overrides: object) -> None:
+    """Seed an SMS `MfaFactor` row directly (bypassing the enroll endpoint) so a
+    test can control `sms_challenge_expires_at` / `locked_at` precisely."""
+    import uuid
+
+    fields: dict[str, object] = {
+        "member_id": uuid.UUID(member_id),
+        "factor_type": MfaFactorType.SMS,
+        "status": MfaFactorStatus.PENDING,
+        "secret_ciphertext": None,
+        "sms_challenge_hash": None,
+        "sms_challenge_expires_at": None,
+        "locked_at": None,
+    }
+    fields.update(overrides)
+    session = ctx.session_factory()
+    try:
+        session.add(MfaFactor(**fields))
+        session.commit()
+    finally:
+        session.close()
 
 
 def _factor(ctx: SimpleNamespace, member_id: str, ftype: MfaFactorType) -> MfaFactor:
@@ -314,3 +343,199 @@ def test_enroll_requires_auth(ctx: SimpleNamespace) -> None:
         json={"factor_type": "TOTP", "device_fingerprint": "fp-a", "platform": "IOS"},
     )
     assert r.status_code == 401
+
+
+# --- SMS resend rate limit (T1: SMS-cost/bombing vector) ---------------------
+#
+# Design under test (`app.services.mfa._enforce_sms_resend_interval`): the
+# minimum resend interval is derived from the EXISTING `sms_challenge_expires_at`
+# column (last_sent_at = expires_at - SMS_CHALLENGE_TTL) — no new column, no
+# migration. These tests age that column directly (never `time.sleep`) to prove
+# the "after the interval elapses" branch without a real wait.
+
+
+def _age_sms_challenge(ctx: SimpleNamespace, member_id: str, *, seconds_ago: float) -> None:
+    """Rewrite the member's SMS factor `sms_challenge_expires_at` as though its
+    underlying send happened `seconds_ago` seconds before now (no `time.sleep`)."""
+    import uuid
+
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)  # noqa: UP017
+    last_sent_at = now - datetime.timedelta(seconds=seconds_ago)
+    session = ctx.session_factory()
+    try:
+        row = session.execute(
+            select(MfaFactor).where(
+                MfaFactor.member_id == uuid.UUID(member_id),
+                MfaFactor.factor_type == MfaFactorType.SMS,
+            )
+        ).scalar_one()
+        row.sms_challenge_expires_at = last_sent_at + SMS_CHALLENGE_TTL
+        session.commit()
+    finally:
+        session.close()
+
+
+def test_sms_enroll_immediate_resend_is_429_and_sends_no_second_sms(
+    ctx: SimpleNamespace,
+) -> None:
+    """PROVES: a first SMS enroll succeeds, and an immediate second enroll for the
+    SAME factor is refused 429 RATE_LIMITED WITHOUT delivering a second SMS."""
+    first = ctx.client.post(
+        "/api/v1/auth/mfa/enrollments",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS", "device_fingerprint": "fp-a", "platform": "IOS"},
+    )
+    assert first.status_code == 201, first.text
+    assert len(ctx.sms.sent) == 1
+
+    second = ctx.client.post(
+        "/api/v1/auth/mfa/enrollments",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS", "device_fingerprint": "fp-a", "platform": "IOS"},
+    )
+    assert second.status_code == 429, second.text
+    assert second.json()["error"]["code"] == "RATE_LIMITED"
+    # The decisive assertion: the rate limit fired BEFORE the SMS port was called.
+    assert len(ctx.sms.sent) == 1
+
+    # The lockout counters are untouched by a rate-limit refusal.
+    row = _factor(ctx, ctx.a_id, MfaFactorType.SMS)
+    assert row.failed_attempts == 0
+    assert row.locked_at is None
+
+
+def test_sms_enroll_resend_after_interval_elapses_succeeds(ctx: SimpleNamespace) -> None:
+    """PROVES: once SMS_RESEND_INTERVAL has elapsed since the prior send, a resend
+    is allowed again (derived purely from the aged `sms_challenge_expires_at`)."""
+    first = ctx.client.post(
+        "/api/v1/auth/mfa/enrollments",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS", "device_fingerprint": "fp-a", "platform": "IOS"},
+    )
+    assert first.status_code == 201, first.text
+    assert len(ctx.sms.sent) == 1
+
+    # Simulate the interval having elapsed by ageing the stored expiry backward —
+    # no sleep.
+    _age_sms_challenge(
+        ctx, ctx.a_id, seconds_ago=SMS_RESEND_INTERVAL.total_seconds() + 5
+    )
+
+    second = ctx.client.post(
+        "/api/v1/auth/mfa/enrollments",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS", "device_fingerprint": "fp-a", "platform": "IOS"},
+    )
+    assert second.status_code == 201, second.text
+    assert len(ctx.sms.sent) == 2
+
+
+def test_sms_challenge_first_send_succeeds(ctx: SimpleNamespace) -> None:
+    """PROVES: the FIRST challenge send for a factor with no prior outstanding
+    challenge (`sms_challenge_expires_at is None`) is never rate-limited."""
+    _seed_sms_factor(ctx, ctx.a_id, status=MfaFactorStatus.ACTIVE)
+
+    r = ctx.client.post(
+        "/api/v1/auth/mfa/challenges",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS"},
+    )
+    assert r.status_code == 201, r.text
+    assert len(ctx.sms.sent) == 1
+
+
+def test_sms_challenge_immediate_resend_is_429_and_sends_no_second_sms(
+    ctx: SimpleNamespace,
+) -> None:
+    """PROVES: an immediate second SMS challenge for the same factor is refused 429
+    RATE_LIMITED and delivers NO second SMS."""
+    _seed_sms_factor(ctx, ctx.a_id, status=MfaFactorStatus.ACTIVE)
+
+    first = ctx.client.post(
+        "/api/v1/auth/mfa/challenges",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS"},
+    )
+    assert first.status_code == 201, first.text
+    assert len(ctx.sms.sent) == 1
+
+    second = ctx.client.post(
+        "/api/v1/auth/mfa/challenges",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS"},
+    )
+    assert second.status_code == 429, second.text
+    assert second.json()["error"]["code"] == "RATE_LIMITED"
+    assert len(ctx.sms.sent) == 1
+
+    row = _factor(ctx, ctx.a_id, MfaFactorType.SMS)
+    assert row.failed_attempts == 0
+    assert row.locked_at is None
+
+
+def test_sms_challenge_resend_after_interval_elapses_succeeds(ctx: SimpleNamespace) -> None:
+    """PROVES: after SMS_RESEND_INTERVAL has elapsed, a fresh challenge succeeds."""
+    _seed_sms_factor(ctx, ctx.a_id, status=MfaFactorStatus.ACTIVE)
+
+    first = ctx.client.post(
+        "/api/v1/auth/mfa/challenges",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS"},
+    )
+    assert first.status_code == 201, first.text
+
+    _age_sms_challenge(
+        ctx, ctx.a_id, seconds_ago=SMS_RESEND_INTERVAL.total_seconds() + 5
+    )
+
+    second = ctx.client.post(
+        "/api/v1/auth/mfa/challenges",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS"},
+    )
+    assert second.status_code == 201, second.text
+    assert len(ctx.sms.sent) == 2
+
+
+def test_locked_sms_factor_challenge_is_423_not_429(ctx: SimpleNamespace) -> None:
+    """PROVES: a LOCKED factor still returns 423 FACTOR_LOCKED, not 429 —
+    the lockout check runs BEFORE the rate-limit check, even when a rate-limit
+    condition (a very recent `sms_challenge_expires_at`) would ALSO apply."""
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)  # noqa: UP017
+    _seed_sms_factor(
+        ctx,
+        ctx.a_id,
+        status=MfaFactorStatus.ACTIVE,
+        locked_at=now,
+        sms_challenge_expires_at=now,  # would also be inside the resend interval
+    )
+
+    r = ctx.client.post(
+        "/api/v1/auth/mfa/challenges",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "SMS"},
+    )
+    assert r.status_code == 423, r.text
+    assert r.json()["error"]["code"] == "FACTOR_LOCKED"
+    assert len(ctx.sms.sent) == 0
+
+
+def test_totp_enrollment_unaffected_by_sms_rate_limit(ctx: SimpleNamespace) -> None:
+    """PROVES: the SMS resend rate limit is SMS-only — two immediate consecutive
+    TOTP enrollments both succeed (TOTP never touches the SMS port or
+    `sms_challenge_expires_at`)."""
+    first = ctx.client.post(
+        "/api/v1/auth/mfa/enrollments",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "TOTP", "device_fingerprint": "fp-a", "platform": "IOS"},
+    )
+    assert first.status_code == 201, first.text
+
+    second = ctx.client.post(
+        "/api/v1/auth/mfa/enrollments",
+        headers=_auth(ctx.token_a),
+        json={"factor_type": "TOTP", "device_fingerprint": "fp-a", "platform": "IOS"},
+    )
+    assert second.status_code == 201, second.text
+    # No SMS was ever sent for a TOTP enrollment.
+    assert len(ctx.sms.sent) == 0

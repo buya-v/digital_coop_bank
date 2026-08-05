@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from app.adapters.sms.port import SmsDeliveryError, SmsSender
 from app.auth.mfa import (
     SMS_CHALLENGE_TTL,
+    SMS_RESEND_INTERVAL,
     SecretCipher,
     generate_sms_code,
     generate_totp_secret,
@@ -90,6 +91,23 @@ class SmsDeliveryFailed(MfaServiceError):
             502,
             "SMS_DELIVERY_FAILED",
             "Could not deliver the SMS verification code; please retry.",
+        )
+
+
+class SmsRateLimited(MfaServiceError):
+    """A resend was requested inside `SMS_RESEND_INTERVAL` of the prior send (429).
+
+    The cost/bombing control: SMS delivery is a per-message carrier cost, and
+    neither the enroll re-arm path nor the challenge path otherwise bounds how
+    often a code is sent. This does NOT touch `failed_attempts`/`locked_at` — a
+    refused resend must never look like (or clear) a brute-force lock.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            429,
+            "RATE_LIMITED",
+            "An SMS code was sent too recently; please wait before requesting another.",
         )
 
 
@@ -168,6 +186,27 @@ def _parse_factor_type(value: str) -> MfaFactorType:
         raise UnsupportedFactorType(value) from exc
 
 
+def _enforce_sms_resend_interval(
+    prior_expires_at: datetime.datetime | None, now: datetime.datetime
+) -> None:
+    """Refuse an SMS (re)send inside `SMS_RESEND_INTERVAL` of the prior one (429).
+
+    MIGRATION-FREE by design: there is no dedicated `last_sent_at` column. Every
+    send sets `sms_challenge_expires_at = last_sent_at + SMS_CHALLENGE_TTL`, so the
+    last-send instant is recovered by subtracting the (fixed) TTL back out of
+    whatever expiry the previous send left behind — no new column, no migration.
+
+    `prior_expires_at is None` (never sent before: a brand-new factor, or an
+    enrolled SMS factor with no outstanding/prior challenge) ALWAYS passes — the
+    first send for a factor is never rate-limited.
+    """
+    if prior_expires_at is None:
+        return
+    last_sent_at = prior_expires_at - SMS_CHALLENGE_TTL
+    if now - last_sent_at < SMS_RESEND_INTERVAL:
+        raise SmsRateLimited()
+
+
 def _mask_phone(phone_number: str) -> str:
     """Mask a phone number for a NON-secret confirmation string (last 4 kept)."""
     tail = phone_number[-4:] if len(phone_number) >= 4 else phone_number
@@ -242,7 +281,16 @@ class MfaEnrollmentService:
         the factor ACTIVE — the same challenge machinery `createMfaChallenge`
         re-issues later. The lockout counters are NOT reset here (matching TOTP
         re-enroll): re-issuing must never clear a brute-force lock.
+
+        RATE LIMIT: a resend within `SMS_RESEND_INTERVAL` of the prior send is
+        refused (429) BEFORE the SMS port is called — the cost/bombing control. The
+        very first send for a factor (`existing is None`, or an existing row with no
+        prior challenge) is never limited.
         """
+        now = _utc_now()
+        if existing is not None:
+            _enforce_sms_resend_interval(existing.sms_challenge_expires_at, now)
+
         code = generate_sms_code()
         try:
             self._sms.send_verification_code(
@@ -252,7 +300,7 @@ class MfaEnrollmentService:
             raise SmsDeliveryFailed() from exc
 
         challenge_hash = hash_sms_code(code)
-        expires_at = _utc_now() + SMS_CHALLENGE_TTL
+        expires_at = now + SMS_CHALLENGE_TTL
         if existing is not None:
             existing.status = MfaFactorStatus.PENDING
             existing.confirmed_at = None
@@ -288,6 +336,11 @@ class MfaChallengeService:
     - A LOCKED factor is refused (423) with the SAME lockout as step-up, so
       re-issuing a code cannot reset or bypass the brute-force lock. Issuance does
       NOT touch `failed_attempts`/`locked_at`.
+    - A resend inside `SMS_RESEND_INTERVAL` of the prior send is refused (429
+      RATE_LIMITED) BEFORE the SMS port is called — the cost/bombing control. This
+      also does NOT touch `failed_attempts`/`locked_at`; it is a distinct, much
+      shorter, non-punitive cooldown layered in front of the lockout, checked
+      strictly AFTER the lockout so a locked factor always reads 423.
     - The issued code is delivered ONLY through the SMS port and stored HASH-ONLY
       with a short expiry; it is never returned in the response. Issuing overwrites
       any prior outstanding challenge (at most one live code per factor).
@@ -311,8 +364,16 @@ class MfaChallengeService:
         now = _utc_now()
         if factor.locked_at is not None and now - factor.locked_at < LOCKOUT_DURATION:
             # Still inside the lockout window — refuse rather than hand out a fresh
-            # code (which would let an attacker keep guessing indefinitely).
+            # code (which would let an attacker keep guessing indefinitely). This
+            # check stays FIRST: a locked factor must surface 423, never 429, even
+            # when both conditions would otherwise apply.
             raise ChallengeFactorLocked()
+
+        # RATE LIMIT: refuse a resend inside SMS_RESEND_INTERVAL of the prior send
+        # (429) BEFORE the SMS port is called — the cost/bombing control. A factor
+        # with no outstanding/prior challenge (`sms_challenge_expires_at is None`)
+        # is never limited on its first send.
+        _enforce_sms_resend_interval(factor.sms_challenge_expires_at, now)
 
         code = generate_sms_code()
         try:
