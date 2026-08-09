@@ -50,7 +50,7 @@ Each subsection is a self-contained requirement statement a stakeholder can read
 
 **Requirement.** The equity backbone: in-flow purchase of the one mandatory 10,000₮ membership share (US-2.1, DEC-11) via the payment processor (card/wallet) or bank transfer, activating `PENDING_PAYMENT → ACTIVE` and switching on vote/borrow/guarantee rights; server-side enforcement of the DEC-4 status machine (US-2.2); an auditable share registry producing point-in-time voting-eligibility snapshots at ballot open (US-2.3); and voluntary closure with par redemption behind a configurable rule (US-2.4, Open Item 1).
 **Features / stories:** F-103, F-106, F-107 → US-2.1–US-2.4 (all M).
-**AC themes (03 EP-2, 16 scenarios):** amount must equal configured par (`422 AMOUNT_MISMATCH`); payment failure keeps `PENDING_PAYMENT` with retry paths; illegal status transitions rejected everywhere; suspended members blocked from vote/borrow/guarantee with `403` and no status leakage to third parties; closure preconditions (no active/delinquent loans, no locked pledges, Group Pots resolved, balances swept).
+**AC themes (03 EP-2, 17 scenarios):** amount must equal configured par (`422 AMOUNT_MISMATCH`); payment failure keeps `PENDING_PAYMENT` with retry paths; illegal status transitions rejected everywhere; suspended members blocked from vote/borrow/guarantee with `403` and no status leakage to third parties; closure preconditions (no active/delinquent loans, no locked pledges, Group Pots resolved, balances swept).
 **API surface (04 §3.2):** `/onboarding/share-purchase*`, `/members/me/membership|shares|closure-*`, admin share registry, eligibility-snapshot, and maker-checker status-transition endpoints; payment-processor webhook.
 
 ### EP-3 — Savings & Deposit Accounts (CAP-3)
