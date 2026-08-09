@@ -228,7 +228,7 @@
 **Scenario 5 — Negative (security): purchase attempt by a member not in `PENDING_PAYMENT`**
 * **Given** an authenticated Member whose `MembershipStatus` is not `PENDING_PAYMENT` (e.g. already `ACTIVE`, or `SUSPENDED`)
 * **When** they POST directly to the share-purchase endpoint (member-authenticated via `get_current_member`)
-* **Then** the API responds `403 Forbidden` (authenticated but state-ineligible)
+* **Then** the API responds `409 WRONG_MEMBERSHIP_STATE` (the member is not in `PENDING_PAYMENT`; the code matches the share-purchase op's declared response, `04 §3.2` — not `403`, which the op reserves for other authorization failures)
 * **And** no payment is initiated and no ledger entry is created
 * **And** the attempt is written to the audit log as a policy violation
 * **And** a pre-auth `PENDING_KYC` onboarding application cannot reach this status guard at all: it holds only a resume token, not a member JWT (a Member is minted only at KYC approval → `PENDING_PAYMENT`, DEC-4), so it is rejected at authentication (`401`), never at the status check.
