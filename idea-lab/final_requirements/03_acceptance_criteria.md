@@ -217,12 +217,21 @@
 * **Then** the system recognizes the idempotency key and posts nothing further
 * **And** exactly one share is recorded in the registry and the equity ledger shows exactly one 10,000₮ credit.
 
-**Scenario 4 — Negative (security): API bypass attempt before KYC approval**
-* **Given** a client authenticated to an application with `KycStatus = PENDING_REVIEW` (so `MembershipStatus = PENDING_KYC`)
-* **When** it POSTs directly to the share-purchase endpoint
+**Scenario 4 — Negative (settlement): settled amount ≠ par is rejected**
+* **Given** a `PENDING_PAYMENT` application initiated a 10,000₮ (1,000,000 minor units) membership-share purchase
+* **When** the settlement webhook reports a settled amount ≠ 10,000₮ (≠ 1,000,000 minor units)
+* **Then** the settlement is rejected with `422 AMOUNT_MISMATCH` (per the payment-processor settlement webhook contract, `04 §4.3`)
+* **And** no entry posts to the Membership Share Account
+* **And** `MembershipStatus` stays `PENDING_PAYMENT`
+* **And** the mismatch is written to the audit log for reconciliation. (Amounts are compared as integer minor units, ₮-denominated; no partial or wrong-amount share is ever posted.)
+
+**Scenario 5 — Negative (security): purchase attempt by a member not in `PENDING_PAYMENT`**
+* **Given** an authenticated Member whose `MembershipStatus` is not `PENDING_PAYMENT` (e.g. already `ACTIVE`, or `SUSPENDED`)
+* **When** they POST directly to the share-purchase endpoint (member-authenticated via `get_current_member`)
 * **Then** the API responds `403 Forbidden` (authenticated but state-ineligible)
 * **And** no payment is initiated and no ledger entry is created
-* **And** the attempt is written to the audit log as a policy violation.
+* **And** the attempt is written to the audit log as a policy violation
+* **And** a pre-auth `PENDING_KYC` onboarding application cannot reach this status guard at all: it holds only a resume token, not a member JWT (a Member is minted only at KYC approval → `PENDING_PAYMENT`, DEC-4), so it is rejected at authentication (`401`), never at the status check.
 
 ### US-2.2 — Membership Lifecycle Enforcement (Status Machine) (M)
 
@@ -242,7 +251,7 @@
 **Scenario 3 — Negative: illegal transition rejected everywhere**
 * **Given** Member A is `CLOSED`
 * **When** any API or admin action attempts `CLOSED → ACTIVE`, or an application attempts `PENDING_KYC → ACTIVE` (skipping `PENDING_PAYMENT`)
-* **Then** the domain layer rejects the transition with `409 Conflict` and an "illegal transition" error naming the from/to states
+* **Then** the domain layer rejects the transition with `422 ILLEGAL_TRANSITION` (matching the admin status-transition contract, `04 §3.2`) and an "illegal transition" error naming the from/to states
 * **And** no partial state change occurs.
 
 **Scenario 4 — Edge: reinstatement restores rights immediately**
